@@ -14,7 +14,7 @@ import com.noirelabs.kurome.network.SocketInstance
 
 class ForegroundConnectionService : Service() {
     val CHANNEL_ID = "ForegroundServiceChannel"
-
+    val socket = SocketInstance()
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
    //     val input = intent.getStringExtra("inputExtra")
         createNotificationChannel()
@@ -33,9 +33,9 @@ class ForegroundConnectionService : Service() {
         //do heavy work on a background thread
         //stopSelf();;
         Thread {
-            val socket = SocketInstance()
             val s: List<String> = socket.receiveUDPMessage("235.132.20.12",33586).split(':')
             socket.startConnection(s[1], 33587)
+            socket.sendMessage(Build.MODEL)
             while (true) {
                 val message: String = socket.receiveMessage()
                 if (message == "request:info:space") {
@@ -46,6 +46,11 @@ class ForegroundConnectionService : Service() {
             }
         }.start()
         return START_NOT_STICKY
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        socket.stopConnection()
     }
 
     override fun onCreate() {
