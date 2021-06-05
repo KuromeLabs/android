@@ -1,5 +1,6 @@
 package com.noirelabs.kurome.network
 
+import android.util.Log
 import java.io.BufferedInputStream
 import java.io.DataInputStream
 import java.io.PrintWriter
@@ -33,7 +34,7 @@ class SocketInstance {
             val bytesRead = `in`?.read(messageByte)
             dataString += bytesRead?.let { String(messageByte, 0, it) }
 
-            println("MESSAGE: $dataString")
+            Log.d("Kurome","MESSAGE: $dataString")
         } catch (e: Exception) {
             e.printStackTrace()
         }
