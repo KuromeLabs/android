@@ -2,19 +2,23 @@ package com.noirelabs.kurome.services
 
 import android.app.*
 import android.content.Intent
-import android.os.Build
-import android.os.Environment
-import android.os.IBinder
-import android.os.StatFs
+import android.os.*
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
+import com.noirelabs.kurome.models.FileData
 import com.noirelabs.kurome.R
 import com.noirelabs.kurome.activities.MainActivity
 import com.noirelabs.kurome.network.SocketInstance
+import com.noirelabs.kurome.network.UdpClient
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import java.io.File
 
 
 class ForegroundConnectionService : Service() {
     val CHANNEL_ID = "ForegroundServiceChannel"
     val socket = SocketInstance()
+    val udp = UdpClient()
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
    //     val input = intent.getStringExtra("inputExtra")
         createNotificationChannel()
@@ -32,25 +36,45 @@ class ForegroundConnectionService : Service() {
         startForeground(1, notification)
         //do heavy work on a background thread
         //stopSelf();;
-        Thread {
-            val s: List<String> = socket.receiveUDPMessage("235.132.20.12",33586).split(':')
+        val thread = Thread {
+            val s: List<String> = udp.receiveUDPMessage("235.132.20.12",33586).split(':')
             socket.startConnection(s[1], 33587)
             socket.sendMessage(Build.MODEL)
             while (true) {
                 val message: String = socket.receiveMessage()
-                if (message == "request:info:space") {
-                    val totalSpace = StatFs(Environment.getDataDirectory().path).totalBytes
-                    val availableSpace = StatFs(Environment.getDataDirectory().path).availableBytes
-                    socket.sendMessage("$totalSpace:$availableSpace")
+                val pm: PowerManager = ContextCompat.getSystemService(applicationContext, PowerManager::class.java)!!
+                val wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "kurome: tcp wakelock")
+                wl.acquire(10*60*1000L /*10 minutes*/)
+                when {
+                    message == "request:info:space" -> {
+                        val totalSpace = StatFs(Environment.getDataDirectory().path).totalBytes
+                        val availableSpace = StatFs(Environment.getDataDirectory().path).availableBytes
+                        socket.sendMessage("$totalSpace:$availableSpace")
+                    }
+                    message.contains("Exception") -> {
+                        socket.stopConnection()
+                        return@Thread
+                    }
+                    message.startsWith("request:info:directory") -> {
+                            val fileDataList: ArrayList<FileData> = ArrayList()
+                            val files = File(Environment.getExternalStorageDirectory().path).listFiles()
+                            for (file in files){
+                                fileDataList.add(FileData(file.name, file.isDirectory, file.length()))
+                            }
+                            val str = Json.encodeToString(fileDataList)
+                            socket.sendMessage(str)
+                    }
                 }
+                wl.release()
             }
-        }.start()
+        }
+        thread.start()
         return START_NOT_STICKY
     }
 
     override fun onDestroy() {
-        super.onDestroy()
         socket.stopConnection()
+        super.onDestroy()
     }
 
     override fun onCreate() {

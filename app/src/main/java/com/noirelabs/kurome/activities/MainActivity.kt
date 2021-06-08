@@ -1,29 +1,34 @@
 package com.noirelabs.kurome.activities
 
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
-import android.os.StrictMode
+import android.os.Environment
+import android.provider.Settings
 import android.widget.Button
-import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
+import com.noirelabs.kurome.BuildConfig
 import com.noirelabs.kurome.R
-import com.noirelabs.kurome.network.SocketInstance
+import com.noirelabs.kurome.fragments.MainFragment
 import com.noirelabs.kurome.services.ForegroundConnectionService
 
 
-class MainActivity : AppCompatActivity() {
-
+class MainActivity : FragmentActivity(R.layout.activity_main) {
+val fm = supportFragmentManager
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-        val serviceIntent = Intent(this, ForegroundConnectionService::class.java)
-        val startButton = findViewById<Button>(R.id.start_button)
-        val stopButton = findViewById<Button>(R.id.stop_button)
-        startButton.setOnClickListener {
-            ContextCompat.startForegroundService(this, serviceIntent)
+        if (savedInstanceState == null) {
+            supportFragmentManager.beginTransaction()
+                .setReorderingAllowed(true)
+                .add(R.id.fragment_container_view, MainFragment::class.java, null)
+                .commit()
         }
-        stopButton.setOnClickListener { stopService(serviceIntent) }
+        val uri = Uri.parse("package:${BuildConfig.APPLICATION_ID}")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
+            startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, uri))
+        }
     }
 
 

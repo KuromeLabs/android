@@ -37,6 +37,7 @@ class SocketInstance {
             Log.d("Kurome","MESSAGE: $dataString")
         } catch (e: Exception) {
             e.printStackTrace()
+            return e.toString()
         }
         return dataString
     }
@@ -47,18 +48,4 @@ class SocketInstance {
         clientSocket?.close()
     }
 
-
-    fun receiveUDPMessage(ip: String, port: Int): String {
-        val buffer = ByteArray(1024)
-        val socket = MulticastSocket(port)
-        val group = InetAddress.getByName(ip)
-        socket.joinGroup(group)
-        while (true) {
-            val packet = DatagramPacket(buffer, buffer.size)
-            socket.receive(packet)
-            val msg = String(packet.data, packet.offset, packet.length)
-            socket.close()
-            return msg
-        }
-    }
 }
