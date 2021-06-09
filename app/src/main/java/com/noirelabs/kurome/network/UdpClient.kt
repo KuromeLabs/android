@@ -11,12 +11,11 @@ class UdpClient {
         val socket = MulticastSocket(port)
         val group = InetAddress.getByName(ip)
         socket.joinGroup(group)
-        while (true) {
-            val packet = DatagramPacket(buffer, buffer.size)
-            socket.receive(packet)
-            val msg = String(packet.data, packet.offset, packet.length)
-            socket.close()
-            return msg
-        }
+        val packet = DatagramPacket(buffer, buffer.size)
+        socket.receive(packet)
+        val msg = String(packet.data, packet.offset, packet.length)
+        socket.close()
+        return msg
+
     }
 }
