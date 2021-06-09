@@ -10,15 +10,21 @@ import com.noirelabs.kurome.R
 import com.noirelabs.kurome.activities.MainActivity
 import com.noirelabs.kurome.network.SocketInstance
 import com.noirelabs.kurome.network.UdpClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 
 
 class ForegroundConnectionService : Service() {
-    val CHANNEL_ID = "ForegroundServiceChannel"
-    val socket = SocketInstance()
-    val udp = UdpClient()
+    private val CHANNEL_ID = "ForegroundServiceChannel"
+    private val socket = SocketInstance()
+    private val udp = UdpClient()
+    private val job = SupervisorJob()
+    private val scope = CoroutineScope(Dispatchers.IO + job)
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
    //     val input = intent.getStringExtra("inputExtra")
         createNotificationChannel()
@@ -36,7 +42,7 @@ class ForegroundConnectionService : Service() {
         startForeground(1, notification)
         //do heavy work on a background thread
         //stopSelf();;
-        val thread = Thread {
+        scope.launch {
             val s: List<String> = udp.receiveUDPMessage("235.132.20.12",33586).split(':')
             socket.startConnection(s[1], 33587)
             socket.sendMessage(Build.MODEL)
@@ -53,7 +59,7 @@ class ForegroundConnectionService : Service() {
                     }
                     message.contains("Exception") -> {
                         socket.stopConnection()
-                        return@Thread
+                        return@launch
                     }
                     message.startsWith("request:info:directory") -> {
                             val fileDataList: ArrayList<FileData> = ArrayList()
@@ -68,13 +74,13 @@ class ForegroundConnectionService : Service() {
                 wl.release()
             }
         }
-        thread.start()
         return START_NOT_STICKY
     }
 
     override fun onDestroy() {
-        socket.stopConnection()
         super.onDestroy()
+        socket.stopConnection()
+        job.cancel()
     }
 
     override fun onCreate() {
