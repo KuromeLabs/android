@@ -1,9 +1,7 @@
 package com.noirelabs.kurome.network
 
 import android.util.Log
-import java.io.BufferedInputStream
-import java.io.DataInputStream
-import java.io.PrintWriter
+import java.io.*
 import java.net.DatagramPacket
 import java.net.InetAddress
 import java.net.MulticastSocket
@@ -12,17 +10,17 @@ import java.net.Socket
 
 class SocketInstance {
     private var clientSocket: Socket? = null
-    private var out: PrintWriter? = null
+    private var out: OutputStream? = null
     private var `in`: DataInputStream? = null
 
     fun startConnection(ip: String?, port: Int) {
         clientSocket = Socket(ip, port)
-        out = PrintWriter(clientSocket!!.getOutputStream(), true)
+        out = clientSocket!!.getOutputStream()
         `in` = DataInputStream(clientSocket!!.getInputStream())
     }
 
-    fun sendMessage(msg: String?) {
-        out?.println(msg)
+    fun sendMessage(msg : ByteArray) {
+        out?.write(msg)
         out?.flush()
     }
 

@@ -5,9 +5,9 @@ import android.content.Intent
 import android.os.*
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import com.noirelabs.kurome.models.FileData
 import com.noirelabs.kurome.R
 import com.noirelabs.kurome.activities.MainActivity
+import com.noirelabs.kurome.models.FileData
 import com.noirelabs.kurome.network.SocketInstance
 import com.noirelabs.kurome.network.UdpClient
 import kotlinx.coroutines.CoroutineScope
@@ -16,7 +16,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.zip.GZIPOutputStream
 
 
 class ForegroundConnectionService : Service() {
@@ -26,7 +28,7 @@ class ForegroundConnectionService : Service() {
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
-   //     val input = intent.getStringExtra("inputExtra")
+        //     val input = intent.getStringExtra("inputExtra")
         createNotificationChannel()
         val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
@@ -43,36 +45,47 @@ class ForegroundConnectionService : Service() {
         //do heavy work on a background thread
         //stopSelf();;
         scope.launch {
-            val s: List<String> = udp.receiveUDPMessage("235.132.20.12",33586).split(':')
-            socket.startConnection(s[1], 33587)
-            socket.sendMessage(Build.MODEL)
+            var isActive = false
             while (true) {
-                val message: String = socket.receiveMessage()
-                val pm: PowerManager = ContextCompat.getSystemService(applicationContext, PowerManager::class.java)!!
-                val wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "kurome: tcp wakelock")
-                wl.acquire(10*60*1000L /*10 minutes*/)
-                when {
-                    message == "request:info:space" -> {
-                        val totalSpace = StatFs(Environment.getDataDirectory().path).totalBytes
-                        val availableSpace = StatFs(Environment.getDataDirectory().path).availableBytes
-                        socket.sendMessage("$totalSpace:$availableSpace")
-                    }
-                    message.contains("Exception") -> {
-                        socket.stopConnection()
-                        return@launch
-                    }
-                    message.startsWith("request:info:directory") -> {
+                val udpMessage = udp.receiveUDPMessage("235.132.20.12", 33586).split(':')
+                socket.startConnection(udpMessage[1], 33587)
+                isActive=true
+                socket.sendMessage(Build.MODEL.toByteArray())
+                while (isActive) {
+                    val message: String = socket.receiveMessage()
+                    val pm: PowerManager =
+                        ContextCompat.getSystemService(applicationContext, PowerManager::class.java)!!
+                    val wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "kurome: tcp wakelock")
+                    wl.acquire(10 * 60 * 1000L /*10 minutes*/)
+                    when {
+                        message == "request:info:space" -> {
+                            val totalSpace = StatFs(Environment.getDataDirectory().path).totalBytes
+                            val availableSpace = StatFs(Environment.getDataDirectory().path).availableBytes
+                            socket.sendMessage("$totalSpace:$availableSpace".toByteArray())
+                        }
+                        message.contains("Exception") -> {
+                            socket.stopConnection()
+                            isActive = false
+                        }
+                        message.startsWith("request:info:directory") -> {
+                            val path = message.split(':')[3]
                             val fileDataList: ArrayList<FileData> = ArrayList()
-                            val files = File(Environment.getExternalStorageDirectory().path).listFiles()
-                            for (file in files){
-                                fileDataList.add(FileData(file.name, file.isDirectory, file.length()))
-                            }
-                            val str = Json.encodeToString(fileDataList)
-                            socket.sendMessage(str)
+                            val envPath = Environment.getExternalStorageDirectory().path
+                            val files = File(envPath + path).listFiles()
+                            if (files != null)
+                                for (file in files) {
+                                    fileDataList.add(FileData(file.name, file.isDirectory, file.length()))
+                                }
+
+                            val str = Json.encodeToString(fileDataList).toByteArray()
+                            val final: ByteArray = if (str.size > 100) byteArrayToGzip(str) else str
+                            socket.sendMessage(final)
+                        }
                     }
+                    wl.release()
                 }
-                wl.release()
             }
+
         }
         return START_NOT_STICKY
     }
@@ -81,10 +94,6 @@ class ForegroundConnectionService : Service() {
         super.onDestroy()
         socket.stopConnection()
         job.cancel()
-    }
-
-    override fun onCreate() {
-        super.onCreate()
     }
 
     override fun onBind(intent: Intent?): IBinder? {
@@ -101,5 +110,15 @@ class ForegroundConnectionService : Service() {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(serviceChannel)
         }
+    }
+
+    private fun byteArrayToGzip(str: ByteArray): ByteArray {
+        val byteArrayOutputStream = ByteArrayOutputStream(str.size)
+        val gzip = GZIPOutputStream(byteArrayOutputStream)
+        gzip.write(str)
+        gzip.close()
+        val compressed = byteArrayOutputStream.toByteArray()
+        byteArrayOutputStream.close()
+        return compressed
     }
 }
