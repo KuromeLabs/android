@@ -1,11 +1,10 @@
 package com.noirelabs.kurome.network
 
-import android.util.Log
-import java.io.*
-import java.net.DatagramPacket
-import java.net.InetAddress
-import java.net.MulticastSocket
+import java.io.DataInputStream
+import java.io.OutputStream
 import java.net.Socket
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 
 class SocketInstance {
@@ -19,31 +18,30 @@ class SocketInstance {
         `in` = DataInputStream(clientSocket!!.getInputStream())
     }
 
-    fun sendMessage(msg : ByteArray) {
-        out?.write(msg)
+    fun sendMessage(msg: ByteArray) {
+        out?.write(littleEndianPrefixedByteArray(msg))
         out?.flush()
     }
 
     fun receiveMessage(): String {
-        val messageByte = ByteArray(1000)
-        var dataString = ""
-
-        try {
-            val bytesRead = `in`?.read(messageByte)
-            dataString += bytesRead?.let { String(messageByte, 0, it) }
-
-            Log.d("Kurome","MESSAGE: $dataString")
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return e.toString()
-        }
-        return dataString
+        val sizeBytes = ByteArray(4)
+        `in`?.read(sizeBytes)
+        val size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).int
+        val messageByte = ByteArray(size)
+        val bytesRead = `in`?.read(messageByte)
+        return String(messageByte, 0, bytesRead!!)
     }
 
     fun stopConnection() {
         `in`?.close()
         out?.close()
         clientSocket?.close()
+    }
+
+    fun littleEndianPrefixedByteArray(array: ByteArray): ByteArray {
+        val size = Integer.reverseBytes(array.size)
+        val sizeBytes = ByteBuffer.allocate(4).putInt(size).array()
+        return sizeBytes + array
     }
 
 }

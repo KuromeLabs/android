@@ -18,6 +18,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.net.SocketException
 import java.util.zip.GZIPOutputStream
 
 
@@ -27,6 +28,7 @@ class ForegroundConnectionService : Service() {
     private val udp = UdpClient()
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
+    private val binder: IBinder = LocalBinder()
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
         //     val input = intent.getStringExtra("inputExtra")
         createNotificationChannel()
@@ -42,50 +44,25 @@ class ForegroundConnectionService : Service() {
             .setContentIntent(pendingIntent)
             .build()
         startForeground(1, notification)
-        //do heavy work on a background thread
-        //stopSelf();;
+
         scope.launch {
-            var isActive = false
             while (true) {
                 val udpMessage = udp.receiveUDPMessage("235.132.20.12", 33586).split(':')
                 socket.startConnection(udpMessage[1], 33587)
-                isActive=true
                 socket.sendMessage(Build.MODEL.toByteArray())
-                while (isActive) {
-                    val message: String = socket.receiveMessage()
+                var message = receiveMessage()
+                while (message != null) {
+                    /*device wakes up briefly when receiving TCP so we acquire a partial wakelock until we reply*/
                     val pm: PowerManager =
                         ContextCompat.getSystemService(applicationContext, PowerManager::class.java)!!
                     val wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "kurome: tcp wakelock")
                     wl.acquire(10 * 60 * 1000L /*10 minutes*/)
-                    when {
-                        message == "request:info:space" -> {
-                            val totalSpace = StatFs(Environment.getDataDirectory().path).totalBytes
-                            val availableSpace = StatFs(Environment.getDataDirectory().path).availableBytes
-                            socket.sendMessage("$totalSpace:$availableSpace".toByteArray())
-                        }
-                        message.contains("Exception") -> {
-                            socket.stopConnection()
-                            isActive = false
-                        }
-                        message.startsWith("request:info:directory") -> {
-                            val path = message.split(':')[3]
-                            val fileDataList: ArrayList<FileData> = ArrayList()
-                            val envPath = Environment.getExternalStorageDirectory().path
-                            val files = File(envPath + path).listFiles()
-                            if (files != null)
-                                for (file in files) {
-                                    fileDataList.add(FileData(file.name, file.isDirectory, file.length()))
-                                }
-
-                            val str = Json.encodeToString(fileDataList).toByteArray()
-                            val final: ByteArray = if (str.size > 100) byteArrayToGzip(str) else str
-                            socket.sendMessage(final)
-                        }
-                    }
+                    val response = parseMessage(message)
+                    respondToRequest(response)
                     wl.release()
+                    message = receiveMessage()
                 }
             }
-
         }
         return START_NOT_STICKY
     }
@@ -96,8 +73,8 @@ class ForegroundConnectionService : Service() {
         job.cancel()
     }
 
-    override fun onBind(intent: Intent?): IBinder? {
-        return null
+    override fun onBind(intent: Intent?): IBinder {
+        return binder
     }
 
     private fun createNotificationChannel() {
@@ -112,7 +89,7 @@ class ForegroundConnectionService : Service() {
         }
     }
 
-    private fun byteArrayToGzip(str: ByteArray): ByteArray {
+    fun byteArrayToGzip(str: ByteArray): ByteArray {
         val byteArrayOutputStream = ByteArrayOutputStream(str.size)
         val gzip = GZIPOutputStream(byteArrayOutputStream)
         gzip.write(str)
@@ -120,5 +97,51 @@ class ForegroundConnectionService : Service() {
         val compressed = byteArrayOutputStream.toByteArray()
         byteArrayOutputStream.close()
         return compressed
+    }
+
+    fun receiveMessage(): String? {
+        return try {
+            socket.receiveMessage()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            socket.stopConnection()
+            null
+        }
+    }
+
+    fun parseMessage(message: String): ByteArray {
+        var result = ByteArray(0)
+        when {
+            message == "request:info:space" -> {
+                val totalSpace = StatFs(Environment.getDataDirectory().path).totalBytes
+                val availableSpace = StatFs(Environment.getDataDirectory().path).availableBytes
+                result = "$totalSpace:$availableSpace".toByteArray()
+            }
+            message.startsWith("request:info:directory") -> {
+                val path = message.split(':')[3]
+                result = Json.encodeToString(getFilesInPathAsFileData(path)).toByteArray()
+            }
+        }
+        return result
+    }
+
+    fun respondToRequest(response: ByteArray) {
+        val final: ByteArray = if (response.size > 100) byteArrayToGzip(response) else response
+        socket.sendMessage(final)
+    }
+
+    fun getFilesInPathAsFileData(path: String): ArrayList<FileData> {
+        val fileDataList: ArrayList<FileData> = ArrayList()
+        val envPath = Environment.getExternalStorageDirectory().path
+        val files = File(envPath + path).listFiles()
+        if (files != null)
+            for (file in files) {
+                fileDataList.add(FileData(file.name, file.isDirectory, file.length()))
+            }
+        return fileDataList
+    }
+
+    inner class LocalBinder : Binder() {
+        fun getService(): ForegroundConnectionService = this@ForegroundConnectionService
     }
 }
