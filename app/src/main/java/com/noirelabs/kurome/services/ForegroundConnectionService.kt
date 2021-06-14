@@ -3,6 +3,7 @@ package com.noirelabs.kurome.services
 import android.app.*
 import android.content.Intent
 import android.os.*
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.noirelabs.kurome.R
@@ -10,10 +11,7 @@ import com.noirelabs.kurome.activities.MainActivity
 import com.noirelabs.kurome.models.FileData
 import com.noirelabs.kurome.network.SocketInstance
 import com.noirelabs.kurome.network.UdpClient
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.ByteArrayOutputStream
@@ -25,7 +23,7 @@ import java.util.zip.GZIPOutputStream
 class ForegroundConnectionService : Service() {
     private val CHANNEL_ID = "ForegroundServiceChannel"
     private val socket = SocketInstance()
-    private val udp = UdpClient()
+    private val udp = UdpClient(33586)
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
     private val binder: IBinder = LocalBinder()
@@ -46,21 +44,26 @@ class ForegroundConnectionService : Service() {
         startForeground(1, notification)
 
         scope.launch {
-            while (true) {
-                val udpMessage = udp.receiveUDPMessage("235.132.20.12", 33586).split(':')
-                socket.startConnection(udpMessage[1], 33587)
-                socket.sendMessage(Build.MODEL.toByteArray())
-                var message = receiveMessage()
-                while (message != null) {
-                    /*device wakes up briefly when receiving TCP so we acquire a partial wakelock until we reply*/
-                    val pm: PowerManager =
-                        ContextCompat.getSystemService(applicationContext, PowerManager::class.java)!!
-                    val wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "kurome: tcp wakelock")
-                    wl.acquire(10 * 60 * 1000L /*10 minutes*/)
-                    val response = parseMessage(message)
-                    respondToRequest(response)
-                    wl.release()
-                    message = receiveMessage()
+            while (isActive) {
+                try {
+                    val udpMessage = udp.receiveUDPMessage("235.132.20.12").split(':')
+                    socket.startConnection(udpMessage[1], 33587)
+                    socket.sendMessage(Build.MODEL.toByteArray())
+                    var message = receiveMessage()
+
+                    while (isActive && message != null) {
+                        /*device wakes up briefly when receiving TCP so we acquire a partial wakelock until we reply*/
+                        val pm: PowerManager =
+                            ContextCompat.getSystemService(applicationContext, PowerManager::class.java)!!
+                        val wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "kurome: tcp wakelock")
+                        wl.acquire(10 * 60 * 1000L /*10 minutes*/)
+                        val response = parseMessage(message)
+                        respondToRequest(response)
+                        wl.release()
+                        message = receiveMessage()
+                    }
+                } catch (e: Exception){
+                    Log.d("Kurome", e.toString())
                 }
             }
         }
@@ -70,7 +73,9 @@ class ForegroundConnectionService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         socket.stopConnection()
+        udp.close()
         job.cancel()
+        scope.cancel()
     }
 
     override fun onBind(intent: Intent?): IBinder {
@@ -90,6 +95,7 @@ class ForegroundConnectionService : Service() {
     }
 
     fun byteArrayToGzip(str: ByteArray): ByteArray {
+        Log.d("kurome", String(str))
         val byteArrayOutputStream = ByteArrayOutputStream(str.size)
         val gzip = GZIPOutputStream(byteArrayOutputStream)
         gzip.write(str)
@@ -110,23 +116,23 @@ class ForegroundConnectionService : Service() {
     }
 
     fun parseMessage(message: String): ByteArray {
-        var result = ByteArray(0)
+        var result = String()
         when {
             message == "request:info:space" -> {
                 val totalSpace = StatFs(Environment.getDataDirectory().path).totalBytes
                 val availableSpace = StatFs(Environment.getDataDirectory().path).availableBytes
-                result = "$totalSpace:$availableSpace".toByteArray()
+                result = "$totalSpace:$availableSpace"
             }
             message.startsWith("request:info:directory") -> {
                 val path = message.split(':')[3]
-                result = Json.encodeToString(getFilesInPathAsFileData(path)).toByteArray()
+                result = Json.encodeToString(getFilesInPathAsFileData(path))
             }
         }
-        return result
+        return result.toByteArray()
     }
 
     fun respondToRequest(response: ByteArray) {
-        val final: ByteArray = if (response.size > 100) byteArrayToGzip(response) else response
+        val final = if (response.size > 100) byteArrayToGzip(response) else response
         socket.sendMessage(final)
     }
 

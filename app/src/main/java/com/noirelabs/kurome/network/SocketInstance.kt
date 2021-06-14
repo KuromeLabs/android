@@ -24,12 +24,14 @@ class SocketInstance {
     }
 
     fun receiveMessage(): String {
+        var string = String()
         val sizeBytes = ByteArray(4)
         `in`?.read(sizeBytes)
         val size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).int
         val messageByte = ByteArray(size)
         val bytesRead = `in`?.read(messageByte)
-        return String(messageByte, 0, bytesRead!!)
+        string += bytesRead?.let { String(messageByte, 0, it) }
+        return string
     }
 
     fun stopConnection() {
