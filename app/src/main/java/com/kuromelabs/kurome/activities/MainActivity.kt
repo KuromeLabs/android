@@ -8,7 +8,7 @@ import android.os.Environment
 import android.provider.Settings
 import androidx.fragment.app.FragmentActivity
 import com.kuromelabs.kurome.BuildConfig
-import com.noirelabs.kurome.R
+import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.fragments.MainFragment
 
 

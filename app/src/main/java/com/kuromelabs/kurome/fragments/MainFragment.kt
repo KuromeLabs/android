@@ -11,7 +11,7 @@ import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.kuromelabs.kurome.KuromeApplication
-import com.noirelabs.kurome.R
+import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.adapters.DeviceAdapter
 import com.kuromelabs.kurome.models.Device
 import com.kuromelabs.kurome.models.DeviceViewModel

@@ -6,7 +6,7 @@ import android.os.*
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import com.noirelabs.kurome.R
+import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.activities.MainActivity
 import com.kuromelabs.kurome.models.FileData
 import com.kuromelabs.kurome.network.SocketInstance
