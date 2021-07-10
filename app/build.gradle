@@ -11,7 +11,7 @@ android {
     useLibrary("android.test.base")
     useLibrary("android.test.mock")
     defaultConfig {
-        applicationId "com.noirelabs.kurome"
+        applicationId "com.kuromelabs.kurome"
         minSdkVersion 21
         targetSdkVersion 30
         versionCode 1
