@@ -16,6 +16,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.nio.file.Files
 import java.util.zip.GZIPOutputStream
 
 
@@ -125,6 +126,25 @@ class ForegroundConnectionService : Service() {
             message.startsWith("request:info:directory") -> {
                 val path = message.split(':')[3]
                 result = Json.encodeToString(getFilesInPathAsFileData(path))
+            }
+            message.startsWith("action:write:dir") -> {
+                val path = message.split(':')[3]
+                val dirPath = Environment.getExternalStorageDirectory().path + path
+                val file = File(dirPath)
+                if (file.mkdir()) result = "success"
+
+            }
+            message.startsWith("request:info:filetype") ->{
+                val path = message.split(':')[3]
+                val file = File(Environment.getExternalStorageDirectory().path + path)
+                result = if (file.exists())
+                    if (file.isDirectory)
+                        "directory"
+                    else
+                        "file"
+                else
+                    "doesnotexist"
+
             }
         }
         return result.toByteArray()
