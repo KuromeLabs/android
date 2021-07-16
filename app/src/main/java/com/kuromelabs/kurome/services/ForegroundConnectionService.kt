@@ -16,9 +16,12 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.nio.file.Files
 import java.util.zip.GZIPOutputStream
 
+const val ACTION_GET_ENUMERATE_DIRECTORY: Byte = 1
+const val ACTION_GET_SPACE_INFO: Byte = 2
+const val ACTION_GET_FILE_TYPE: Byte = 3
+const val ACTION_WRITE_DIRECTORY: Byte = 4
 
 class ForegroundConnectionService : Service() {
     private val CHANNEL_ID = "ForegroundServiceChannel"
@@ -27,6 +30,8 @@ class ForegroundConnectionService : Service() {
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
     private val binder: IBinder = LocalBinder()
+
+
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
         //     val input = intent.getStringExtra("inputExtra")
         createNotificationChannel()
@@ -62,7 +67,7 @@ class ForegroundConnectionService : Service() {
                         wl.release()
                         message = receiveMessage()
                     }
-                } catch (e: Exception){
+                } catch (e: Exception) {
                     Log.d("Kurome", e.toString())
                 }
             }
@@ -105,7 +110,7 @@ class ForegroundConnectionService : Service() {
         return compressed
     }
 
-    fun receiveMessage(): String? {
+    fun receiveMessage(): ByteArray? {
         return try {
             socket.receiveMessage()
         } catch (e: Exception) {
@@ -115,27 +120,26 @@ class ForegroundConnectionService : Service() {
         }
     }
 
-    fun parseMessage(message: String): ByteArray {
+    fun parseMessage(message: ByteArray): ByteArray {
         var result = String()
-        when {
-            message == "request:info:space" -> {
+        when (message[0]) {
+            ACTION_GET_SPACE_INFO -> {
                 val totalSpace = StatFs(Environment.getDataDirectory().path).totalBytes
                 val availableSpace = StatFs(Environment.getDataDirectory().path).availableBytes
                 result = "$totalSpace:$availableSpace"
             }
-            message.startsWith("request:info:directory") -> {
-                val path = message.split(':')[3]
+            ACTION_GET_ENUMERATE_DIRECTORY -> {
+                val path = String(message, 1, message.size-1)
                 result = Json.encodeToString(getFilesInPathAsFileData(path))
             }
-            message.startsWith("action:write:dir") -> {
-                val path = message.split(':')[3]
+            ACTION_WRITE_DIRECTORY -> {
+                val path = String(message, 1, message.size-1)
                 val dirPath = Environment.getExternalStorageDirectory().path + path
                 val file = File(dirPath)
                 if (file.mkdir()) result = "success"
-
             }
-            message.startsWith("request:info:filetype") ->{
-                val path = message.split(':')[3]
+            ACTION_GET_FILE_TYPE -> {
+                val path = String(message, 1, message.size-1)
                 val file = File(Environment.getExternalStorageDirectory().path + path)
                 result = if (file.exists())
                     if (file.isDirectory)
@@ -144,7 +148,6 @@ class ForegroundConnectionService : Service() {
                         "file"
                 else
                     "doesnotexist"
-
             }
         }
         return result.toByteArray()

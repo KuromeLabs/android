@@ -23,15 +23,20 @@ class SocketInstance {
         out?.flush()
     }
 
-    fun receiveMessage(): String {
-        var string = String()
+    fun receiveMessage(): ByteArray {
         val sizeBytes = ByteArray(4)
         `in`?.read(sizeBytes)
         val size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).int
-        val messageByte = ByteArray(size)
-        val bytesRead = `in`?.read(messageByte)
-        string += bytesRead?.let { String(messageByte, 0, it) }
-        return string
+        var messageByte = ByteArray(0)
+        while (messageByte.size != size){
+            val buffer = ByteArray(size)
+            `in`?.read(buffer)
+            messageByte += buffer
+        }
+        return messageByte
+//        val bytesRead = `in`?.read(messageByte)
+//        string += bytesRead?.let { String(messageByte, 0, it) }
+//        return string
     }
 
     fun stopConnection() {
