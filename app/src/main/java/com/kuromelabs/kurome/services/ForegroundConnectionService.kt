@@ -18,10 +18,14 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.zip.GZIPOutputStream
 
+const val RESULT_ACTION_SUCCESS: Byte = 0
 const val ACTION_GET_ENUMERATE_DIRECTORY: Byte = 1
 const val ACTION_GET_SPACE_INFO: Byte = 2
 const val ACTION_GET_FILE_TYPE: Byte = 3
 const val ACTION_WRITE_DIRECTORY: Byte = 4
+const val RESULT_FILE_IS_DIRECTORY: Byte = 5
+const val RESULT_FILE_IS_FILE: Byte = 6
+const val RESULT_FILE_NOT_FOUND: Byte = 7
 
 class ForegroundConnectionService : Service() {
     private val CHANNEL_ID = "ForegroundServiceChannel"
@@ -136,18 +140,18 @@ class ForegroundConnectionService : Service() {
                 val path = String(message, 1, message.size-1)
                 val dirPath = Environment.getExternalStorageDirectory().path + path
                 val file = File(dirPath)
-                if (file.mkdir()) result = "success"
+                if (file.mkdir()) return byteArrayOf(RESULT_ACTION_SUCCESS)
             }
             ACTION_GET_FILE_TYPE -> {
                 val path = String(message, 1, message.size-1)
                 val file = File(Environment.getExternalStorageDirectory().path + path)
-                result = if (file.exists())
+                return if (file.exists())
                     if (file.isDirectory)
-                        "directory"
+                        byteArrayOf(RESULT_FILE_IS_DIRECTORY)
                     else
-                        "file"
+                        byteArrayOf(RESULT_FILE_IS_FILE)
                 else
-                    "doesnotexist"
+                    byteArrayOf(RESULT_FILE_NOT_FOUND)
             }
         }
         return result.toByteArray()
