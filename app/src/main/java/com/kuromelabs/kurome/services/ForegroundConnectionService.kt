@@ -26,6 +26,8 @@ const val ACTION_WRITE_DIRECTORY: Byte = 4
 const val RESULT_FILE_IS_DIRECTORY: Byte = 5
 const val RESULT_FILE_IS_FILE: Byte = 6
 const val RESULT_FILE_NOT_FOUND: Byte = 7
+const val ACTION_DELETE: Byte = 8
+const val RESULT_ACTION_FAIL: Byte = 9
 
 class ForegroundConnectionService : Service() {
     private val CHANNEL_ID = "ForegroundServiceChannel"
@@ -133,17 +135,17 @@ class ForegroundConnectionService : Service() {
                 result = "$totalSpace:$availableSpace"
             }
             ACTION_GET_ENUMERATE_DIRECTORY -> {
-                val path = String(message, 1, message.size-1)
+                val path = String(message, 1, message.size - 1)
                 result = Json.encodeToString(getFilesInPathAsFileData(path))
             }
             ACTION_WRITE_DIRECTORY -> {
-                val path = String(message, 1, message.size-1)
+                val path = String(message, 1, message.size - 1)
                 val dirPath = Environment.getExternalStorageDirectory().path + path
                 val file = File(dirPath)
-                if (file.mkdir()) return byteArrayOf(RESULT_ACTION_SUCCESS)
+                return if (file.mkdir()) byteArrayOf(RESULT_ACTION_SUCCESS) else byteArrayOf(RESULT_ACTION_FAIL)
             }
             ACTION_GET_FILE_TYPE -> {
-                val path = String(message, 1, message.size-1)
+                val path = String(message, 1, message.size - 1)
                 val file = File(Environment.getExternalStorageDirectory().path + path)
                 return if (file.exists())
                     if (file.isDirectory)
@@ -152,6 +154,12 @@ class ForegroundConnectionService : Service() {
                         byteArrayOf(RESULT_FILE_IS_FILE)
                 else
                     byteArrayOf(RESULT_FILE_NOT_FOUND)
+            }
+            ACTION_DELETE -> {
+                val path = String(message, 1, message.size - 1)
+                val file = File(Environment.getExternalStorageDirectory().path + path)
+                return if (file.deleteRecursively()) byteArrayOf(RESULT_ACTION_SUCCESS)
+                else byteArrayOf(RESULT_ACTION_FAIL)
             }
         }
         return result.toByteArray()
