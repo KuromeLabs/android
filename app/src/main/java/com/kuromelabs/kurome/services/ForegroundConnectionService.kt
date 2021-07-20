@@ -29,6 +29,7 @@ const val RESULT_FILE_NOT_FOUND: Byte = 7
 const val ACTION_DELETE: Byte = 8
 const val RESULT_ACTION_FAIL: Byte = 9
 const val ACTION_SEND_TO_SERVER: Byte = 10
+const val ACTION_GET_FILE_INFO: Byte = 11
 
 class ForegroundConnectionService : Service() {
     private val CHANNEL_ID = "ForegroundServiceChannel"
@@ -173,6 +174,12 @@ class ForegroundConnectionService : Service() {
                 fileSocket.startConnection(ip, 33588)
                 fileSocket.sendFile(Environment.getExternalStorageDirectory().path + path)
                 fileSocket.stopConnection()
+            }
+            ACTION_GET_FILE_INFO -> {
+                val path = String(message, 1, message.size - 1)
+                val file = File(Environment.getExternalStorageDirectory().path + path)
+                result = Json.encodeToString(FileData(file.name, file.isDirectory, file.length()))
+                respondToRequest(result.toByteArray())
             }
         }
     }
