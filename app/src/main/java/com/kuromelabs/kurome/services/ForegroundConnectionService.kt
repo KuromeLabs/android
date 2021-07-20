@@ -28,6 +28,7 @@ const val RESULT_FILE_IS_FILE: Byte = 6
 const val RESULT_FILE_NOT_FOUND: Byte = 7
 const val ACTION_DELETE: Byte = 8
 const val RESULT_ACTION_FAIL: Byte = 9
+const val ACTION_SEND_TO_SERVER: Byte = 10
 
 class ForegroundConnectionService : Service() {
     private val CHANNEL_ID = "ForegroundServiceChannel"
@@ -36,6 +37,7 @@ class ForegroundConnectionService : Service() {
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
     private val binder: IBinder = LocalBinder()
+    private var ip = String()
 
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
@@ -58,7 +60,8 @@ class ForegroundConnectionService : Service() {
             while (isActive) {
                 try {
                     val udpMessage = udp.receiveUDPMessage("235.132.20.12").split(':')
-                    socket.startConnection(udpMessage[1], 33587)
+                    ip = udpMessage[1]
+                    socket.startConnection(ip, 33587)
                     socket.sendMessage(Build.MODEL.toByteArray())
                     var message = receiveMessage()
 
@@ -68,8 +71,7 @@ class ForegroundConnectionService : Service() {
                             ContextCompat.getSystemService(applicationContext, PowerManager::class.java)!!
                         val wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "com.kuromelabs.kurome: tcp wakelock")
                         wl.acquire(10 * 60 * 1000L /*10 minutes*/)
-                        val response = parseMessage(message)
-                        respondToRequest(response)
+                        parseMessage(message)
                         wl.release()
                         message = receiveMessage()
                     }
@@ -126,43 +128,53 @@ class ForegroundConnectionService : Service() {
         }
     }
 
-    fun parseMessage(message: ByteArray): ByteArray {
-        var result = String()
+    fun parseMessage(message: ByteArray) {
+        val result: String
         when (message[0]) {
             ACTION_GET_SPACE_INFO -> {
                 val totalSpace = StatFs(Environment.getDataDirectory().path).totalBytes
                 val availableSpace = StatFs(Environment.getDataDirectory().path).availableBytes
                 result = "$totalSpace:$availableSpace"
+                respondToRequest(result.toByteArray())
             }
             ACTION_GET_ENUMERATE_DIRECTORY -> {
                 val path = String(message, 1, message.size - 1)
                 result = Json.encodeToString(getFilesInPathAsFileData(path))
+                respondToRequest(result.toByteArray())
             }
             ACTION_WRITE_DIRECTORY -> {
                 val path = String(message, 1, message.size - 1)
                 val dirPath = Environment.getExternalStorageDirectory().path + path
                 val file = File(dirPath)
-                return if (file.mkdir()) byteArrayOf(RESULT_ACTION_SUCCESS) else byteArrayOf(RESULT_ACTION_FAIL)
+                respondToRequest(if (file.mkdir()) byteArrayOf(RESULT_ACTION_SUCCESS) else byteArrayOf(RESULT_ACTION_FAIL))
             }
             ACTION_GET_FILE_TYPE -> {
                 val path = String(message, 1, message.size - 1)
                 val file = File(Environment.getExternalStorageDirectory().path + path)
-                return if (file.exists())
+                respondToRequest(if (file.exists())
                     if (file.isDirectory)
                         byteArrayOf(RESULT_FILE_IS_DIRECTORY)
                     else
                         byteArrayOf(RESULT_FILE_IS_FILE)
                 else
-                    byteArrayOf(RESULT_FILE_NOT_FOUND)
+                    byteArrayOf(RESULT_FILE_NOT_FOUND))
             }
             ACTION_DELETE -> {
                 val path = String(message, 1, message.size - 1)
                 val file = File(Environment.getExternalStorageDirectory().path + path)
-                return if (file.deleteRecursively()) byteArrayOf(RESULT_ACTION_SUCCESS)
-                else byteArrayOf(RESULT_ACTION_FAIL)
+                respondToRequest(if (file.deleteRecursively()) byteArrayOf(RESULT_ACTION_SUCCESS)
+                else byteArrayOf(RESULT_ACTION_FAIL))
+            }
+            ACTION_SEND_TO_SERVER -> {
+                val path = String(message, 1, message.size - 1)
+                respondToRequest(byteArrayOf(RESULT_ACTION_SUCCESS))
+                val fileSocket = SocketInstance()
+                Log.d("kurome","sending file: " + path)
+                fileSocket.startConnection(ip, 33588)
+                fileSocket.sendFile(Environment.getExternalStorageDirectory().path + path)
+                fileSocket.stopConnection()
             }
         }
-        return result.toByteArray()
     }
 
     fun respondToRequest(response: ByteArray) {

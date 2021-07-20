@@ -1,6 +1,9 @@
 package com.kuromelabs.kurome.network
 
+import android.util.Log
 import java.io.DataInputStream
+import java.io.File
+import java.io.FileInputStream
 import java.io.OutputStream
 import java.net.Socket
 import java.nio.ByteBuffer
@@ -14,6 +17,7 @@ class SocketInstance {
 
     fun startConnection(ip: String?, port: Int) {
         clientSocket = Socket(ip, port)
+        Log.d("kurome","connected to $ip:$port")
         out = clientSocket!!.getOutputStream()
         `in` = DataInputStream(clientSocket!!.getInputStream())
     }
@@ -22,7 +26,14 @@ class SocketInstance {
         out?.write(littleEndianPrefixedByteArray(msg))
         out?.flush()
     }
-
+    fun sendFile(path: String){
+        val fis = File(path).inputStream()
+        var count: Int
+        val buffer = ByteArray(4096)
+        while (fis.read(buffer).also { count = it } > 0) {
+            out!!.write(buffer, 0, count)
+        }
+    }
     fun receiveMessage(): ByteArray {
         val sizeBytes = ByteArray(4)
         `in`?.read(sizeBytes)
@@ -34,9 +45,6 @@ class SocketInstance {
             messageByte += buffer
         }
         return messageByte
-//        val bytesRead = `in`?.read(messageByte)
-//        string += bytesRead?.let { String(messageByte, 0, it) }
-//        return string
     }
 
     fun stopConnection() {
