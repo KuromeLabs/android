@@ -1,56 +1,70 @@
 package com.kuromelabs.kurome.network
 
 import android.util.Log
+import io.ktor.network.selector.*
+import io.ktor.network.sockets.*
+import io.ktor.utils.io.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.DataInputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.OutputStream
-import java.net.Socket
+import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 
+@Suppress("BlockingMethodInNonBlockingContext")
 class SocketInstance {
-    private var clientSocket: Socket? = null
-    private var out: OutputStream? = null
-    private var `in`: DataInputStream? = null
+    private val selector: ActorSelectorManager = ActorSelectorManager(Dispatchers.IO)
+    private val socketBuilder = aSocket(selector).tcp()
+    private lateinit var clientSocket: Socket
+    private var out: ByteWriteChannel? = null
+    private var `in`: ByteReadChannel? = null
 
-    fun startConnection(ip: String?, port: Int) {
-        clientSocket = Socket(ip, port)
-        Log.d("kurome","connected to $ip:$port")
-        out = clientSocket!!.getOutputStream()
-        `in` = DataInputStream(clientSocket!!.getInputStream())
+    suspend fun startConnection(ip: String?, port: Int) {
+
+        clientSocket = socketBuilder.connect(InetSocketAddress(ip, port))
+        Log.d("kurome", "connected to $ip:$port")
+        out = clientSocket.openWriteChannel(true)
+        `in` = (clientSocket.openReadChannel())
+
     }
 
-    fun sendMessage(msg: ByteArray) {
-        out?.write(littleEndianPrefixedByteArray(msg))
-        out?.flush()
+    suspend fun sendMessage(msg: ByteArray) {
+        out?.writeFully(littleEndianPrefixedByteArray(msg))
     }
-    fun sendFile(path: String){
+
+    suspend fun sendFile(path: String) {
         val fis = File(path).inputStream()
         var count: Int
         val buffer = ByteArray(4096)
         while (fis.read(buffer).also { count = it } > 0) {
-            out!!.write(buffer, 0, count)
+            out?.writeFully(buffer, 0, count)
         }
+
     }
-    fun receiveMessage(): ByteArray {
+
+    suspend fun receiveMessage(): ByteArray {
         val sizeBytes = ByteArray(4)
-        `in`?.read(sizeBytes)
+        `in`?.readFully(sizeBytes)
         val size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).int
         var messageByte = ByteArray(0)
-        while (messageByte.size != size){
+        while (messageByte.size != size) {
             val buffer = ByteArray(size)
-            `in`?.read(buffer)
+            `in`?.readFully(buffer)
             messageByte += buffer
         }
         return messageByte
     }
 
     fun stopConnection() {
-        `in`?.close()
+        `in`?.cancel()
         out?.close()
-        clientSocket?.close()
+        clientSocket.close()
     }
 
     fun littleEndianPrefixedByteArray(array: ByteArray): ByteArray {

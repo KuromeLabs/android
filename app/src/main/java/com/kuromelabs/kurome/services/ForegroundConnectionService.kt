@@ -86,7 +86,7 @@ class ForegroundConnectionService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        socket.stopConnection()
+        runBlocking { socket.stopConnection() }
         udp.close()
         job.cancel()
         scope.cancel()
@@ -119,7 +119,7 @@ class ForegroundConnectionService : Service() {
         return compressed
     }
 
-    fun receiveMessage(): ByteArray? {
+    suspend fun receiveMessage(): ByteArray? {
         return try {
             socket.receiveMessage()
         } catch (e: Exception) {
@@ -129,7 +129,7 @@ class ForegroundConnectionService : Service() {
         }
     }
 
-    fun parseMessage(message: ByteArray) {
+    suspend fun parseMessage(message: ByteArray) {
         val result: String
         when (message[0]) {
             ACTION_GET_SPACE_INFO -> {
@@ -147,33 +147,43 @@ class ForegroundConnectionService : Service() {
                 val path = String(message, 1, message.size - 1)
                 val dirPath = Environment.getExternalStorageDirectory().path + path
                 val file = File(dirPath)
-                respondToRequest(if (file.mkdir()) byteArrayOf(RESULT_ACTION_SUCCESS) else byteArrayOf(RESULT_ACTION_FAIL))
+                respondToRequest(
+                    if (file.mkdir()) byteArrayOf(RESULT_ACTION_SUCCESS) else byteArrayOf(
+                        RESULT_ACTION_FAIL
+                    )
+                )
             }
             ACTION_GET_FILE_TYPE -> {
                 val path = String(message, 1, message.size - 1)
                 val file = File(Environment.getExternalStorageDirectory().path + path)
-                respondToRequest(if (file.exists())
-                    if (file.isDirectory)
-                        byteArrayOf(RESULT_FILE_IS_DIRECTORY)
+                respondToRequest(
+                    if (file.exists())
+                        if (file.isDirectory)
+                            byteArrayOf(RESULT_FILE_IS_DIRECTORY)
+                        else
+                            byteArrayOf(RESULT_FILE_IS_FILE)
                     else
-                        byteArrayOf(RESULT_FILE_IS_FILE)
-                else
-                    byteArrayOf(RESULT_FILE_NOT_FOUND))
+                        byteArrayOf(RESULT_FILE_NOT_FOUND)
+                )
             }
             ACTION_DELETE -> {
                 val path = String(message, 1, message.size - 1)
                 val file = File(Environment.getExternalStorageDirectory().path + path)
-                respondToRequest(if (file.deleteRecursively()) byteArrayOf(RESULT_ACTION_SUCCESS)
-                else byteArrayOf(RESULT_ACTION_FAIL))
+                respondToRequest(
+                    if (file.deleteRecursively()) byteArrayOf(RESULT_ACTION_SUCCESS)
+                    else byteArrayOf(RESULT_ACTION_FAIL)
+                )
             }
             ACTION_SEND_TO_SERVER -> {
                 val path = String(message, 1, message.size - 1)
-                respondToRequest(byteArrayOf(RESULT_ACTION_SUCCESS))
                 val fileSocket = SocketInstance()
-                Log.d("kurome","sending file: " + path)
-                fileSocket.startConnection(ip, 33588)
-                fileSocket.sendFile(Environment.getExternalStorageDirectory().path + path)
-                fileSocket.stopConnection()
+                Log.d("kurome", "sending file: " + path)
+                CoroutineScope(Dispatchers.IO).launch {
+                    fileSocket.startConnection(ip, 33588)
+                    fileSocket.sendFile(Environment.getExternalStorageDirectory().path + path)
+                    //fileSocket.stopConnection()
+                    //this.cancel()
+                }
             }
             ACTION_GET_FILE_INFO -> {
                 val path = String(message, 1, message.size - 1)
@@ -184,7 +194,7 @@ class ForegroundConnectionService : Service() {
         }
     }
 
-    fun respondToRequest(response: ByteArray) {
+    suspend fun respondToRequest(response: ByteArray) {
         val final = if (response.size > 100) byteArrayToGzip(response) else response
         socket.sendMessage(final)
     }
