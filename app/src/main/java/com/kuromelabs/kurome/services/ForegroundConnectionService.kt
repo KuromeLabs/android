@@ -181,8 +181,8 @@ class ForegroundConnectionService : Service() {
                 CoroutineScope(Dispatchers.IO).launch {
                     fileSocket.startConnection(ip, 33588)
                     fileSocket.sendFile(Environment.getExternalStorageDirectory().path + path)
-                    //fileSocket.stopConnection()
-                    //this.cancel()
+                    fileSocket.stopConnection()
+                    this.cancel()
                 }
             }
             ACTION_GET_FILE_INFO -> {
