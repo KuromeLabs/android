@@ -2,6 +2,7 @@ package com.kuromelabs.kurome.services
 
 import android.app.*
 import android.content.Intent
+import android.net.*
 import android.os.*
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -34,7 +35,6 @@ const val ACTION_GET_FILE_INFO: Byte = 11
 class ForegroundConnectionService : Service() {
     private val CHANNEL_ID = "ForegroundServiceChannel"
     private val socket = SocketInstance()
-    private val udp = UdpClient(33586)
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
     private val binder: IBinder = LocalBinder()
@@ -56,38 +56,56 @@ class ForegroundConnectionService : Service() {
             .setContentIntent(pendingIntent)
             .build()
         startForeground(1, notification)
-
-        scope.launch {
-            while (isActive) {
-                try {
-                    val udpMessage = udp.receiveUDPMessage("235.132.20.12").split(':')
-                    ip = udpMessage[1]
-                    socket.startConnection(ip, 33587)
-                    socket.sendMessage(Build.MODEL.toByteArray())
-                    var message = receiveMessage()
-
-                    while (isActive && message != null) {
-                        /*device wakes up briefly when receiving TCP so we acquire a partial wakelock until we reply*/
-                        val pm: PowerManager =
-                            ContextCompat.getSystemService(applicationContext, PowerManager::class.java)!!
-                        val wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "com.kuromelabs.kurome: tcp wakelock")
-                        wl.acquire(10 * 60 * 1000L /*10 minutes*/)
-                        parseMessage(message)
-                        wl.release()
-                        message = receiveMessage()
-                    }
-                } catch (e: Exception) {
-                    Log.d("Kurome", e.toString())
-                }
+        val cm = ContextCompat.getSystemService(applicationContext, ConnectivityManager::class.java)
+        val request = NetworkRequest.Builder()
+            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+            .build()
+        cm?.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
+            var runningJob: Job? = null
+            override fun onLost(network: Network) {
+                runningJob?.cancel()
             }
-        }
+
+            override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) {
+                if (runningJob == null || !runningJob!!.isActive)
+                    runningJob = scope.launch {
+                        delay(5000)
+                        val udp = UdpClient(33586)
+                        while (isActive) {
+                            try {
+                                val udpMessage = udp.receiveUDPMessage("235.132.20.12").split(':')
+                                ip = udpMessage[1]
+                                socket.startConnection(ip, 33587)
+                                socket.sendMessage(Build.MODEL.toByteArray())
+                                var message = receiveMessage()
+
+                                while (isActive && message != null) {
+                                    /*device wakes up briefly when receiving TCP so we acquire a partial wakelock until we reply*/
+                                    val pm: PowerManager =
+                                        ContextCompat.getSystemService(applicationContext, PowerManager::class.java)!!
+                                    val wl = pm.newWakeLock(
+                                        PowerManager.PARTIAL_WAKE_LOCK,
+                                        "com.kuromelabs.kurome: tcp wakelock"
+                                    )
+                                    wl.acquire(10 * 60 * 1000L /*10 minutes*/)
+                                    parseMessage(message)
+                                    wl.release()
+                                    message = receiveMessage()
+                                }
+                            } catch (e: Exception) {
+                                Log.d("Kurome", e.toString())
+                            }
+                        }
+                        Log.e("kurome", "job finished")
+                    }
+            }
+        })
         return START_NOT_STICKY
     }
 
     override fun onDestroy() {
         super.onDestroy()
         runBlocking { socket.stopConnection() }
-        udp.close()
         job.cancel()
         scope.cancel()
     }
