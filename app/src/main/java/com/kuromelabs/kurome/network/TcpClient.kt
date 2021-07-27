@@ -37,7 +37,7 @@ class TcpClient {
     suspend fun sendMessage(msg: ByteArray) {
         out?.writeFully(littleEndianPrefixedByteArray(msg))
     }
-
+    @Synchronized
     suspend fun sendFile(path: String) {
         val fis = File(path).inputStream()
         var count: Int
