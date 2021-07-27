@@ -10,7 +10,7 @@ import androidx.core.content.ContextCompat
 import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.activities.MainActivity
 import com.kuromelabs.kurome.models.FileData
-import com.kuromelabs.kurome.network.SocketInstance
+import com.kuromelabs.kurome.network.TcpClient
 import com.kuromelabs.kurome.network.UdpClient
 import kotlinx.coroutines.*
 import kotlinx.serialization.encodeToString
@@ -34,7 +34,7 @@ const val ACTION_GET_FILE_INFO: Byte = 11
 
 class ForegroundConnectionService : Service() {
     private val CHANNEL_ID = "ForegroundServiceChannel"
-    private val socket = SocketInstance()
+    private val socket = TcpClient()
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
     private val binder: IBinder = LocalBinder()
@@ -194,7 +194,7 @@ class ForegroundConnectionService : Service() {
             }
             ACTION_SEND_TO_SERVER -> {
                 val path = String(message, 1, message.size - 1)
-                val fileSocket = SocketInstance()
+                val fileSocket = TcpClient()
                 Log.d("kurome", "sending file: " + path)
                 CoroutineScope(Dispatchers.IO).launch {
                     fileSocket.startConnection(ip, 33588)

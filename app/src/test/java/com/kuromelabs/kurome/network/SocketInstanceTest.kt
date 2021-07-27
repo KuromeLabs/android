@@ -12,7 +12,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 class SocketInstanceTest {
-    var socket: SocketInstance? = null
+    var socket: TcpClient? = null
 
     var testServerSocket: Socket = Socket()
     var `is`: InputStream? = null
@@ -22,7 +22,7 @@ class SocketInstanceTest {
     fun setUp() {
         val serverSocket = ServerSocket(0)
         val port = serverSocket.localPort
-        socket = SocketInstance()
+        socket = TcpClient()
         socket!!.startConnection("127.0.0.1", port)
         testServerSocket = serverSocket.accept()
         `is` = testServerSocket.getInputStream()

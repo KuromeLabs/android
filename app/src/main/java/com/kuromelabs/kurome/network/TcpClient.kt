@@ -18,7 +18,7 @@ import java.nio.ByteOrder
 
 
 @Suppress("BlockingMethodInNonBlockingContext")
-class SocketInstance {
+class TcpClient {
     private val selector: ActorSelectorManager = ActorSelectorManager(Dispatchers.IO)
     private val socketBuilder = aSocket(selector).tcp()
     private lateinit var clientSocket: Socket
