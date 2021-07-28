@@ -11,6 +11,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Ignore
 import androidx.room.PrimaryKey
+import com.kuromelabs.kurome.Packets
 import com.kuromelabs.kurome.network.TcpClient
 import com.kuromelabs.kurome.network.UdpClient
 import kotlinx.coroutines.*
@@ -20,37 +21,29 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.zip.GZIPOutputStream
 
-const val RESULT_ACTION_SUCCESS: Byte = 0
-const val ACTION_GET_ENUMERATE_DIRECTORY: Byte = 1
-const val ACTION_GET_SPACE_INFO: Byte = 2
-const val ACTION_GET_FILE_TYPE: Byte = 3
-const val ACTION_WRITE_DIRECTORY: Byte = 4
-const val RESULT_FILE_IS_DIRECTORY: Byte = 5
-const val RESULT_FILE_IS_FILE: Byte = 6
-const val RESULT_FILE_NOT_FOUND: Byte = 7
-const val ACTION_DELETE: Byte = 8
-const val RESULT_ACTION_FAIL: Byte = 9
-const val ACTION_SEND_TO_SERVER: Byte = 10
-const val ACTION_GET_FILE_INFO: Byte = 11
 
 @Entity(tableName = "device_table")
-data class Device (
+data class Device(
     @PrimaryKey @ColumnInfo(name = "name") val name: String,
     @ColumnInfo(name = "id") val id: String,
 
-) {
-    constructor(name: String, id: String, context: Context) : this(name, id){
+    ) {
+    constructor(name: String, id: String, context: Context) : this(name, id) {
         this.context = context
     }
+
     @Ignore
     private var context: Context? = null
 
     @Ignore
     private val job = SupervisorJob()
+
     @Ignore
     private val scope = CoroutineScope(Dispatchers.IO + job)
+
     @Ignore
     private var ip = String()
+
     @Ignore
     private val socket = TcpClient()
     suspend fun activate() {
@@ -92,48 +85,49 @@ data class Device (
 
     suspend fun parseMessage(message: ByteArray) {
         val result: String
-        val path : String? = if (message.size > 1) String(message, 1, message.size - 1) else null
+        val path: String? = if (message.size > 1) String(message, 1, message.size - 1) else null
         when (message[0]) {
-            ACTION_GET_SPACE_INFO -> {
+            Packets.ACTION_GET_SPACE_INFO -> {
                 val totalSpace = StatFs(Environment.getDataDirectory().path).totalBytes
                 val availableSpace = StatFs(Environment.getDataDirectory().path).availableBytes
                 result = "$totalSpace:$availableSpace"
                 respondToRequest(result.toByteArray())
             }
 
-            ACTION_GET_ENUMERATE_DIRECTORY -> {
+            Packets.ACTION_GET_ENUMERATE_DIRECTORY -> {
                 result = Json.encodeToString(getFilesInPathAsFileData(path!!))
                 respondToRequest(result.toByteArray())
             }
-            ACTION_WRITE_DIRECTORY -> {
+            Packets.ACTION_WRITE_DIRECTORY -> {
                 val dirPath = Environment.getExternalStorageDirectory().path + path!!
                 val file = File(dirPath)
                 respondToRequest(
-                    if (file.mkdir()) byteArrayOf(RESULT_ACTION_SUCCESS) else byteArrayOf(
-                        RESULT_ACTION_FAIL
-                    )
+                    if (file.mkdir())
+                        byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
+                    else
+                        byteArrayOf(Packets.RESULT_ACTION_FAIL)
                 )
             }
-            ACTION_GET_FILE_TYPE -> {
+            Packets.ACTION_GET_FILE_TYPE -> {
                 val file = File(Environment.getExternalStorageDirectory().path + path!!)
                 respondToRequest(
                     if (file.exists())
                         if (file.isDirectory)
-                            byteArrayOf(RESULT_FILE_IS_DIRECTORY)
+                            byteArrayOf(Packets.RESULT_FILE_IS_DIRECTORY)
                         else
-                            byteArrayOf(RESULT_FILE_IS_FILE)
+                            byteArrayOf(Packets.RESULT_FILE_IS_FILE)
                     else
-                        byteArrayOf(RESULT_FILE_NOT_FOUND)
+                        byteArrayOf(Packets.RESULT_FILE_NOT_FOUND)
                 )
             }
-            ACTION_DELETE -> {
+            Packets.ACTION_DELETE -> {
                 val file = File(Environment.getExternalStorageDirectory().path + path!!)
                 respondToRequest(
-                    if (file.deleteRecursively()) byteArrayOf(RESULT_ACTION_SUCCESS)
-                    else byteArrayOf(RESULT_ACTION_FAIL)
+                    if (file.deleteRecursively()) byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
+                    else byteArrayOf(Packets.RESULT_ACTION_FAIL)
                 )
             }
-            ACTION_SEND_TO_SERVER -> {
+            Packets.ACTION_SEND_TO_SERVER -> {
                 val fileSocket = TcpClient()
                 Log.d("kurome", "sending file: " + path)
                 CoroutineScope(Dispatchers.IO).launch {
@@ -143,7 +137,7 @@ data class Device (
                     this.cancel()
                 }
             }
-            ACTION_GET_FILE_INFO -> {
+            Packets.ACTION_GET_FILE_INFO -> {
                 val file = File(Environment.getExternalStorageDirectory().path + path)
                 result = Json.encodeToString(FileData(file.name, file.isDirectory, file.length()))
                 respondToRequest(result.toByteArray())
