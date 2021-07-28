@@ -160,4 +160,9 @@ data class Device(
             }
         return fileDataList
     }
+
+    fun deactivate(){
+        socket.stopConnection()
+        job.cancelChildren()
+    }
 }

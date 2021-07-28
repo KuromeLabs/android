@@ -20,6 +20,7 @@ class ForegroundConnectionService : Service() {
     private val scope = CoroutineScope(Dispatchers.IO + job)
     private val binder: IBinder = LocalBinder()
     private var ip = String()
+    private val activeDevices = ArrayList<Device>()
 
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
@@ -45,14 +46,17 @@ class ForegroundConnectionService : Service() {
             var runningJob: Job? = null
             override fun onLost(network: Network) {
                 runningJob?.cancel()
+                activeDevices.clear()
             }
 
             override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) {
                 if (runningJob == null || !runningJob!!.isActive)
                     runningJob = scope.launch {
                         delay(5000)
-                        val device = Device("test","test", applicationContext)
-                        device.activate()
+                        Device("test","test", applicationContext).let {
+                            it.activate()
+                            activeDevices.add(it)
+                        }
                     }
             }
         })
