@@ -5,10 +5,12 @@ import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.Dispatchers
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.zip.GZIPOutputStream
 
 
 @Suppress("BlockingMethodInNonBlockingContext")
@@ -28,9 +30,10 @@ class TcpClient {
 
     }
 
-    suspend fun sendMessage(msg: ByteArray) {
-        out?.writeFully(littleEndianPrefixedByteArray(msg))
+    suspend fun sendMessage(msg: ByteArray, gzip: Boolean) {
+        out?.writeFully(littleEndianPrefixedByteArray(if (msg.size > 100 && gzip) byteArrayToGzip(msg) else msg))
     }
+
     @Synchronized
     suspend fun sendFile(path: String) {
         val fis = File(path).inputStream()
@@ -54,7 +57,7 @@ class TcpClient {
                 messageByte += buffer
             }
             return messageByte
-        } catch (e: Exception){
+        } catch (e: Exception) {
             e.printStackTrace()
             return null
         }
@@ -72,4 +75,14 @@ class TcpClient {
         return sizeBytes + array
     }
 
+    fun byteArrayToGzip(str: ByteArray): ByteArray {
+        Log.d("com.kuromelabs.kurome", String(str))
+        val byteArrayOutputStream = ByteArrayOutputStream(str.size)
+        val gzip = GZIPOutputStream(byteArrayOutputStream)
+        gzip.write(str)
+        gzip.close()
+        val compressed = byteArrayOutputStream.toByteArray()
+        byteArrayOutputStream.close()
+        return compressed
+    }
 }

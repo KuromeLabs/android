@@ -17,9 +17,7 @@ import com.kuromelabs.kurome.network.UdpClient
 import kotlinx.coroutines.*
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import java.io.ByteArrayOutputStream
 import java.io.File
-import java.util.zip.GZIPOutputStream
 
 
 @Entity(tableName = "device_table")
@@ -54,7 +52,7 @@ data class Device(
                 val udpMessage = udp.receiveUDPMessage("235.132.20.12").split(':')
                 ip = udpMessage[1]
                 socket.startConnection(ip, 33587)
-                socket.sendMessage(Build.MODEL.toByteArray())
+                socket.sendMessage(Build.MODEL.toByteArray(), true)
                 var message = socket.receiveMessage()
 
                 while (job.isActive && message != null) {
@@ -72,16 +70,6 @@ data class Device(
         }
     }
 
-    fun byteArrayToGzip(str: ByteArray): ByteArray {
-        Log.d("com.kuromelabs.kurome", String(str))
-        val byteArrayOutputStream = ByteArrayOutputStream(str.size)
-        val gzip = GZIPOutputStream(byteArrayOutputStream)
-        gzip.write(str)
-        gzip.close()
-        val compressed = byteArrayOutputStream.toByteArray()
-        byteArrayOutputStream.close()
-        return compressed
-    }
 
     suspend fun parseMessage(message: ByteArray) {
         val result: String
@@ -91,40 +79,40 @@ data class Device(
                 val totalSpace = StatFs(Environment.getDataDirectory().path).totalBytes
                 val availableSpace = StatFs(Environment.getDataDirectory().path).availableBytes
                 result = "$totalSpace:$availableSpace"
-                respondToRequest(result.toByteArray())
+                socket.sendMessage(result.toByteArray(), true)
             }
 
             Packets.ACTION_GET_ENUMERATE_DIRECTORY -> {
                 result = Json.encodeToString(getFilesInPathAsFileData(path!!))
-                respondToRequest(result.toByteArray())
+                socket.sendMessage(result.toByteArray(), true)
             }
             Packets.ACTION_WRITE_DIRECTORY -> {
                 val dirPath = Environment.getExternalStorageDirectory().path + path!!
                 val file = File(dirPath)
-                respondToRequest(
+                socket.sendMessage(
                     if (file.mkdir())
                         byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
                     else
-                        byteArrayOf(Packets.RESULT_ACTION_FAIL)
+                        byteArrayOf(Packets.RESULT_ACTION_FAIL), true
                 )
             }
             Packets.ACTION_GET_FILE_TYPE -> {
                 val file = File(Environment.getExternalStorageDirectory().path + path!!)
-                respondToRequest(
+                socket.sendMessage(
                     if (file.exists())
                         if (file.isDirectory)
                             byteArrayOf(Packets.RESULT_FILE_IS_DIRECTORY)
                         else
                             byteArrayOf(Packets.RESULT_FILE_IS_FILE)
                     else
-                        byteArrayOf(Packets.RESULT_FILE_NOT_FOUND)
+                        byteArrayOf(Packets.RESULT_FILE_NOT_FOUND), true
                 )
             }
             Packets.ACTION_DELETE -> {
                 val file = File(Environment.getExternalStorageDirectory().path + path!!)
-                respondToRequest(
+                socket.sendMessage(
                     if (file.deleteRecursively()) byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
-                    else byteArrayOf(Packets.RESULT_ACTION_FAIL)
+                    else byteArrayOf(Packets.RESULT_ACTION_FAIL), true
                 )
             }
             Packets.ACTION_SEND_TO_SERVER -> {
@@ -140,14 +128,9 @@ data class Device(
             Packets.ACTION_GET_FILE_INFO -> {
                 val file = File(Environment.getExternalStorageDirectory().path + path)
                 result = Json.encodeToString(FileData(file.name, file.isDirectory, file.length()))
-                respondToRequest(result.toByteArray())
+                socket.sendMessage(result.toByteArray(), true)
             }
         }
-    }
-
-    suspend fun respondToRequest(response: ByteArray) {
-        val final = if (response.size > 100) byteArrayToGzip(response) else response
-        socket.sendMessage(final)
     }
 
     fun getFilesInPathAsFileData(path: String): ArrayList<FileData> {
@@ -161,7 +144,7 @@ data class Device(
         return fileDataList
     }
 
-    fun deactivate(){
+    fun deactivate() {
         socket.stopConnection()
         job.cancelChildren()
     }

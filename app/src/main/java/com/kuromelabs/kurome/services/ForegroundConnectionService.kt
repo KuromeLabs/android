@@ -46,6 +46,8 @@ class ForegroundConnectionService : Service() {
             var runningJob: Job? = null
             override fun onLost(network: Network) {
                 runningJob?.cancel()
+                for (device in activeDevices)
+                    device.deactivate()
                 activeDevices.clear()
             }
 
