@@ -46,10 +46,10 @@ data class Device(
     private val socket = TcpClient()
     suspend fun activate() {
 
-        val udp = UdpClient(33586)
+
         while (job.isActive) {
             try {
-                val udpMessage = udp.receiveUDPMessage("235.132.20.12").split(':')
+                val udpMessage = UdpClient(33586).receiveUDPMessage("235.132.20.12").split(':')
                 ip = udpMessage[1]
                 socket.startConnection(ip, 33587)
                 socket.sendMessage(Build.MODEL.toByteArray(), true)
@@ -146,6 +146,6 @@ data class Device(
 
     fun deactivate() {
         socket.stopConnection()
-        job.cancelChildren()
+        job.cancel()
     }
 }
