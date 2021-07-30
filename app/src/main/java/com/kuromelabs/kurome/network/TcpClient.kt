@@ -35,14 +35,19 @@ class TcpClient {
     }
 
     @Synchronized
-    suspend fun sendFile(path: String) {
+    suspend fun sendFileBuffer(path: String, offset: Long, size: Int) {
         val fis = File(path).inputStream()
-        var count: Int
-        val buffer = ByteArray(4096)
-        while (fis.read(buffer).also { count = it } > 0) {
-            out?.writeFully(buffer, 0, count)
+        var count: Int = 0
+        var pos = offset
+        val buffer = ByteArray(size)
+        while (count != size){
+            Log.e("kurome/tcpclient","reading file buffer")
+            fis.channel.position(pos)
+            count += fis.read(buffer, count, size - count)
+            pos += count
         }
-
+        fis.close()
+        out?.writeFully(buffer, 0, size)
     }
 
     suspend fun receiveMessage(): ByteArray? {

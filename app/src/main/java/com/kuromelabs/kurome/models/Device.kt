@@ -71,10 +71,10 @@ data class Device(
     }
 
 
-    suspend fun parseMessage(message: ByteArray) {
+    suspend fun parseMessage(bytes: ByteArray) {
         val result: String
-        val path: String? = if (message.size > 1) String(message, 1, message.size - 1) else null
-        when (message[0]) {
+        val message: String? = if (bytes.size > 1) String(bytes, 1, bytes.size - 1) else null
+        when (bytes[0]) {
             Packets.ACTION_GET_SPACE_INFO -> {
                 val totalSpace = StatFs(Environment.getDataDirectory().path).totalBytes
                 val availableSpace = StatFs(Environment.getDataDirectory().path).availableBytes
@@ -83,11 +83,11 @@ data class Device(
             }
 
             Packets.ACTION_GET_ENUMERATE_DIRECTORY -> {
-                result = Json.encodeToString(getFilesInPathAsFileData(path!!))
+                result = Json.encodeToString(getFilesInPathAsFileData(message!!))
                 socket.sendMessage(result.toByteArray(), true)
             }
             Packets.ACTION_WRITE_DIRECTORY -> {
-                val dirPath = Environment.getExternalStorageDirectory().path + path!!
+                val dirPath = Environment.getExternalStorageDirectory().path + message!!
                 val file = File(dirPath)
                 socket.sendMessage(
                     if (file.mkdir())
@@ -97,7 +97,7 @@ data class Device(
                 )
             }
             Packets.ACTION_GET_FILE_TYPE -> {
-                val file = File(Environment.getExternalStorageDirectory().path + path!!)
+                val file = File(Environment.getExternalStorageDirectory().path + message!!)
                 socket.sendMessage(
                     if (file.exists())
                         if (file.isDirectory)
@@ -109,7 +109,7 @@ data class Device(
                 )
             }
             Packets.ACTION_DELETE -> {
-                val file = File(Environment.getExternalStorageDirectory().path + path!!)
+                val file = File(Environment.getExternalStorageDirectory().path + message!!)
                 socket.sendMessage(
                     if (file.deleteRecursively()) byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
                     else byteArrayOf(Packets.RESULT_ACTION_FAIL), true
@@ -117,16 +117,20 @@ data class Device(
             }
             Packets.ACTION_SEND_TO_SERVER -> {
                 val fileSocket = TcpClient()
-                Log.d("kurome", "sending file: " + path)
+                val path = message!!.split(':')[0]
+                val offset = message.split(':')[1].toLong()
+                val size = message.split(':')[2].toInt()
+
+                Log.d("kurome", "sending file: " + message)
                 CoroutineScope(Dispatchers.IO).launch {
                     fileSocket.startConnection(ip, 33588)
-                    fileSocket.sendFile(Environment.getExternalStorageDirectory().path + path)
+                    fileSocket.sendFileBuffer(Environment.getExternalStorageDirectory().path + path, offset, size)
                     fileSocket.stopConnection()
                     this.cancel()
                 }
             }
             Packets.ACTION_GET_FILE_INFO -> {
-                val file = File(Environment.getExternalStorageDirectory().path + path)
+                val file = File(Environment.getExternalStorageDirectory().path + message)
                 result = Json.encodeToString(FileData(file.name, file.isDirectory, file.length()))
                 socket.sendMessage(result.toByteArray(), true)
             }
