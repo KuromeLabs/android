@@ -13,4 +13,5 @@ object Packets {
     const val RESULT_ACTION_FAIL: Byte = 9
     const val ACTION_SEND_TO_SERVER: Byte = 10
     const val ACTION_GET_FILE_INFO: Byte = 11
+    const val ACTION_GET_DEVICE_NAME: Byte = 12
 }

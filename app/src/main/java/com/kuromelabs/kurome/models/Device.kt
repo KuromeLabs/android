@@ -52,9 +52,7 @@ data class Device(
                 val udpMessage = UdpClient(33586).receiveUDPMessage("235.132.20.12").split(':')
                 ip = udpMessage[1]
                 socket.startConnection(ip, 33587)
-                socket.sendMessage(Build.MODEL.toByteArray(), true)
                 var message = socket.receiveMessage()
-
                 while (job.isActive && message != null) {
                     /*device wakes up briefly when receiving TCP so we acquire a partial wakelock until we reply*/
                     val pm: PowerManager = ContextCompat.getSystemService(context!!, PowerManager::class.java)!!
@@ -133,6 +131,9 @@ data class Device(
                 val file = File(Environment.getExternalStorageDirectory().path + message)
                 result = Json.encodeToString(FileData(file.name, file.isDirectory, file.length()))
                 socket.sendMessage(result.toByteArray(), true)
+            }
+            Packets.ACTION_GET_DEVICE_NAME -> {
+                socket.sendMessage(Build.MODEL.toByteArray(), true)
             }
         }
     }
