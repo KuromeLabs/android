@@ -135,6 +135,9 @@ data class Device(
             Packets.ACTION_GET_DEVICE_NAME -> {
                 socket.sendMessage(Build.MODEL.toByteArray(), true)
             }
+            Packets.ACTION_GET_DEVICE_ID -> {
+                socket.sendMessage(getGuid(context!!).toByteArray(), true)
+            }
         }
     }
 
