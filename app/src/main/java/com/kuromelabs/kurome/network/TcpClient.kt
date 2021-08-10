@@ -29,29 +29,14 @@ class TcpClient {
         `in` = (clientSocket.openReadChannel())
 
     }
-
+    @Synchronized
     suspend fun sendMessage(msg: ByteArray, gzip: Boolean) {
         out?.writeFully(littleEndianPrefixedByteArray(if (msg.size > 100 && gzip) byteArrayToGzip(msg) else msg))
     }
 
     @Synchronized
-    suspend fun sendFileBuffer(path: String, offset: Long, size: Int) {
-        val fis = File(path).inputStream()
-        var count: Int = 0
-        var pos = offset
-        val buffer = ByteArray(size)
-        while (count != size){
-            Log.e("kurome/tcpclient","reading file buffer")
-            fis.channel.position(pos)
-            count += fis.read(buffer, count, size - count)
-            pos += count
-        }
-        fis.close()
-        out?.writeFully(buffer, 0, size)
-    }
-
     suspend fun receiveMessage(): ByteArray? {
-        try {
+        return try {
             val sizeBytes = ByteArray(4)
             `in`?.readFully(sizeBytes)
             val size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).int
@@ -61,10 +46,10 @@ class TcpClient {
                 `in`?.readFully(buffer)
                 messageByte += buffer
             }
-            return messageByte
+            messageByte
         } catch (e: Exception) {
             e.printStackTrace()
-            return null
+            null
         }
     }
 
