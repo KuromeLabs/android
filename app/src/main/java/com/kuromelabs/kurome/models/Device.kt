@@ -12,6 +12,7 @@ import androidx.room.Entity
 import androidx.room.Ignore
 import androidx.room.PrimaryKey
 import com.kuromelabs.kurome.Packets
+import com.kuromelabs.kurome.getGuid
 import com.kuromelabs.kurome.network.TcpClient
 import com.kuromelabs.kurome.network.UdpClient
 import kotlinx.coroutines.*
@@ -115,18 +116,21 @@ data class Device(
                 )
             }
             Packets.ACTION_SEND_TO_SERVER -> {
-                val fileSocket = TcpClient()
-                val path = message!!.split(':')[0]
+                val path = Environment.getExternalStorageDirectory().path + message!!.split(':')[0]
                 val offset = message.split(':')[1].toLong()
                 val size = message.split(':')[2].toInt()
-
-                Log.d("kurome", "sending file: " + message)
-                CoroutineScope(Dispatchers.IO).launch {
-                    fileSocket.startConnection(ip, 33588)
-                    fileSocket.sendFileBuffer(Environment.getExternalStorageDirectory().path + path, offset, size)
-                    fileSocket.stopConnection()
-                    this.cancel()
+                val fis = File(path).inputStream()
+                var count: Int = 0
+                var pos = offset
+                val buffer = ByteArray(size)
+                while (count != size){
+                    Log.e("kurome/tcpclient","reading file buffer")
+                    fis.channel.position(pos)
+                    count += fis.read(buffer, count, size - count)
+                    pos += count
                 }
+                fis.close()
+                socket.sendMessage(buffer, false)
             }
             Packets.ACTION_GET_FILE_INFO -> {
                 val file = File(Environment.getExternalStorageDirectory().path + message)
