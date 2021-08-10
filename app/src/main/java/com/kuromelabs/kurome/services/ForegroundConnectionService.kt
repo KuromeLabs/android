@@ -67,6 +67,9 @@ class ForegroundConnectionService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        for (device in activeDevices)
+            device.deactivate()
+        activeDevices.clear()
         job.cancel()
         scope.cancel()
     }
