@@ -64,6 +64,7 @@ data class Device(
                 }
             } catch (e: Exception) {
                 Log.d("Kurome", e.toString())
+                job.cancel()
             }
         }
     }
