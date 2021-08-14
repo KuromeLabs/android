@@ -11,6 +11,7 @@ import androidx.core.content.ContextCompat
 import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.activities.MainActivity
 import com.kuromelabs.kurome.models.Device
+import com.kuromelabs.kurome.network.LinkProvider
 import kotlinx.coroutines.*
 
 
@@ -19,9 +20,7 @@ class ForegroundConnectionService : Service() {
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
     private val binder: IBinder = LocalBinder()
-    private var ip = String()
     private val activeDevices = ArrayList<Device>()
-
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
         //     val input = intent.getStringExtra("inputExtra")
@@ -38,6 +37,7 @@ class ForegroundConnectionService : Service() {
             .setContentIntent(pendingIntent)
             .build()
         startForeground(1, notification)
+
         val cm = ContextCompat.getSystemService(applicationContext, ConnectivityManager::class.java)
         val request = NetworkRequest.Builder()
             .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
@@ -55,7 +55,7 @@ class ForegroundConnectionService : Service() {
                 if (runningJob == null || !runningJob!!.isActive)
                     runningJob = scope.launch {
                         delay(5000)
-                        Device("test","test", applicationContext).let {
+                        Device("test", "test", applicationContext).let {
                             it.activate()
                             activeDevices.add(it)
                         }
@@ -67,8 +67,8 @@ class ForegroundConnectionService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        for (device in activeDevices)
-            device.deactivate()
+//        for (device in activeDevices)
+//            device.deactivate()
         activeDevices.clear()
         job.cancel()
         scope.cancel()

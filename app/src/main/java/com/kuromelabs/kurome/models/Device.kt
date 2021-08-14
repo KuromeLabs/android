@@ -13,8 +13,8 @@ import androidx.room.Ignore
 import androidx.room.PrimaryKey
 import com.kuromelabs.kurome.Packets
 import com.kuromelabs.kurome.getGuid
-import com.kuromelabs.kurome.network.TcpClient
-import com.kuromelabs.kurome.network.UdpClient
+import com.kuromelabs.kurome.network.LinkProvider
+import com.kuromelabs.kurome.network.Link
 import kotlinx.coroutines.*
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -35,43 +35,58 @@ data class Device(
     private var context: Context? = null
 
     @Ignore
+    private var ip = String()
+
+    @Ignore
+    private var controlLink = Link()
+
+    @Ignore
     private val job = SupervisorJob()
 
     @Ignore
     private val scope = CoroutineScope(Dispatchers.IO + job)
 
     @Ignore
-    private var ip = String()
+    private val linkProvider = LinkProvider()
 
     @Ignore
-    private val socket = TcpClient()
+    private val activeLinks = ArrayList<Link>()
+
     suspend fun activate() {
-
-
-        while (job.isActive) {
+        scope.launch {
             try {
-                val udpMessage = UdpClient(33586).receiveUDPMessage("235.132.20.12").split(':')
-                ip = udpMessage[1]
-                socket.startConnection(ip, 33587)
-                var message = socket.receiveMessage()
-                while (job.isActive && message != null) {
-                    /*device wakes up briefly when receiving TCP so we acquire a partial wakelock until we reply*/
-                    val pm: PowerManager = ContextCompat.getSystemService(context!!, PowerManager::class.java)!!
-                    val wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "com.kuromelabs.kurome: tcp wakelock")
-                    wl.acquire(10 * 60 * 1000L /*10 minutes*/)
-                    parseMessage(message)
-                    wl.release()
-                    message = socket.receiveMessage()
-                }
+                controlLink = linkProvider.createControlLinkFromUdp("235.132.20.12", 33586)
             } catch (e: Exception) {
-                Log.d("Kurome", e.toString())
+                e.printStackTrace()
                 job.cancel()
+            }
+            while (job.isActive) {
+                val link = linkProvider.createLink(controlLink)
+                activeLinks.add(link)
+                launch {
+                    linkMonitor(link)
+                }
             }
         }
     }
 
 
-    suspend fun parseMessage(bytes: ByteArray) {
+    suspend fun linkMonitor(link: Link) {
+        var message = link.receiveMessage()
+        while (job.isActive) {
+            val pm: PowerManager = ContextCompat.getSystemService(context!!, PowerManager::class.java)!!
+            val wl =
+                pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "com.kuromelabs.kurome: tcp wakelock")
+            wl.acquire(10 * 60 * 1000L /*10 minutes*/)
+            parseMessage(message)
+            wl.release()
+            message = link.receiveMessage()
+            val result = parseMessage(message)
+            link.sendMessage(result, false)
+        }
+    }
+
+    suspend fun parseMessage(bytes: ByteArray): ByteArray {
         val result: String
         val message: String? = if (bytes.size > 1) String(bytes, 1, bytes.size - 1) else null
         when (bytes[0]) {
@@ -79,41 +94,37 @@ data class Device(
                 val totalSpace = StatFs(Environment.getDataDirectory().path).totalBytes
                 val availableSpace = StatFs(Environment.getDataDirectory().path).availableBytes
                 result = "$totalSpace:$availableSpace"
-                socket.sendMessage(result.toByteArray(), true)
+                return result.toByteArray()
             }
 
             Packets.ACTION_GET_ENUMERATE_DIRECTORY -> {
                 result = Json.encodeToString(getFilesInPathAsFileData(message!!))
-                socket.sendMessage(result.toByteArray(), true)
+                return result.toByteArray()
             }
             Packets.ACTION_WRITE_DIRECTORY -> {
                 val dirPath = Environment.getExternalStorageDirectory().path + message!!
                 val file = File(dirPath)
-                socket.sendMessage(
-                    if (file.mkdir())
-                        byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
-                    else
-                        byteArrayOf(Packets.RESULT_ACTION_FAIL), true
-                )
+                return if (file.mkdir())
+                    byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
+                else
+                    byteArrayOf(Packets.RESULT_ACTION_FAIL)
+
             }
             Packets.ACTION_GET_FILE_TYPE -> {
                 val file = File(Environment.getExternalStorageDirectory().path + message!!)
-                socket.sendMessage(
-                    if (file.exists())
-                        if (file.isDirectory)
-                            byteArrayOf(Packets.RESULT_FILE_IS_DIRECTORY)
-                        else
-                            byteArrayOf(Packets.RESULT_FILE_IS_FILE)
+                return if (file.exists())
+                    if (file.isDirectory)
+                        byteArrayOf(Packets.RESULT_FILE_IS_DIRECTORY)
                     else
-                        byteArrayOf(Packets.RESULT_FILE_NOT_FOUND), true
-                )
+                        byteArrayOf(Packets.RESULT_FILE_IS_FILE)
+                else
+                    byteArrayOf(Packets.RESULT_FILE_NOT_FOUND)
             }
             Packets.ACTION_DELETE -> {
                 val file = File(Environment.getExternalStorageDirectory().path + message!!)
-                socket.sendMessage(
-                    if (file.deleteRecursively()) byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
-                    else byteArrayOf(Packets.RESULT_ACTION_FAIL), true
-                )
+                return if (file.deleteRecursively()) byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
+                else byteArrayOf(Packets.RESULT_ACTION_FAIL)
+
             }
             Packets.ACTION_SEND_TO_SERVER -> {
                 val path = Environment.getExternalStorageDirectory().path + message!!.split(':')[0]
@@ -123,27 +134,28 @@ data class Device(
                 var count: Int = 0
                 var pos = offset
                 val buffer = ByteArray(size)
-                while (count != size){
-                    Log.e("kurome/tcpclient","reading file buffer")
+                while (count != size) {
+                    Log.e("kurome/tcpclient", "reading file buffer")
                     fis.channel.position(pos)
                     count += fis.read(buffer, count, size - count)
                     pos += count
                 }
                 fis.close()
-                socket.sendMessage(buffer, false)
+                return buffer
             }
             Packets.ACTION_GET_FILE_INFO -> {
                 val file = File(Environment.getExternalStorageDirectory().path + message)
                 result = Json.encodeToString(FileData(file.name, file.isDirectory, file.length()))
-                socket.sendMessage(result.toByteArray(), true)
+                return result.toByteArray()
             }
             Packets.ACTION_GET_DEVICE_NAME -> {
-                socket.sendMessage(Build.MODEL.toByteArray(), true)
+                return Build.MODEL.toByteArray()
             }
             Packets.ACTION_GET_DEVICE_ID -> {
-                socket.sendMessage(getGuid(context!!).toByteArray(), true)
+                return getGuid(context!!).toByteArray()
             }
         }
+        return byteArrayOf(Packets.RESULT_ACTION_FAIL)
     }
 
     fun getFilesInPathAsFileData(path: String): ArrayList<FileData> {
@@ -158,7 +170,6 @@ data class Device(
     }
 
     fun deactivate() {
-        socket.stopConnection()
-        job.cancel()
+//        link.stopConnection()
     }
 }
