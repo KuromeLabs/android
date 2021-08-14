@@ -17,40 +17,37 @@ import java.util.zip.GZIPOutputStream
 class Link {
     private val selector: ActorSelectorManager = ActorSelectorManager(Dispatchers.IO)
     private val socketBuilder = aSocket(selector).tcp()
+    var ip = String()
     private lateinit var clientSocket: Socket
     private var out: ByteWriteChannel? = null
     private var `in`: ByteReadChannel? = null
 
-    suspend fun startConnection(ip: String?, port: Int) {
-
+    suspend fun startConnection(ip: String, port: Int) {
+        this.ip = ip
         clientSocket = socketBuilder.connect(InetSocketAddress(ip, port))
         Log.d("kurome", "connected to $ip:$port")
         out = clientSocket.openWriteChannel(true)
         `in` = (clientSocket.openReadChannel())
 
     }
+
     @Synchronized
     suspend fun sendMessage(msg: ByteArray, gzip: Boolean) {
         out?.writeFully(littleEndianPrefixedByteArray(if (msg.size > 100 && gzip) byteArrayToGzip(msg) else msg))
     }
 
     @Synchronized
-    suspend fun receiveMessage(): ByteArray? {
-        return try {
-            val sizeBytes = ByteArray(4)
-            `in`?.readFully(sizeBytes)
-            val size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).int
-            var messageByte = ByteArray(0)
-            while (messageByte.size != size) {
-                val buffer = ByteArray(size)
-                `in`?.readFully(buffer)
-                messageByte += buffer
-            }
-            messageByte
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
+    suspend fun receiveMessage(): ByteArray {
+        val sizeBytes = ByteArray(4)
+        `in`?.readFully(sizeBytes)
+        val size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).int
+        var messageByte = ByteArray(0)
+        while (messageByte.size != size) {
+            val buffer = ByteArray(size)
+            `in`?.readFully(buffer)
+            messageByte += buffer
         }
+        return messageByte
     }
 
     fun stopConnection() {
