@@ -63,7 +63,7 @@ data class Device(
             while (job.isActive) {
                 val link = linkProvider.createLink(controlLink)
                 activeLinks.add(link)
-                launch {
+                CoroutineScope(Dispatchers.IO).launch {
                     linkMonitor(link)
                 }
             }
@@ -78,11 +78,10 @@ data class Device(
             val wl =
                 pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "com.kuromelabs.kurome: tcp wakelock")
             wl.acquire(10 * 60 * 1000L /*10 minutes*/)
-            parseMessage(message)
-            wl.release()
-            message = link.receiveMessage()
             val result = parseMessage(message)
             link.sendMessage(result, false)
+            wl.release()
+            message = link.receiveMessage()
         }
     }
 

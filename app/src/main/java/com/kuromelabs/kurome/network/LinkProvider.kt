@@ -17,7 +17,7 @@ class LinkProvider {
         val msg = String(packet.data, packet.offset, packet.length)
         socket.close()
         val link = Link()
-        link.startConnection(msg.split(':')[1], 33588)
+        link.startConnection(msg.split(':')[1], 33587)
         return link
     }
 
