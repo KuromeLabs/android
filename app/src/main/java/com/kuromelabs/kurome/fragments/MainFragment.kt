@@ -49,6 +49,6 @@ class MainFragment: Fragment(R.layout.fragment_main) {
             devices.let { deviceAdapter.submitList(it) }
         }
 
-        deviceViewModel.insert(Device("asdf","fdsa"))
+        deviceViewModel.insert(Device("DESKTOP-F325JH","fdsda"))
     }
 }

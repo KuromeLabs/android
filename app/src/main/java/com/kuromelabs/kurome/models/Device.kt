@@ -50,12 +50,16 @@ data class Device(
     private val linkProvider = LinkProvider()
 
     @Ignore
+    var status = 2
+
+    @Ignore
     private val activeLinks = ArrayList<Link>()
 
     suspend fun activate() {
         scope.launch {
             try {
                 controlLink = linkProvider.createControlLinkFromUdp("235.132.20.12", 33586)
+                status = 1
             } catch (e: Exception) {
                 e.printStackTrace()
                 job.cancel()
@@ -84,6 +88,7 @@ data class Device(
             message = link.receiveMessage()
         }
     }
+
 
     suspend fun parseMessage(bytes: ByteArray): ByteArray {
         val result: String

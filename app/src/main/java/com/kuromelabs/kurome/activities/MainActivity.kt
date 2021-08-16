@@ -6,13 +6,13 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
-import androidx.fragment.app.FragmentActivity
+import androidx.appcompat.app.AppCompatActivity
 import com.kuromelabs.kurome.BuildConfig
 import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.fragments.MainFragment
 
 
-class MainActivity : FragmentActivity(R.layout.activity_main) {
+class MainActivity : AppCompatActivity(R.layout.activity_main) {
 val fm = supportFragmentManager
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

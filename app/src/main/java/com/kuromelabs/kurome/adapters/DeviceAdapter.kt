@@ -14,17 +14,26 @@ class DeviceAdapter : ListAdapter<Device, DeviceAdapter.DeviceViewHolder>(Device
 
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): DeviceViewHolder {
-        val root = LayoutInflater.from(parent.context).inflate(R.layout.device_item_view,parent,false)
+        val root =
+            LayoutInflater.from(parent.context).inflate(R.layout.device_item_view, parent, false)
         return DeviceViewHolder(root)
     }
 
     override fun onBindViewHolder(holder: DeviceViewHolder, position: Int) {
         val device: Device = getItem(position)
+        val resources = holder.itemView.context.resources
         holder.deviceNameTextView.text = device.name
+        holder.deviceStatusTextView.text =
+            when (device.status) {
+                0 -> resources.getString(R.string.status_disconnected)
+                1 -> resources.getString(R.string.status_connected)
+                else -> resources.getString(R.string.status_available)
+            }
     }
 
     inner class DeviceViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val deviceNameTextView: TextView = view.findViewById(R.id.device_name)
+        val deviceStatusTextView: TextView = view.findViewById(R.id.device_status)
     }
 
     class DeviceDiffUtil : DiffUtil.ItemCallback<Device>() {
@@ -33,7 +42,7 @@ class DeviceAdapter : ListAdapter<Device, DeviceAdapter.DeviceViewHolder>(Device
         }
 
         override fun areContentsTheSame(oldItem: Device, newItem: Device): Boolean {
-            return oldItem.id == newItem.id
+            return oldItem.id == newItem.id && oldItem.status == newItem.status
         }
     }
 
