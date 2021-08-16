@@ -41,7 +41,9 @@ class MainFragment: Fragment(R.layout.fragment_main) {
         }
         stopButton.setOnClickListener { mContext!!.stopService(serviceIntent) }
         val recyclerView: RecyclerView = view.findViewById(R.id.device_list)
-        val deviceAdapter = DeviceAdapter()
+        val deviceAdapter = DeviceAdapter {
+            Log.e("kurome/mainfragment", "CLICKED! $it")
+        }
         recyclerView.adapter = deviceAdapter
         recyclerView.layoutManager = LinearLayoutManager(context)
         deviceViewModel.allDevices.observe(viewLifecycleOwner) { devices ->

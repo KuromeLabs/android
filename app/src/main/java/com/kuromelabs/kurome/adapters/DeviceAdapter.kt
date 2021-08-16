@@ -10,7 +10,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.models.Device
 
-class DeviceAdapter : ListAdapter<Device, DeviceAdapter.DeviceViewHolder>(DeviceDiffUtil()) {
+class DeviceAdapter(val onItemClicked: (Device) -> Unit) : ListAdapter<Device, DeviceAdapter.DeviceViewHolder>(DeviceDiffUtil()) {
 
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): DeviceViewHolder {
@@ -21,6 +21,7 @@ class DeviceAdapter : ListAdapter<Device, DeviceAdapter.DeviceViewHolder>(Device
 
     override fun onBindViewHolder(holder: DeviceViewHolder, position: Int) {
         val device: Device = getItem(position)
+        holder.setReference(device)
         val resources = holder.itemView.context.resources
         holder.deviceNameTextView.text = device.name
         holder.deviceStatusTextView.text =
@@ -31,9 +32,20 @@ class DeviceAdapter : ListAdapter<Device, DeviceAdapter.DeviceViewHolder>(Device
             }
     }
 
-    inner class DeviceViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+    inner class DeviceViewHolder(view: View) : RecyclerView.ViewHolder(view), View.OnClickListener {
+        init{
+            view.setOnClickListener(this)
+        }
         val deviceNameTextView: TextView = view.findViewById(R.id.device_name)
         val deviceStatusTextView: TextView = view.findViewById(R.id.device_status)
+        var device: Device? = null
+        fun setReference(device: Device){
+            this.device = device
+        }
+
+        override fun onClick(p0: View?) {
+            p0.let { onItemClicked.invoke(device!!) }
+        }
     }
 
     class DeviceDiffUtil : DiffUtil.ItemCallback<Device>() {
