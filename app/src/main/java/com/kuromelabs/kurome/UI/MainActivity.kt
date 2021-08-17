@@ -1,4 +1,4 @@
-package com.kuromelabs.kurome.activities
+package com.kuromelabs.kurome.UI
 
 import android.content.Intent
 import android.net.Uri
@@ -9,7 +9,6 @@ import android.provider.Settings
 import androidx.appcompat.app.AppCompatActivity
 import com.kuromelabs.kurome.BuildConfig
 import com.kuromelabs.kurome.R
-import com.kuromelabs.kurome.fragments.MainFragment
 
 
 class MainActivity : AppCompatActivity(R.layout.activity_main) {

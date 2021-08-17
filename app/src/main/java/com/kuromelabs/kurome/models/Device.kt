@@ -11,7 +11,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Ignore
 import androidx.room.PrimaryKey
-import com.kuromelabs.kurome.Packets
+import com.kuromelabs.kurome.network.Packets
 import com.kuromelabs.kurome.getGuid
 import com.kuromelabs.kurome.network.LinkProvider
 import com.kuromelabs.kurome.network.Link

@@ -13,15 +13,11 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.asLiveData
 import com.kuromelabs.kurome.KuromeApplication
 import com.kuromelabs.kurome.R
-import com.kuromelabs.kurome.activities.MainActivity
+import com.kuromelabs.kurome.UI.MainActivity
 import com.kuromelabs.kurome.database.DeviceRepository
 import com.kuromelabs.kurome.models.Device
 import com.kuromelabs.kurome.network.LinkProvider
 import kotlinx.coroutines.*
-import java.net.DatagramPacket
-import java.net.InetAddress
-import java.net.MulticastSocket
-import kotlin.coroutines.CoroutineContext
 
 
 class ForegroundConnectionService : Service() {

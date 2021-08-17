@@ -1,4 +1,4 @@
-package com.kuromelabs.kurome
+package com.kuromelabs.kurome.network
 
 object Packets {
     const val RESULT_ACTION_SUCCESS: Byte = 0

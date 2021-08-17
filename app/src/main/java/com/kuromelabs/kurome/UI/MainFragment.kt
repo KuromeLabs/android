@@ -1,4 +1,4 @@
-package com.kuromelabs.kurome.fragments
+package com.kuromelabs.kurome.UI
 
 import android.content.Context
 import android.content.Intent
@@ -13,7 +13,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.kuromelabs.kurome.KuromeApplication
 import com.kuromelabs.kurome.R
-import com.kuromelabs.kurome.adapters.DeviceAdapter
 import com.kuromelabs.kurome.database.DeviceRepository
 import com.kuromelabs.kurome.models.Device
 import com.kuromelabs.kurome.models.DeviceViewModel

@@ -1,7 +1,6 @@
 package com.kuromelabs.kurome.network
 
 import android.util.Log
-import com.kuromelabs.kurome.Packets
 import java.net.DatagramPacket
 import java.net.InetAddress
 import java.net.MulticastSocket

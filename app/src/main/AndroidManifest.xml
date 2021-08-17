@@ -22,7 +22,7 @@
 
         <service android:name="com.kuromelabs.kurome.services.ForegroundConnectionService"/>
 
-        <activity android:name="com.kuromelabs.kurome.activities.MainActivity"
+        <activity android:name="com.kuromelabs.kurome.UI.MainActivity"
                   android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

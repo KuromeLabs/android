@@ -1,4 +1,4 @@
-package com.kuromelabs.kurome.adapters
+package com.kuromelabs.kurome.UI
 
 import android.view.LayoutInflater
 import android.view.View
@@ -10,7 +10,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.models.Device
 
-class DeviceAdapter(val onItemClicked: (Device) -> Unit) : ListAdapter<Device, DeviceAdapter.DeviceViewHolder>(DeviceDiffUtil()) {
+class DeviceAdapter(val onItemClicked: (Device) -> Unit) : ListAdapter<Device, DeviceAdapter.DeviceViewHolder>(
+    DeviceDiffUtil()
+) {
 
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): DeviceViewHolder {
