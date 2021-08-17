@@ -3,6 +3,7 @@ package com.kuromelabs.kurome.fragments
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.Button
 import androidx.core.content.ContextCompat
@@ -13,19 +14,25 @@ import androidx.recyclerview.widget.RecyclerView
 import com.kuromelabs.kurome.KuromeApplication
 import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.adapters.DeviceAdapter
+import com.kuromelabs.kurome.database.DeviceRepository
 import com.kuromelabs.kurome.models.Device
 import com.kuromelabs.kurome.models.DeviceViewModel
 import com.kuromelabs.kurome.models.DeviceViewModelFactory
 import com.kuromelabs.kurome.services.ForegroundConnectionService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 
 class MainFragment: Fragment(R.layout.fragment_main) {
     var mContext: Context? = null
+    val pairingScope = CoroutineScope(Dispatchers.IO)
+    private lateinit var repository: DeviceRepository
     private val deviceViewModel: DeviceViewModel by viewModels {
-        DeviceViewModelFactory((activity?.application as KuromeApplication).repository)
+        DeviceViewModelFactory(repository)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        repository = (activity?.application as KuromeApplication).repository
         mContext = context
     }
 
@@ -43,14 +50,14 @@ class MainFragment: Fragment(R.layout.fragment_main) {
         val recyclerView: RecyclerView = view.findViewById(R.id.device_list)
         val deviceAdapter = DeviceAdapter {
             Log.e("kurome/mainfragment", "CLICKED! $it")
+            deviceViewModel.setPaired(it, true)
         }
         recyclerView.adapter = deviceAdapter
         recyclerView.layoutManager = LinearLayoutManager(context)
         deviceViewModel.allDevices.observe(viewLifecycleOwner) { devices ->
-            // Update the cached copy of the words in the adapter.
             devices.let { deviceAdapter.submitList(it) }
         }
-
         deviceViewModel.insert(Device("DESKTOP-F325JH","fdsda"))
+
     }
 }

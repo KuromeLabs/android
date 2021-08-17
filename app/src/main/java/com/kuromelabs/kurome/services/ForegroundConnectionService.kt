@@ -6,13 +6,22 @@ import android.net.*
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Observer
+import androidx.lifecycle.asLiveData
+import com.kuromelabs.kurome.KuromeApplication
 import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.activities.MainActivity
+import com.kuromelabs.kurome.database.DeviceRepository
 import com.kuromelabs.kurome.models.Device
 import com.kuromelabs.kurome.network.LinkProvider
 import kotlinx.coroutines.*
+import java.net.DatagramPacket
+import java.net.InetAddress
+import java.net.MulticastSocket
+import kotlin.coroutines.CoroutineContext
 
 
 class ForegroundConnectionService : Service() {
@@ -21,6 +30,7 @@ class ForegroundConnectionService : Service() {
     private val scope = CoroutineScope(Dispatchers.IO + job)
     private val binder: IBinder = LocalBinder()
     private val activeDevices = ArrayList<Device>()
+    private lateinit var repository: DeviceRepository
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
         //     val input = intent.getStringExtra("inputExtra")
@@ -37,39 +47,64 @@ class ForegroundConnectionService : Service() {
             .setContentIntent(pendingIntent)
             .build()
         startForeground(1, notification)
-
+        repository = (application as KuromeApplication).repository
         val cm = ContextCompat.getSystemService(applicationContext, ConnectivityManager::class.java)
         val request = NetworkRequest.Builder()
             .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
             .build()
+
+        val linkProvider = LinkProvider()
+        val observer = Observer<List<Device>> {
+            for (device in it) {
+                if (!device.isConnected) {
+                    scope.launch {
+                        val controlLink = linkProvider.createControlLinkFromUdp(
+                            "235.132.20.12",
+                            33586
+                        )
+                        //repository.setPaired(device, true)
+                        activeDevices.add(device)
+                        repository.setConnected(device, true)
+                        device.isPaired = true
+                        device.isConnected = true
+                        device.context = applicationContext
+                        device.activate(controlLink, linkProvider)
+                    }
+                }
+            }
+        }
         cm?.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
             var runningJob: Job? = null
             override fun onLost(network: Network) {
                 runningJob?.cancel()
-                for (device in activeDevices)
-                    device.deactivate()
-                activeDevices.clear()
+                CoroutineScope(Dispatchers.Main).launch {
+                    repository.allDevices.asLiveData().removeObserver(observer)
+                }
+                scope.launch { killDevices() }
             }
 
             override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) {
-                if (runningJob == null || !runningJob!!.isActive)
-                    runningJob = scope.launch {
-                        delay(5000)
-                        Device("test", "test", applicationContext).let {
-                            it.activate()
-                            activeDevices.add(it)
-                        }
-                    }
+                CoroutineScope(Dispatchers.Main).launch {
+                    delay(5000)
+                    repository.allDevices.asLiveData().observeForever(observer)
+                }
             }
         })
         return START_NOT_STICKY
     }
 
+    suspend fun killDevices() {
+        for (device in activeDevices) {
+            device.deactivate()
+            repository.setConnected(device, false)
+            Log.d("kurome/service", "set device disconnected in repository")
+        }
+        activeDevices.clear()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
-//        for (device in activeDevices)
-//            device.deactivate()
-        activeDevices.clear()
+        scope.launch { killDevices() }
         job.cancel()
         scope.cancel()
     }

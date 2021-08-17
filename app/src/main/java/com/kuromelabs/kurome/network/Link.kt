@@ -31,12 +31,10 @@ class Link {
 
     }
 
-    @Synchronized
     suspend fun sendMessage(msg: ByteArray, gzip: Boolean) {
         out?.writeFully(littleEndianPrefixedByteArray(if (msg.size > 100 && gzip) byteArrayToGzip(msg) else msg))
     }
 
-    @Synchronized
     suspend fun receiveMessage(): ByteArray {
         val sizeBytes = ByteArray(4)
         `in`?.readFully(sizeBytes)

@@ -25,11 +25,13 @@ class DeviceAdapter(val onItemClicked: (Device) -> Unit) : ListAdapter<Device, D
         val resources = holder.itemView.context.resources
         holder.deviceNameTextView.text = device.name
         holder.deviceStatusTextView.text =
-            when (device.status) {
-                0 -> resources.getString(R.string.status_disconnected)
-                1 -> resources.getString(R.string.status_connected)
-                else -> resources.getString(R.string.status_available)
-            }
+            if (device.isPaired)
+                if (device.isConnected)
+                    resources.getString(R.string.status_connected)
+                else
+                    resources.getString(R.string.status_disconnected)
+            else resources.getString(R.string.status_available)
+
     }
 
     inner class DeviceViewHolder(view: View) : RecyclerView.ViewHolder(view), View.OnClickListener {
@@ -54,7 +56,7 @@ class DeviceAdapter(val onItemClicked: (Device) -> Unit) : ListAdapter<Device, D
         }
 
         override fun areContentsTheSame(oldItem: Device, newItem: Device): Boolean {
-            return oldItem.id == newItem.id && oldItem.status == newItem.status
+            return oldItem.id == newItem.id && oldItem.isPaired == newItem.isPaired && oldItem.isConnected == newItem.isConnected
         }
     }
 

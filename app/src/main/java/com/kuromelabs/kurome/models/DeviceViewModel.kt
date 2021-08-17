@@ -9,6 +9,10 @@ class DeviceViewModel(private val repository: DeviceRepository) : ViewModel() {
     fun insert(device: Device) = viewModelScope.launch {
         repository.insert(device)
     }
+
+    fun setPaired(device: Device, isPaired:Boolean) = viewModelScope.launch {
+        repository.setPaired(device, isPaired)
+    }
 }
 class DeviceViewModelFactory(private val repository: DeviceRepository) : ViewModelProvider.Factory{
     override fun <T : ViewModel?> create(modelClass: Class<T>): T {

@@ -1,5 +1,6 @@
 package com.kuromelabs.kurome.network
 
+import android.util.Log
 import com.kuromelabs.kurome.Packets
 import java.net.DatagramPacket
 import java.net.InetAddress
@@ -8,6 +9,7 @@ import java.net.MulticastSocket
 @Suppress("BlockingMethodInNonBlockingContext")
 class LinkProvider {
     suspend fun createControlLinkFromUdp(ip: String, port: Int): Link {
+        Log.d("kurome/linkprovider","creating control link at $ip:$port")
         val socket = MulticastSocket(port)
         val buffer = ByteArray(1024)
         val group = InetAddress.getByName(ip)

@@ -1,9 +1,6 @@
 package com.kuromelabs.kurome.database
 
-import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
-import androidx.room.Query
+import androidx.room.*
 import com.kuromelabs.kurome.models.Device
 import kotlinx.coroutines.flow.Flow
 
@@ -11,6 +8,12 @@ import kotlinx.coroutines.flow.Flow
 interface DeviceDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(device: Device)
+
+    @Query("UPDATE device_table SET isPaired = :isPaired WHERE id = :id")
+    suspend fun setPaired(id: String, isPaired: Boolean): Int
+
+    @Query("UPDATE device_table SET isConnected = :isConnected WHERE id = :id")
+    suspend fun setConnected(id: String, isConnected: Boolean): Int
 
     @Query("SELECT * FROM device_table ORDER BY name ASC")
     fun getAllDevices(): Flow<List<Device>>

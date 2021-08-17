@@ -32,13 +32,16 @@ data class Device(
     }
 
     @Ignore
-    private var context: Context? = null
+    var context: Context? = null
 
     @Ignore
     private var ip = String()
 
     @Ignore
-    private var controlLink = Link()
+    var controlLink = Link()
+
+    @Ignore
+    var linkProvider = LinkProvider()
 
     @Ignore
     private val job = SupervisorJob()
@@ -46,51 +49,49 @@ data class Device(
     @Ignore
     private val scope = CoroutineScope(Dispatchers.IO + job)
 
-    @Ignore
-    private val linkProvider = LinkProvider()
+    var isPaired = false
 
-    @Ignore
-    var status = 2
+    var isConnected = false
 
     @Ignore
     private val activeLinks = ArrayList<Link>()
 
-    suspend fun activate() {
+    fun activate(controlLink: Link, provider: LinkProvider) {
+        this.controlLink = controlLink
+        linkProvider = provider
         scope.launch {
-            try {
-                controlLink = linkProvider.createControlLinkFromUdp("235.132.20.12", 33586)
-                status = 1
-            } catch (e: Exception) {
-                e.printStackTrace()
-                job.cancel()
-            }
             while (job.isActive) {
-                val link = linkProvider.createLink(controlLink)
-                activeLinks.add(link)
-                CoroutineScope(Dispatchers.IO).launch {
-                    linkMonitor(link)
-                }
+                val link = linkProvider.createLink(this@Device.controlLink)
+                addLink(link)
             }
         }
     }
 
-
-    suspend fun linkMonitor(link: Link) {
-        var message = link.receiveMessage()
-        while (job.isActive) {
-            val pm: PowerManager = ContextCompat.getSystemService(context!!, PowerManager::class.java)!!
-            val wl =
-                pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "com.kuromelabs.kurome: tcp wakelock")
-            wl.acquire(10 * 60 * 1000L /*10 minutes*/)
-            val result = parseMessage(message)
-            link.sendMessage(result, false)
-            wl.release()
-            message = link.receiveMessage()
+    suspend fun addLink(link: Link) {
+        activeLinks.add(link)
+        scope.launch {
+            var message = link.receiveMessage()
+            while (job.isActive) {
+                val pm: PowerManager =
+                    ContextCompat.getSystemService(context!!, PowerManager::class.java)!!
+                val wl =
+                    pm.newWakeLock(
+                        PowerManager.PARTIAL_WAKE_LOCK,
+                        "com.kuromelabs.kurome: tcp wakelock"
+                    )
+                wl.acquire(10 * 60 * 1000L /*10 minutes*/)
+                val result = parseMessage(message)
+                link.sendMessage(result, false)
+                wl.release()
+                message = link.receiveMessage()
+            }
+            link.stopConnection()
+            activeLinks.remove(link)
         }
     }
 
 
-    suspend fun parseMessage(bytes: ByteArray): ByteArray {
+    fun parseMessage(bytes: ByteArray): ByteArray {
         val result: String
         val message: String? = if (bytes.size > 1) String(bytes, 1, bytes.size - 1) else null
         when (bytes[0]) {
@@ -135,7 +136,7 @@ data class Device(
                 val offset = message.split(':')[1].toLong()
                 val size = message.split(':')[2].toInt()
                 val fis = File(path).inputStream()
-                var count: Int = 0
+                var count = 0
                 var pos = offset
                 val buffer = ByteArray(size)
                 while (count != size) {
@@ -174,6 +175,9 @@ data class Device(
     }
 
     fun deactivate() {
-//        link.stopConnection()
+        controlLink.stopConnection()
+        for (link in activeLinks)
+            link.stopConnection()
+        scope.cancel()
     }
 }
