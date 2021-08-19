@@ -11,14 +11,15 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Ignore
 import androidx.room.PrimaryKey
-import com.kuromelabs.kurome.network.Packets
 import com.kuromelabs.kurome.getGuid
-import com.kuromelabs.kurome.network.LinkProvider
 import com.kuromelabs.kurome.network.Link
+import com.kuromelabs.kurome.network.LinkProvider
+import com.kuromelabs.kurome.network.Packets
 import kotlinx.coroutines.*
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.RandomAccessFile
 
 
 @Entity(tableName = "device_table")
@@ -158,6 +159,22 @@ data class Device(
             }
             Packets.ACTION_GET_DEVICE_ID -> {
                 return getGuid(context!!).toByteArray()
+            }
+            Packets.ACTION_WRITE_FILE_BUFFER -> {
+                val path = Environment.getExternalStorageDirectory().path + message!!.split(':')[0]
+                val offset = message.split(':')[1].toLong()
+                val first: Int = message.indexOf(':')
+                val index: Int = message.indexOf(':', first + 1) + 2 //offset action byte
+                val buffer: ByteArray = bytes.copyOfRange(index, bytes.size)
+                val raf = RandomAccessFile(path, "rw")
+                val actualOffset = if (offset == (-1).toLong()) raf.length() else offset
+                raf.seek(actualOffset) //offset = -1 means append
+//                Log.d("kurome/device","setting file length to " + (raf.length() + buffer.size))
+                raf.setLength(raf.length() + buffer.size)
+//                Log.d("kurome/device","writing file buffer at $offset")
+                raf.write(buffer)
+                raf.close()
+                return byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
             }
         }
         return byteArrayOf(Packets.RESULT_ACTION_FAIL)
