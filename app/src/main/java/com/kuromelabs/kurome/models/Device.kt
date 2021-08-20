@@ -176,6 +176,12 @@ data class Device(
                 raf.close()
                 return byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
             }
+            Packets.ACTION_RENAME -> {
+                val oldPath = Environment.getExternalStorageDirectory().path + message!!.split(':')[0]
+                val newPath = Environment.getExternalStorageDirectory().path + message.split(':')[1]
+                File(oldPath).renameTo(File(newPath))
+                return byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
+            }
         }
         return byteArrayOf(Packets.RESULT_ACTION_FAIL)
     }

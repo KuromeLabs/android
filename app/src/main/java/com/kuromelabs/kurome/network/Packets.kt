@@ -17,4 +17,5 @@ object Packets {
     const val ACTION_GET_DEVICE_ID: Byte = 13
     const val ACTION_CREATE_NEW_LINK: Byte = 14
     const val ACTION_WRITE_FILE_BUFFER: Byte = 15
+    const val ACTION_RENAME: Byte = 16
 }
