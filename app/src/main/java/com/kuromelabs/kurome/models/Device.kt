@@ -187,6 +187,7 @@ data class Device(
                 val length = message.split(':')[1]
                 val raf = RandomAccessFile(path, "rw")
                 raf.setLength(length.toLong())
+                raf.close()
                 return byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
             }
         }
