@@ -170,7 +170,7 @@ data class Device(
                 val actualOffset = if (offset == (-1).toLong()) raf.length() else offset
                 raf.seek(actualOffset) //offset = -1 means append
 //                Log.d("kurome/device","setting file length to " + (raf.length() + buffer.size))
-                raf.setLength(raf.length() + buffer.size)
+//                raf.setLength(raf.length() + buffer.size)
 //                Log.d("kurome/device","writing file buffer at $offset")
                 raf.write(buffer)
                 raf.close()
@@ -180,6 +180,13 @@ data class Device(
                 val oldPath = Environment.getExternalStorageDirectory().path + message!!.split(':')[0]
                 val newPath = Environment.getExternalStorageDirectory().path + message.split(':')[1]
                 File(oldPath).renameTo(File(newPath))
+                return byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
+            }
+            Packets.ACTION_SET_LENGTH -> {
+                val path = Environment.getExternalStorageDirectory().path + message!!.split(':')[0]
+                val length = message.split(':')[1]
+                val raf = RandomAccessFile(path, "rw")
+                raf.setLength(length.toLong())
                 return byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
             }
         }
