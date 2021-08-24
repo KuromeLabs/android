@@ -9,6 +9,7 @@ import android.widget.Button
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.viewModelScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.kuromelabs.kurome.KuromeApplication
@@ -20,6 +21,11 @@ import com.kuromelabs.kurome.models.DeviceViewModelFactory
 import com.kuromelabs.kurome.services.ForegroundConnectionService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import java.net.DatagramPacket
+import java.net.InetAddress
+import java.net.MulticastSocket
 
 class MainFragment: Fragment(R.layout.fragment_main) {
     var mContext: Context? = null
@@ -49,14 +55,14 @@ class MainFragment: Fragment(R.layout.fragment_main) {
         val recyclerView: RecyclerView = view.findViewById(R.id.device_list)
         val deviceAdapter = DeviceAdapter {
             Log.e("kurome/mainfragment", "CLICKED! $it")
-            deviceViewModel.setPaired(it, true)
+            val device = Device(it.name, it.id)
+            device.isPaired = true
+            deviceViewModel.insert(device)
         }
         recyclerView.adapter = deviceAdapter
         recyclerView.layoutManager = LinearLayoutManager(context)
-        deviceViewModel.allDevices.observe(viewLifecycleOwner) { devices ->
+        deviceViewModel.combinedDevices.observe(viewLifecycleOwner) { devices ->
             devices.let { deviceAdapter.submitList(it) }
         }
-        deviceViewModel.insert(Device("DESKTOP-F325JH","fdsda"))
-
     }
 }

@@ -25,27 +25,29 @@ class Link {
     suspend fun startConnection(ip: String, port: Int) {
         this.ip = ip
         clientSocket = socketBuilder.connect(InetSocketAddress(ip, port))
-        Log.d("kurome", "connected to $ip:$port")
+//        Log.d("kurome", "connected to $ip:$port")
         out = clientSocket.openWriteChannel(true)
         `in` = (clientSocket.openReadChannel())
 
     }
 
     suspend fun sendMessage(msg: ByteArray, gzip: Boolean) {
-        out?.writeFully(littleEndianPrefixedByteArray(if (msg.size > 100 && gzip) byteArrayToGzip(msg) else msg))
+        out?.writeFully(
+            littleEndianPrefixedByteArray(
+                if (msg.size > 1500 && gzip) byteArrayToGzip(
+                    msg
+                ) else msg
+            )
+        )
     }
 
     suspend fun receiveMessage(): ByteArray {
         val sizeBytes = ByteArray(4)
         `in`?.readFully(sizeBytes)
         val size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).int
-        var messageByte = ByteArray(0)
-        while (messageByte.size != size) {
-            val buffer = ByteArray(size)
-            `in`?.readFully(buffer)
-            messageByte += buffer
-        }
-        return messageByte
+        val buffer = ByteArray(size)
+        `in`?.readFully(buffer)
+        return buffer
     }
 
     fun stopConnection() {
@@ -61,7 +63,6 @@ class Link {
     }
 
     fun byteArrayToGzip(str: ByteArray): ByteArray {
-        Log.d("com.kuromelabs.kurome", String(str))
         val byteArrayOutputStream = ByteArrayOutputStream(str.size)
         val gzip = GZIPOutputStream(byteArrayOutputStream)
         gzip.write(str)

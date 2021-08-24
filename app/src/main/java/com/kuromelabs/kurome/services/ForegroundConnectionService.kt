@@ -18,6 +18,10 @@ import com.kuromelabs.kurome.database.DeviceRepository
 import com.kuromelabs.kurome.models.Device
 import com.kuromelabs.kurome.network.LinkProvider
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flow
 
 
 class ForegroundConnectionService : Service() {
@@ -52,7 +56,7 @@ class ForegroundConnectionService : Service() {
         val linkProvider = LinkProvider()
         val observer = Observer<List<Device>> {
             for (device in it) {
-                if (!device.isConnected) {
+                if (device.isPaired && !device.isConnected) {
                     scope.launch {
                         val controlLink = linkProvider.createControlLinkFromUdp(
                             "235.132.20.12",
@@ -60,11 +64,10 @@ class ForegroundConnectionService : Service() {
                         )
                         //repository.setPaired(device, true)
                         activeDevices.add(device)
-                        repository.setConnected(device, true)
-                        device.isPaired = true
                         device.isConnected = true
                         device.context = applicationContext
                         device.activate(controlLink, linkProvider)
+                        repository.setConnectedDevices(activeDevices)
                     }
                 }
             }
@@ -74,7 +77,7 @@ class ForegroundConnectionService : Service() {
             override fun onLost(network: Network) {
                 runningJob?.cancel()
                 CoroutineScope(Dispatchers.Main).launch {
-                    repository.allDevices.asLiveData().removeObserver(observer)
+                    repository.savedDevices.asLiveData().removeObserver(observer)
                 }
                 scope.launch { killDevices() }
             }
@@ -82,25 +85,26 @@ class ForegroundConnectionService : Service() {
             override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) {
                 CoroutineScope(Dispatchers.Main).launch {
                     delay(5000)
-                    repository.allDevices.asLiveData().observeForever(observer)
+                    repository.savedDevices.asLiveData().observeForever(observer)
                 }
             }
         })
         return START_NOT_STICKY
     }
 
+
     suspend fun killDevices() {
         for (device in activeDevices) {
             device.deactivate()
-            repository.setConnected(device, false)
             Log.d("kurome/service", "set device disconnected in repository")
         }
         activeDevices.clear()
+        repository.setConnectedDevices(activeDevices)
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        scope.launch { killDevices() }
+        GlobalScope.launch { killDevices() }
         job.cancel()
         scope.cancel()
     }

@@ -5,13 +5,12 @@ import com.kuromelabs.kurome.database.DeviceRepository
 import kotlinx.coroutines.launch
 
 class DeviceViewModel(private val repository: DeviceRepository) : ViewModel() {
-    val allDevices: LiveData<List<Device>> = repository.allDevices.asLiveData()
+    val allDevices: LiveData<List<Device>> = repository.savedDevices.asLiveData()
+    val availableDevices: LiveData<List<Device>> = repository.networkDevices.asLiveData()
+    val combinedDevices: LiveData<List<Device>> = repository.combineDevices().asLiveData()
+
     fun insert(device: Device) = viewModelScope.launch {
         repository.insert(device)
-    }
-
-    fun setPaired(device: Device, isPaired:Boolean) = viewModelScope.launch {
-        repository.setPaired(device, isPaired)
     }
 }
 class DeviceViewModelFactory(private val repository: DeviceRepository) : ViewModelProvider.Factory{
@@ -21,5 +20,4 @@ class DeviceViewModelFactory(private val repository: DeviceRepository) : ViewMod
             return DeviceViewModel(repository) as T
         throw IllegalArgumentException("Unknown ViewModel class")
     }
-
 }

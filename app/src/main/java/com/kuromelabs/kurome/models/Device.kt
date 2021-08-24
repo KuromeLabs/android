@@ -52,6 +52,7 @@ data class Device(
 
     var isPaired = false
 
+    @Ignore
     var isConnected = false
 
     @Ignore
@@ -141,7 +142,7 @@ data class Device(
                 var pos = offset
                 val buffer = ByteArray(size)
                 while (count != size) {
-                    Log.e("kurome/tcpclient", "reading file buffer")
+                    //Log.e("kurome/device", "reading file buffer")
                     fis.channel.position(pos)
                     count += fis.read(buffer, count, size - count)
                     pos += count
