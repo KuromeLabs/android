@@ -3,4 +3,4 @@ package com.kuromelabs.kurome.models
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class FileData(val fileName: String, val isDirectory: Boolean, val size: Long)
+data class FileNode(val fileName: String, val isDirectory: Boolean, val size: Long)

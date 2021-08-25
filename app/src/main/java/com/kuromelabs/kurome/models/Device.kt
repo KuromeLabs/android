@@ -5,7 +5,6 @@ import android.os.Build
 import android.os.Environment
 import android.os.PowerManager
 import android.os.StatFs
-import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.room.ColumnInfo
 import androidx.room.Entity
@@ -64,12 +63,12 @@ data class Device(
         scope.launch {
             while (job.isActive) {
                 val link = linkProvider.createLink(this@Device.controlLink)
-                addLink(link)
+                monitorLink(link)
             }
         }
     }
 
-    suspend fun addLink(link: Link) {
+    private suspend fun monitorLink(link: Link) {
         activeLinks.add(link)
         scope.launch {
             var message = link.receiveMessage()
@@ -92,8 +91,8 @@ data class Device(
         }
     }
 
-
-    fun parseMessage(bytes: ByteArray): ByteArray {
+    @Suppress("DEPRECATION")
+    private fun parseMessage(bytes: ByteArray): ByteArray {
         val result: String
         val message: String? = if (bytes.size > 1) String(bytes, 1, bytes.size - 1) else null
         when (bytes[0]) {
@@ -105,7 +104,7 @@ data class Device(
             }
 
             Packets.ACTION_GET_ENUMERATE_DIRECTORY -> {
-                result = Json.encodeToString(getFilesInPathAsFileData(message!!))
+                result = Json.encodeToString(getFileNodes(message!!))
                 return result.toByteArray()
             }
             Packets.ACTION_WRITE_DIRECTORY -> {
@@ -152,7 +151,7 @@ data class Device(
             }
             Packets.ACTION_GET_FILE_INFO -> {
                 val file = File(Environment.getExternalStorageDirectory().path + message)
-                result = Json.encodeToString(FileData(file.name, file.isDirectory, file.length()))
+                result = Json.encodeToString(FileNode(file.name, file.isDirectory, file.length()))
                 return result.toByteArray()
             }
             Packets.ACTION_GET_DEVICE_NAME -> {
@@ -195,15 +194,16 @@ data class Device(
         return byteArrayOf(Packets.RESULT_ACTION_FAIL)
     }
 
-    fun getFilesInPathAsFileData(path: String): ArrayList<FileData> {
-        val fileDataList: ArrayList<FileData> = ArrayList()
+    @Suppress("DEPRECATION")
+    private fun getFileNodes(path: String): ArrayList<FileNode> {
+        val fileNodeList: ArrayList<FileNode> = ArrayList()
         val envPath = Environment.getExternalStorageDirectory().path
         val files = File(envPath + path).listFiles()
         if (files != null)
             for (file in files) {
-                fileDataList.add(FileData(file.name, file.isDirectory, file.length()))
+                fileNodeList.add(FileNode(file.name, file.isDirectory, file.length()))
             }
-        return fileDataList
+        return fileNodeList
     }
 
     fun deactivate() {
