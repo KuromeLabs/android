@@ -15,8 +15,10 @@ import com.kuromelabs.kurome.KuromeApplication
 import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.UI.MainActivity
 import com.kuromelabs.kurome.database.DeviceRepository
+import com.kuromelabs.kurome.getGuid
 import com.kuromelabs.kurome.models.Device
 import com.kuromelabs.kurome.network.LinkProvider
+import com.kuromelabs.kurome.network.Packets
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
@@ -62,12 +64,19 @@ class ForegroundConnectionService : Service() {
                             "235.132.20.12",
                             33586
                         )
-                        //repository.setPaired(device, true)
-                        activeDevices.add(device)
-                        device.isConnected = true
-                        device.context = applicationContext
-                        device.activate(controlLink, linkProvider)
-                        repository.setConnectedDevices(activeDevices)
+                        controlLink.sendMessage(byteArrayOf(Packets.ACTION_CONNECT) +
+                                getGuid(applicationContext!!).toByteArray(), false)
+                        if (controlLink.receiveMessage()[0] == Packets.RESULT_ACTION_SUCCESS) {
+                            //repository.setPaired(device, true)
+                            activeDevices.add(device)
+                            device.isConnected = true
+                            device.context = applicationContext
+                            device.activate(controlLink, linkProvider)
+                            repository.setConnectedDevices(activeDevices)
+                        } else {
+                            controlLink.stopConnection()
+                            Log.e("kurome/service","Device connection failed: $device")
+                        }
                     }
                 }
             }

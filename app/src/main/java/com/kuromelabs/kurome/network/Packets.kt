@@ -19,4 +19,5 @@ object Packets {
     const val ACTION_WRITE_FILE_BUFFER: Byte = 15
     const val ACTION_RENAME: Byte = 16
     const val ACTION_SET_LENGTH: Byte = 17
+    const val ACTION_CONNECT: Byte = 18
 }
