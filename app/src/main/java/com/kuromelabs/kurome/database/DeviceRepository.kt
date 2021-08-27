@@ -3,7 +3,6 @@ package com.kuromelabs.kurome.database
 import android.util.Log
 import androidx.annotation.WorkerThread
 import com.kuromelabs.kurome.models.Device
-import com.kuromelabs.kurome.services.ForegroundConnectionService
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.net.DatagramPacket
@@ -31,31 +30,33 @@ class DeviceRepository(private val deviceDao: DeviceDao) {
 
     private fun availableDevices(): Flow<List<Device>> = flow {
         emit(emptyList()) //to get instantaneous first combine
-        val list = HashSet<Device>()
+        val set = HashSet<Device>()
         while (currentCoroutineContext().job.isActive) {
             val socket = MulticastSocket(33586)
             socket.soTimeout = 6000
             val group = InetAddress.getByName("235.132.20.12")
             socket.joinGroup(group)
+            val buffer = ByteArray(1024)
+            val packet = DatagramPacket(buffer, buffer.size)
             try {
                 withTimeout(5000) {
-                    while (currentCoroutineContext().job.isActive) {
-                        val buffer = ByteArray(1024)
-                        val packet = DatagramPacket(buffer, buffer.size)
+                    while (isActive) {
                         try {
                             socket.receive(packet)
                             val msg = String(packet.data, packet.offset, packet.length)
                             val device = Device(msg.split(':')[2], msg.split(':')[3])
-                            list.add(device)
+                            set.add(device)
                         } catch (e: SocketTimeoutException){
                             Log.e("kurome/devicerepository", "UDP socket timeout")
                         }
                     }
+                    yield()
                 }
             } catch (e: TimeoutCancellationException) {
+                Log.d("kurome/devicerepository","emitting network devices $set")
+                emit(ArrayList(set))
                 socket.close()
-                list.clear()
-                emit(ArrayList(list))
+                set.clear()
             }
         }
     }.flowOn(Dispatchers.IO)
@@ -64,13 +65,14 @@ class DeviceRepository(private val deviceDao: DeviceDao) {
     fun combineDevices(): Flow<List<Device>> =
        combine(savedDevices, networkDevices, _connectedDevices) { saved, network, connected ->
             val set = HashSet<Device>()
-           Log.e("kurome/devicerepository",connected.toString())
             connected.forEach {if (it in saved) set.add(it) }
             saved.forEach {set.add(it)}
             network.forEach { if (it !in saved) set.add(it) }
+            Log.d("kurome/devicerepository", "emitting combined devices $set")
             ArrayList(set)
         }
     suspend fun setConnectedDevices(list: List<Device>){
+        Log.d("kurome/devicerepository","emitting connected devices $list")
         connectedDevices.emit(list)
     }
 }
