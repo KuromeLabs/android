@@ -65,7 +65,7 @@ class ForegroundConnectionService : Service() {
                             33586
                         )
                         controlLink.sendMessage(byteArrayOf(Packets.ACTION_CONNECT) +
-                                getGuid(applicationContext!!).toByteArray(), false)
+                                (Build.MODEL + ':' + getGuid(applicationContext!!)).toByteArray(), false)
                         if (controlLink.receiveMessage()[0] == Packets.RESULT_ACTION_SUCCESS) {
                             //repository.setPaired(device, true)
                             activeDevices.add(device)
