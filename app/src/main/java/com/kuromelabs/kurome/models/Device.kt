@@ -41,7 +41,7 @@ data class Device(
     var controlLink = Link()
 
     @Ignore
-    var linkProvider = LinkProvider()
+    var linkProvider = LinkProvider
 
     @Ignore
     private val job = SupervisorJob()

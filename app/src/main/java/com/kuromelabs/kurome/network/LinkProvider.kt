@@ -6,7 +6,7 @@ import java.net.InetAddress
 import java.net.MulticastSocket
 
 @Suppress("BlockingMethodInNonBlockingContext")
-class LinkProvider {
+object LinkProvider {
     suspend fun createControlLinkFromUdp(ip: String, port: Int): Link {
         Log.d("kurome/linkprovider","creating control link at $ip:$port")
         val socket = MulticastSocket(port)
@@ -31,5 +31,12 @@ class LinkProvider {
         } else {
             throw InstantiationException()
         }
+    }
+
+    suspend fun createPairLink(ip: String, port: Int): Link{
+        val link = Link()
+        Log.d("kurome/linkprovider","starting link at $ip:$port")
+        link.startConnection(ip, port)
+        return link
     }
 }

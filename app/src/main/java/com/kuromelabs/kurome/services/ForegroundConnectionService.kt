@@ -55,7 +55,7 @@ class ForegroundConnectionService : Service() {
             .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
             .build()
 
-        val linkProvider = LinkProvider()
+        val linkProvider = LinkProvider
         val observer = Observer<List<Device>> {
             for (device in it) {
                 if (device.isPaired && !device.isConnected) {
