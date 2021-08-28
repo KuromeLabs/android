@@ -64,16 +64,17 @@ class ForegroundConnectionService : Service() {
                             "235.132.20.12",
                             33586
                         )
+                        device.isConnected = true
                         controlLink.sendMessage(byteArrayOf(Packets.ACTION_CONNECT) +
                                 (Build.MODEL + ':' + getGuid(applicationContext!!)).toByteArray(), false)
                         if (controlLink.receiveMessage()[0] == Packets.RESULT_ACTION_SUCCESS) {
                             //repository.setPaired(device, true)
                             activeDevices.add(device)
-                            device.isConnected = true
                             device.context = applicationContext
                             device.activate(controlLink, linkProvider)
                             repository.setConnectedDevices(activeDevices)
                         } else {
+                            device.isConnected = false
                             controlLink.stopConnection()
                             Log.e("kurome/service","Device connection failed: $device")
                         }
