@@ -124,7 +124,7 @@ class MainFragment : Fragment(R.layout.fragment_main) {
 
     @SuppressLint("InlinedApi")
     private fun getFilePermission(isROrHigher: Boolean) {
-        val builder = AlertDialog.Builder(requireContext())
+        val builder = AlertDialog.Builder(requireContext(), R.style.Theme_Kurome_Dialog)
             .setTitle("File Access Permission")
             .setMessage(
                 "Kurome is a filesystem application and needs to manage your device's storage." +
