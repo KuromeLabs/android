@@ -35,7 +35,7 @@ data class Device(
     var context: Context? = null
 
     @Ignore
-    private var ip = String()
+    var ip = String()
 
     @Ignore
     var controlLink = Link()

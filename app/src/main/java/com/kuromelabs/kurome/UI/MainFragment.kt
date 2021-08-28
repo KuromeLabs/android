@@ -18,6 +18,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.viewModelScope
@@ -40,7 +41,7 @@ import java.net.InetAddress
 import java.net.MulticastSocket
 import kotlin.system.exitProcess
 
-class MainFragment : Fragment(R.layout.fragment_main) {
+class MainFragment : Fragment(R.layout.fragment_main), PairingDialogFragment.NoticeDialogListener {
     private lateinit var repository: DeviceRepository
     private var requestedManageFilePermissions = false
     private val deviceViewModel: DeviceViewModel by viewModels {
@@ -62,9 +63,9 @@ class MainFragment : Fragment(R.layout.fragment_main) {
         val recyclerView: RecyclerView = view.findViewById(R.id.device_list)
         val deviceAdapter = DeviceAdapter {
             Log.e("kurome/mainfragment", "CLICKED! $it")
-            val device = Device(it.name, it.id)
-            device.isPaired = true
-            deviceViewModel.insert(device)
+            val dialog = PairingDialogFragment(it, this)
+            dialog.show(requireActivity().supportFragmentManager, "")
+           // deviceViewModel.insert(device)
         }
         recyclerView.adapter = deviceAdapter
         recyclerView.layoutManager = LinearLayoutManager(context)
@@ -148,5 +149,9 @@ class MainFragment : Fragment(R.layout.fragment_main) {
             }
         val alert = builder.create()
         alert.show()
+    }
+
+    override fun onSuccess(device: Device) {
+        deviceViewModel.insert(device)
     }
 }

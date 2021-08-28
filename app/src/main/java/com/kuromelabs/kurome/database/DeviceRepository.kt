@@ -33,18 +33,19 @@ class DeviceRepository(private val deviceDao: DeviceDao) {
         val set = HashSet<Device>()
         while (currentCoroutineContext().job.isActive) {
             val socket = MulticastSocket(33586)
-            socket.soTimeout = 6000
+            socket.soTimeout = 3000
             val group = InetAddress.getByName("235.132.20.12")
             socket.joinGroup(group)
             val buffer = ByteArray(1024)
             val packet = DatagramPacket(buffer, buffer.size)
             try {
-                withTimeout(5000) {
+                withTimeout(2000) {
                     while (isActive) {
                         try {
                             socket.receive(packet)
                             val msg = String(packet.data, packet.offset, packet.length)
                             val device = Device(msg.split(':')[2], msg.split(':')[3])
+                            device.ip = msg.split(':')[1]
                             set.add(device)
                         } catch (e: SocketTimeoutException){
                             Log.e("kurome/devicerepository", "UDP socket timeout")
