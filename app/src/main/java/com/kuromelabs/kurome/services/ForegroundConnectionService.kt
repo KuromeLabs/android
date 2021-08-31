@@ -61,10 +61,12 @@ class ForegroundConnectionService : Service() {
         val observer = Observer<List<Device>> {
             for (device in it) {
                 if (device.isPaired && !device.isConnected && device !in activeDevices) {
+                    activeDevices.add(device)
                     scope.launch {
                         val controlLink = linkProvider.createControlLinkFromUdp(
                             "235.132.20.12",
-                            33586
+                            33586,
+                            device.id
                         )
                         controlLink.sendMessage(
                             byteArrayOf(Packets.ACTION_CONNECT) +
@@ -73,11 +75,11 @@ class ForegroundConnectionService : Service() {
                         )
                         if (controlLink.receiveMessage()[0] == Packets.RESULT_ACTION_SUCCESS) {
                             device.isConnected = true
-                            activeDevices.add(device)
                             device.context = applicationContext
                             device.activate(controlLink)
                             repository.setConnectedDevices(activeDevices)
                         } else {
+                            activeDevices.remove(device)
                             Log.e("kurome/service", "Device connection failed: $device")
                         }
                     }

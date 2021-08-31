@@ -71,23 +71,25 @@ data class Device(
 
     private suspend fun monitorLink(link: Link) {
         activeLinks.add(link)
-        var message = link.receiveMessage()
-        while (job.isActive) {
-            val pm: PowerManager =
-                ContextCompat.getSystemService(context!!, PowerManager::class.java)!!
-            val wl =
-                pm.newWakeLock(
-                    PowerManager.PARTIAL_WAKE_LOCK,
-                    "com.kuromelabs.kurome: tcp wakelock"
-                )
-            wl.acquire(10 * 60 * 1000L /*10 minutes*/)
-            val result = parseMessage(message)
-            link.sendMessage(result, false)
-            wl.release()
-            message = link.receiveMessage()
+        scope.launch {
+            var message = link.receiveMessage()
+            while (job.isActive) {
+                val pm: PowerManager =
+                    ContextCompat.getSystemService(context!!, PowerManager::class.java)!!
+                val wl =
+                    pm.newWakeLock(
+                        PowerManager.PARTIAL_WAKE_LOCK,
+                        "com.kuromelabs.kurome: tcp wakelock"
+                    )
+                wl.acquire(10 * 60 * 1000L /*10 minutes*/)
+                val result = parseMessage(message)
+                link.sendMessage(result, false)
+                wl.release()
+                message = link.receiveMessage()
+            }
+            link.stopConnection()
+            activeLinks.remove(link)
         }
-        link.stopConnection()
-        activeLinks.remove(link)
     }
 
     @Suppress("DEPRECATION")

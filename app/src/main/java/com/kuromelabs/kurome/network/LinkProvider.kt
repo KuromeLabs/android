@@ -1,21 +1,28 @@
 package com.kuromelabs.kurome.network
 
 import android.util.Log
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.job
 import java.net.DatagramPacket
 import java.net.InetAddress
 import java.net.MulticastSocket
 
 @Suppress("BlockingMethodInNonBlockingContext")
 object LinkProvider {
-    suspend fun createControlLinkFromUdp(ip: String, port: Int): Link {
+    suspend fun createControlLinkFromUdp(ip: String, port: Int, id: String): Link {
         Log.d("kurome/linkprovider","creating control link at $ip:$port")
+        var incomingId = String()
+        var msg = String()
         val socket = MulticastSocket(port)
-        val buffer = ByteArray(1024)
         val group = InetAddress.getByName(ip)
         socket.joinGroup(group)
+        val buffer = ByteArray(1024)
         val packet = DatagramPacket(buffer, buffer.size)
-        socket.receive(packet)
-        val msg = String(packet.data, packet.offset, packet.length)
+        while (incomingId != id && currentCoroutineContext().job.isActive) {
+            socket.receive(packet)
+            msg = String(packet.data, packet.offset, packet.length)
+            incomingId = msg.split(':')[3]
+        }
         socket.close()
         val link = Link()
         link.startConnection(msg.split(':')[1], 33587)
