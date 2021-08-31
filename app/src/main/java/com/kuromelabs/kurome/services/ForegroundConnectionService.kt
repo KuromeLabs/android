@@ -24,6 +24,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
+import java.util.*
+import kotlin.collections.ArrayList
 
 
 class ForegroundConnectionService : Service() {
@@ -31,7 +33,7 @@ class ForegroundConnectionService : Service() {
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
     private val binder: IBinder = LocalBinder()
-    private val activeDevices = ArrayList<Device>()
+    private val activeDevices = Collections.synchronizedList(ArrayList<Device>())
     private lateinit var repository: DeviceRepository
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
@@ -58,17 +60,19 @@ class ForegroundConnectionService : Service() {
         val linkProvider = LinkProvider
         val observer = Observer<List<Device>> {
             for (device in it) {
-                if (device.isPaired && !device.isConnected) {
+                if (device.isPaired && !device.isConnected && device !in activeDevices) {
                     scope.launch {
                         val controlLink = linkProvider.createControlLinkFromUdp(
                             "235.132.20.12",
                             33586
                         )
-                        device.isConnected = true
-                        controlLink.sendMessage(byteArrayOf(Packets.ACTION_CONNECT) +
-                                (Build.MODEL + ':' + getGuid(applicationContext!!)).toByteArray(), false)
+                        controlLink.sendMessage(
+                            byteArrayOf(Packets.ACTION_CONNECT) +
+                                    (Build.MODEL + ':' + getGuid(applicationContext!!)).toByteArray(),
+                            false
+                        )
                         if (controlLink.receiveMessage()[0] == Packets.RESULT_ACTION_SUCCESS) {
-                            //repository.setPaired(device, true)
+                            device.isConnected = true
                             activeDevices.add(device)
                             device.context = applicationContext
                             device.activate(controlLink, linkProvider)
