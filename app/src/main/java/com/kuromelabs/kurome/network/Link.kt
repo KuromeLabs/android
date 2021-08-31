@@ -31,23 +31,37 @@ class Link {
 
     }
 
-    suspend fun sendMessage(msg: ByteArray, gzip: Boolean) {
-        out?.writeFully(
-            littleEndianPrefixedByteArray(
-                if (msg.size > 1500 && gzip) byteArrayToGzip(
-                    msg
-                ) else msg
+    suspend fun sendMessage(msg: ByteArray, gzip: Boolean): Byte {
+        try {
+            out?.writeFully(littleEndianPrefixedByteArray(
+                    if (msg.size > 1500 && gzip) byteArrayToGzip(
+                        msg
+                    ) else msg
+                )
             )
-        )
+            return Packets.RESULT_ACTION_SUCCESS
+        } catch (e: Exception){
+            stopConnection()
+            Log.e("kurome/link","link died at send")
+            e.printStackTrace()
+            return Packets.RESULT_ACTION_FAIL
+        }
     }
 
     suspend fun receiveMessage(): ByteArray {
-        val sizeBytes = ByteArray(4)
-        `in`?.readFully(sizeBytes)
-        val size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).int
-        val buffer = ByteArray(size)
-        `in`?.readFully(buffer)
-        return buffer
+        try {
+            val sizeBytes = ByteArray(4)
+            `in`?.readFully(sizeBytes)
+            val size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).int
+            val buffer = ByteArray(size)
+            `in`?.readFully(buffer)
+            return buffer
+        } catch (e: Exception){
+            stopConnection()
+            Log.e("kurome/link","link died at receive")
+            e.printStackTrace()
+            return byteArrayOf(Packets.RESULT_ACTION_FAIL)
+        }
     }
 
     fun stopConnection() {

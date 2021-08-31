@@ -75,12 +75,10 @@ class ForegroundConnectionService : Service() {
                             device.isConnected = true
                             activeDevices.add(device)
                             device.context = applicationContext
-                            device.activate(controlLink, linkProvider)
+                            device.activate(controlLink)
                             repository.setConnectedDevices(activeDevices)
                         } else {
-                            device.isConnected = false
-                            controlLink.stopConnection()
-                            Log.e("kurome/service","Device connection failed: $device")
+                            Log.e("kurome/service", "Device connection failed: $device")
                         }
                     }
                 }
