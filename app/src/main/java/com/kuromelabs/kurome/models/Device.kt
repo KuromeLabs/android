@@ -19,6 +19,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.RandomAccessFile
+import java.net.SocketException
 
 
 @Entity(tableName = "device_table")
@@ -57,9 +58,9 @@ data class Device(
     @Ignore
     private val activeLinks = ArrayList<Link>()
 
-    fun activate(controlLink: Link, provider: LinkProvider) {
+    fun activate(controlLink: Link) {
         this.controlLink = controlLink
-        linkProvider = provider
+        linkProvider = LinkProvider
         scope.launch {
             while (job.isActive) {
                 val link = linkProvider.createLink(this@Device.controlLink)
@@ -70,25 +71,23 @@ data class Device(
 
     private suspend fun monitorLink(link: Link) {
         activeLinks.add(link)
-        scope.launch {
-            var message = link.receiveMessage()
-            while (job.isActive) {
-                val pm: PowerManager =
-                    ContextCompat.getSystemService(context!!, PowerManager::class.java)!!
-                val wl =
-                    pm.newWakeLock(
-                        PowerManager.PARTIAL_WAKE_LOCK,
-                        "com.kuromelabs.kurome: tcp wakelock"
-                    )
-                wl.acquire(10 * 60 * 1000L /*10 minutes*/)
-                val result = parseMessage(message)
-                link.sendMessage(result, false)
-                wl.release()
-                message = link.receiveMessage()
-            }
-            link.stopConnection()
-            activeLinks.remove(link)
+        var message = link.receiveMessage()
+        while (job.isActive) {
+            val pm: PowerManager =
+                ContextCompat.getSystemService(context!!, PowerManager::class.java)!!
+            val wl =
+                pm.newWakeLock(
+                    PowerManager.PARTIAL_WAKE_LOCK,
+                    "com.kuromelabs.kurome: tcp wakelock"
+                )
+            wl.acquire(10 * 60 * 1000L /*10 minutes*/)
+            val result = parseMessage(message)
+            link.sendMessage(result, false)
+            wl.release()
+            message = link.receiveMessage()
         }
+        link.stopConnection()
+        activeLinks.remove(link)
     }
 
     @Suppress("DEPRECATION")
@@ -177,7 +176,8 @@ data class Device(
                 return byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
             }
             Packets.ACTION_RENAME -> {
-                val oldPath = Environment.getExternalStorageDirectory().path + message!!.split(':')[0]
+                val oldPath =
+                    Environment.getExternalStorageDirectory().path + message!!.split(':')[0]
                 val newPath = Environment.getExternalStorageDirectory().path + message.split(':')[1]
                 File(oldPath).renameTo(File(newPath))
                 return byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
