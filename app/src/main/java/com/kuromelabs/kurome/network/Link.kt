@@ -18,7 +18,7 @@ class Link {
     private val selector: ActorSelectorManager = ActorSelectorManager(Dispatchers.IO)
     private val socketBuilder = aSocket(selector).tcp()
     var ip = String()
-    private lateinit var clientSocket: Socket
+    private var clientSocket: Socket? = null
     private var out: ByteWriteChannel? = null
     private var `in`: ByteReadChannel? = null
 
@@ -26,8 +26,8 @@ class Link {
         this.ip = ip
         clientSocket = socketBuilder.connect(InetSocketAddress(ip, port))
 //        Log.d("kurome", "connected to $ip:$port")
-        out = clientSocket.openWriteChannel(true)
-        `in` = (clientSocket.openReadChannel())
+        out = clientSocket!!.openWriteChannel(true)
+        `in` = (clientSocket!!.openReadChannel())
 
     }
 
@@ -67,7 +67,7 @@ class Link {
     fun stopConnection() {
         `in`?.cancel()
         out?.close()
-        clientSocket.close()
+        clientSocket?.close()
     }
 
     fun littleEndianPrefixedByteArray(array: ByteArray): ByteArray {
