@@ -63,8 +63,13 @@ data class Device(
         linkProvider = LinkProvider
         scope.launch {
             while (job.isActive) {
-                val link = linkProvider.createLink(this@Device.controlLink)
-                monitorLink(link)
+                try {
+                    val link = linkProvider.createLink(this@Device.controlLink)
+                    monitorLink(link)
+                } catch (e: Exception){
+                    Log.e("kurome/device","control link died")
+                }
+
             }
         }
     }
@@ -74,6 +79,10 @@ data class Device(
         scope.launch {
             var message = link.receiveMessage()
             while (job.isActive) {
+                if (message[0] == Packets.RESULT_ACTION_FAIL) {
+                    deactivate()
+                    break
+                }
                 val pm: PowerManager =
                     ContextCompat.getSystemService(context!!, PowerManager::class.java)!!
                 val wl =
