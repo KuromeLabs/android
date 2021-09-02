@@ -6,6 +6,7 @@ import kotlinx.coroutines.job
 import java.net.DatagramPacket
 import java.net.InetAddress
 import java.net.MulticastSocket
+import java.net.SocketException
 
 @Suppress("BlockingMethodInNonBlockingContext")
 object LinkProvider {
@@ -36,7 +37,7 @@ object LinkProvider {
             link.startConnection(controlLink.ip, 33588)
             return link
         } else {
-            throw InstantiationException()
+            throw SocketException()
         }
     }
 
