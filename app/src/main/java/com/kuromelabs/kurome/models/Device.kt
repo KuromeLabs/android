@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.Environment
 import android.os.PowerManager
 import android.os.StatFs
+import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.room.ColumnInfo
 import androidx.room.Entity
@@ -19,17 +20,29 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.RandomAccessFile
-import java.net.SocketException
+import java.util.*
+import kotlin.collections.ArrayList
 
 
 @Entity(tableName = "device_table")
 data class Device(
     @PrimaryKey @ColumnInfo(name = "name") val name: String,
     @ColumnInfo(name = "id") val id: String,
-
+) {
+    constructor(name: String, id: String, listener: DeviceStatusListener, context: Context) : this(
+        name,
+        id
     ) {
-    constructor(name: String, id: String, context: Context) : this(name, id) {
         this.context = context
+        this.listener = listener
+    }
+
+    @Ignore
+    var listener: DeviceStatusListener? = null
+
+    interface DeviceStatusListener {
+        suspend fun onConnected(device: Device)
+        suspend fun onDisconnected(device: Device)
     }
 
     @Ignore
@@ -37,9 +50,6 @@ data class Device(
 
     @Ignore
     var ip = String()
-
-    @Ignore
-    var controlLink = Link()
 
     @Ignore
     var linkProvider = LinkProvider
@@ -56,19 +66,50 @@ data class Device(
     var isConnected = false
 
     @Ignore
-    private val activeLinks = ArrayList<Link>()
+    private val activeLinks = Collections.synchronizedList(ArrayList<Link>())
 
-    fun activate(controlLink: Link) {
-        this.controlLink = controlLink
-        linkProvider = LinkProvider
+
+    fun activate() {
         scope.launch {
-            while (job.isActive) {
-                try {
-                    val link = linkProvider.createLink(this@Device.controlLink)
-                    monitorLink(link)
-                } catch (e: Exception){
-                    Log.e("kurome/device","control link died")
+            val controlLink: Link
+            try {
+                controlLink = linkProvider.createControlLinkFromUdp(
+                    "235.132.20.12",
+                    33586,
+                    id
+                )
+            } catch (e: Exception) {
+                Log.e("kurome/device", "creating control link from UDP failed ${this@Device}")
+                return@launch
+            }
+            controlLink.sendMessage(
+                byteArrayOf(Packets.ACTION_CONNECT) +
+                        (Build.MODEL + ':' + getGuid(context!!)).toByteArray(),
+                false
+            )
+            if (controlLink.receiveMessage()[0] == Packets.RESULT_ACTION_SUCCESS) {
+                monitorControlLink(controlLink)
+                listener!!.onConnected(this@Device)
+            } else {
+                listener!!.onDisconnected(this@Device)
+                Log.e("kurome/service", "Device connection failed: ${this@Device}")
+            }
+        }
+    }
+
+    private fun monitorControlLink(controlLink: Link) {
+        scope.launch {
+            try {
+                while (job.isActive) {
+                    val link = linkProvider.createLink(controlLink)
+                    scope.launch {
+                        monitorLink(link)
+                    }
                 }
+            } catch (e: Exception) {
+                Log.e("kurome/device", "control link died ${this@Device}")
+                controlLink.stopConnection()
+                listener!!.onDisconnected(this@Device)
 
             }
         }
@@ -80,7 +121,6 @@ data class Device(
             var message = link.receiveMessage()
             while (job.isActive) {
                 if (message[0] == Packets.RESULT_ACTION_FAIL) {
-                    deactivate()
                     break
                 }
                 val pm: PowerManager =
@@ -218,9 +258,10 @@ data class Device(
     }
 
     fun deactivate() {
-        controlLink.stopConnection()
-        for (link in activeLinks)
+        for (link in activeLinks) {
             link.stopConnection()
+            activeLinks.remove(link)
+        }
         scope.cancel()
     }
 }

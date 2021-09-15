@@ -49,18 +49,18 @@ class Link {
     }
 
     suspend fun receiveMessage(): ByteArray {
-        try {
+        return try {
             val sizeBytes = ByteArray(4)
             `in`?.readFully(sizeBytes)
             val size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).int
             val buffer = ByteArray(size)
             `in`?.readFully(buffer)
-            return buffer
+            buffer
         } catch (e: Exception){
             stopConnection()
             Log.e("kurome/link","link died at receive")
             e.printStackTrace()
-            return byteArrayOf(Packets.RESULT_ACTION_FAIL)
+            byteArrayOf(Packets.RESULT_ACTION_FAIL)
         }
     }
 

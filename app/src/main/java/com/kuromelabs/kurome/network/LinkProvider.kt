@@ -11,7 +11,7 @@ import java.net.SocketException
 @Suppress("BlockingMethodInNonBlockingContext")
 object LinkProvider {
     suspend fun createControlLinkFromUdp(ip: String, port: Int, id: String): Link {
-        Log.d("kurome/linkprovider","creating control link at $ip:$port")
+        Log.d("kurome/linkprovider","creating control link at $ip:$port, id: $id")
         var incomingId = String()
         var msg = String()
         val socket = MulticastSocket(port)

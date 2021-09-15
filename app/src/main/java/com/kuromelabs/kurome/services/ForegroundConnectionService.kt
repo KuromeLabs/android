@@ -28,13 +28,15 @@ import java.util.*
 import kotlin.collections.ArrayList
 
 
-class ForegroundConnectionService : Service() {
+class ForegroundConnectionService : Service(), Device.DeviceStatusListener {
     private val CHANNEL_ID = "ForegroundServiceChannel"
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
     private val binder: IBinder = LocalBinder()
     private val activeDevices = Collections.synchronizedList(ArrayList<Device>())
+    private val connectedDevices = Collections.synchronizedList(ArrayList<Device>())
     private lateinit var repository: DeviceRepository
+    private var isWifiConnected = false
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
         //     val input = intent.getStringExtra("inputExtra")
@@ -57,38 +59,21 @@ class ForegroundConnectionService : Service() {
             .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
             .build()
 
-        val linkProvider = LinkProvider
+
         val observer = Observer<List<Device>> {
             for (device in it) {
-                if (device.isPaired && !device.isConnected && device !in activeDevices) {
+                if (device !in activeDevices) {
                     activeDevices.add(device)
-                    scope.launch {
-                        val controlLink = linkProvider.createControlLinkFromUdp(
-                            "235.132.20.12",
-                            33586,
-                            device.id
-                        )
-                        controlLink.sendMessage(
-                            byteArrayOf(Packets.ACTION_CONNECT) +
-                                    (Build.MODEL + ':' + getGuid(applicationContext!!)).toByteArray(),
-                            false
-                        )
-                        if (controlLink.receiveMessage()[0] == Packets.RESULT_ACTION_SUCCESS) {
-                            device.isConnected = true
-                            device.context = applicationContext
-                            device.activate(controlLink)
-                            repository.setConnectedDevices(activeDevices)
-                        } else {
-                            activeDevices.remove(device)
-                            Log.e("kurome/service", "Device connection failed: $device")
-                        }
-                    }
+                    if (device !in connectedDevices)
+                        monitorDevice(device)
                 }
             }
+
         }
         cm?.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
             var runningJob: Job? = null
             override fun onLost(network: Network) {
+                isWifiConnected = false
                 runningJob?.cancel()
                 CoroutineScope(Dispatchers.Main).launch {
                     repository.savedDevices.asLiveData().removeObserver(observer)
@@ -97,23 +82,31 @@ class ForegroundConnectionService : Service() {
             }
 
             override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) {
-                CoroutineScope(Dispatchers.Main).launch {
-                    delay(5000)
-                    repository.savedDevices.asLiveData().observeForever(observer)
+                isWifiConnected = true
+                runningJob = CoroutineScope(Dispatchers.Main).launch {
+                    delay(3000)
+                    if (runningJob!!.isActive)
+                        repository.savedDevices.asLiveData().observeForever(observer)
                 }
             }
         })
         return START_NOT_STICKY
     }
 
+    fun monitorDevice(device: Device){
+        device.context = applicationContext
+        device.listener = this
+        device.activate()
+    }
 
     suspend fun killDevices() {
         for (device in activeDevices) {
+            Log.d("kurome/service", "deactivating $device")
             device.deactivate()
-            Log.d("kurome/service", "set device disconnected in repository")
         }
         activeDevices.clear()
-        repository.setConnectedDevices(activeDevices)
+        connectedDevices.clear()
+        repository.setConnectedDevices(connectedDevices)
     }
 
     override fun onDestroy() {
@@ -142,5 +135,19 @@ class ForegroundConnectionService : Service() {
 
     inner class LocalBinder : Binder() {
         fun getService(): ForegroundConnectionService = this@ForegroundConnectionService
+    }
+
+    override suspend fun onConnected(device: Device) {
+        Log.d("kurome/service","onConnected called $device")
+        connectedDevices.add(device)
+        repository.setConnectedDevices(connectedDevices)
+    }
+
+    override suspend fun onDisconnected(device: Device) {
+        connectedDevices.remove(device)
+        Log.e("kurome/service", "connectedDevices after remove: $connectedDevices")
+        repository.setConnectedDevices(connectedDevices)
+        if (isWifiConnected)
+            monitorDevice(device)
     }
 }

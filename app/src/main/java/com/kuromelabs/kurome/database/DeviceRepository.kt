@@ -5,10 +5,7 @@ import androidx.annotation.WorkerThread
 import com.kuromelabs.kurome.models.Device
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import java.net.DatagramPacket
-import java.net.InetAddress
-import java.net.MulticastSocket
-import java.net.SocketTimeoutException
+import java.net.*
 
 
 class DeviceRepository(private val deviceDao: DeviceDao) {
@@ -35,45 +32,52 @@ class DeviceRepository(private val deviceDao: DeviceDao) {
             val socket = MulticastSocket(33586)
             socket.soTimeout = 3000
             val group = InetAddress.getByName("235.132.20.12")
-            socket.joinGroup(group)
-            val buffer = ByteArray(1024)
-            val packet = DatagramPacket(buffer, buffer.size)
             try {
+                socket.joinGroup(group)
+                val buffer = ByteArray(1024)
+                val packet = DatagramPacket(buffer, buffer.size)
                 withTimeout(2000) {
                     while (isActive) {
-                        try {
-                            socket.receive(packet)
-                            val msg = String(packet.data, packet.offset, packet.length)
-                            val device = Device(msg.split(':')[2], msg.split(':')[3])
-                            device.ip = msg.split(':')[1]
-                            set.add(device)
-                        } catch (e: SocketTimeoutException){
-                            Log.e("kurome/devicerepository", "UDP socket timeout")
-                        }
+                        socket.receive(packet)
+                        val msg = String(packet.data, packet.offset, packet.length)
+                        val device = Device(msg.split(':')[2], msg.split(':')[3])
+                        device.ip = msg.split(':')[1]
+                        set.add(device)
                     }
                     yield()
                 }
             } catch (e: TimeoutCancellationException) {
-                Log.d("kurome/devicerepository","emitting network devices $set")
+                Log.d("kurome/devicerepository", "emitting network devices $set")
                 emit(ArrayList(set))
                 socket.close()
                 set.clear()
+            } catch (e: SocketTimeoutException) {
+                Log.e("kurome/devicerepository", "UDP socket timeout: $set")
+                emit(ArrayList(set))
+            } catch (e: SocketException) {
+                Log.e("kurome/devicerepository", "UDP socket failed: $set")
+                emit(ArrayList(set))
+                delay(2000)
             }
         }
     }.flowOn(Dispatchers.IO)
 
 
     fun combineDevices(): Flow<List<Device>> =
-       combine(savedDevices, networkDevices, _connectedDevices) { saved, network, connected ->
+        combine(savedDevices, networkDevices, _connectedDevices) { saved, network, connected ->
             val set = HashSet<Device>()
-            connected.forEach {if (it in saved) set.add(it) }
-            saved.forEach {set.add(it)}
+            connected.forEach {
+                it.isConnected = true
+                set.add(it)
+            }
+            saved.forEach { set.add(it) }
             network.forEach { if (it !in saved) set.add(it) }
             Log.d("kurome/devicerepository", "emitting combined devices $set")
             ArrayList(set)
         }
-    suspend fun setConnectedDevices(list: List<Device>){
-        Log.d("kurome/devicerepository","emitting connected devices $list")
+
+    suspend fun setConnectedDevices(list: List<Device>) {
+        Log.d("kurome/devicerepository", "emitting connected devices $list")
         connectedDevices.emit(list)
     }
 }
