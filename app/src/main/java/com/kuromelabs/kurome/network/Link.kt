@@ -64,6 +64,7 @@ class Link {
         }
     }
 
+    @Synchronized
     fun stopConnection() {
         `in`?.cancel()
         out?.close()

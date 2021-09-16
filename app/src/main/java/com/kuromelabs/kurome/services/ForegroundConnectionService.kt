@@ -37,6 +37,7 @@ class ForegroundConnectionService : Service(), Device.DeviceStatusListener {
     private val connectedDevices = Collections.synchronizedList(ArrayList<Device>())
     private lateinit var repository: DeviceRepository
     private var isWifiConnected = false
+    private var isServiceActive = false
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
         //     val input = intent.getStringExtra("inputExtra")
@@ -90,6 +91,7 @@ class ForegroundConnectionService : Service(), Device.DeviceStatusListener {
                 }
             }
         })
+        isServiceActive = true
         return START_NOT_STICKY
     }
 
@@ -111,6 +113,7 @@ class ForegroundConnectionService : Service(), Device.DeviceStatusListener {
 
     override fun onDestroy() {
         super.onDestroy()
+        isServiceActive = false
         GlobalScope.launch { killDevices() }
         job.cancel()
         scope.cancel()
@@ -147,7 +150,7 @@ class ForegroundConnectionService : Service(), Device.DeviceStatusListener {
         connectedDevices.remove(device)
         Log.e("kurome/service", "connectedDevices after remove: $connectedDevices")
         repository.setConnectedDevices(connectedDevices)
-        if (isWifiConnected)
+        if (isWifiConnected && isServiceActive)
             monitorDevice(device)
     }
 }
