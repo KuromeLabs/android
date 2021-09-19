@@ -258,10 +258,12 @@ data class Device(
     }
 
     fun deactivate() {
-        for (link in activeLinks) {
-            link.stopConnection()
-            activeLinks.remove(link)
+        val iterator = activeLinks.iterator()
+        while (iterator.hasNext()){
+            iterator.next().stopConnection()
+            iterator.remove()
         }
+        Log.d("kurome/device","active links after deactivate: $activeLinks")
         scope.cancel()
     }
 }
