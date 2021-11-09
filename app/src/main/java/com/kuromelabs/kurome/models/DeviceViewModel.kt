@@ -14,7 +14,7 @@ class DeviceViewModel(private val repository: DeviceRepository) : ViewModel() {
     }
 }
 class DeviceViewModelFactory(private val repository: DeviceRepository) : ViewModelProvider.Factory{
-    override fun <T : ViewModel?> create(modelClass: Class<T>): T {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(DeviceViewModel::class.java))
             @Suppress("UNCHECKED_CAST")
             return DeviceViewModel(repository) as T
