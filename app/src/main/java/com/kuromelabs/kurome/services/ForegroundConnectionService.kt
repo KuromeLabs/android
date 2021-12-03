@@ -9,29 +9,22 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.Observer
 import androidx.lifecycle.asLiveData
+import androidx.lifecycle.lifecycleScope
 import com.kuromelabs.kurome.KuromeApplication
 import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.UI.MainActivity
 import com.kuromelabs.kurome.database.DeviceRepository
-import com.kuromelabs.kurome.getGuid
 import com.kuromelabs.kurome.models.Device
-import com.kuromelabs.kurome.network.LinkProvider
-import com.kuromelabs.kurome.network.Packets
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.channelFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flow
 import java.util.*
 import kotlin.collections.ArrayList
 
 
-class ForegroundConnectionService : Service(), Device.DeviceStatusListener {
+class ForegroundConnectionService : LifecycleService(), Device.DeviceStatusListener {
     private val CHANNEL_ID = "ForegroundServiceChannel"
-    private val job = SupervisorJob()
-    private val scope = CoroutineScope(Dispatchers.IO + job)
     private val binder: IBinder = LocalBinder()
     private val activeDevices = Collections.synchronizedList(ArrayList<Device>())
     private val connectedDevices = Collections.synchronizedList(ArrayList<Device>())
@@ -39,7 +32,7 @@ class ForegroundConnectionService : Service(), Device.DeviceStatusListener {
     private var isWifiConnected = false
     private var isServiceActive = false
 
-    override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         //     val input = intent.getStringExtra("inputExtra")
         createNotificationChannel()
         val notificationIntent = Intent(this, MainActivity::class.java)
@@ -79,7 +72,7 @@ class ForegroundConnectionService : Service(), Device.DeviceStatusListener {
                 CoroutineScope(Dispatchers.Main).launch {
                     repository.savedDevices.asLiveData().removeObserver(observer)
                 }
-                scope.launch { killDevices() }
+                lifecycleScope.launch { killDevices() }
             }
 
             override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) {
@@ -92,7 +85,7 @@ class ForegroundConnectionService : Service(), Device.DeviceStatusListener {
             }
         })
         isServiceActive = true
-        return START_NOT_STICKY
+        return super.onStartCommand(intent, flags, startId)
     }
 
     fun monitorDevice(device: Device){
@@ -114,12 +107,11 @@ class ForegroundConnectionService : Service(), Device.DeviceStatusListener {
     override fun onDestroy() {
         super.onDestroy()
         isServiceActive = false
-        GlobalScope.launch { killDevices() }
-        job.cancel()
-        scope.cancel()
+        lifecycleScope.launch { killDevices() }
     }
 
-    override fun onBind(intent: Intent?): IBinder {
+    override fun onBind(intent: Intent): IBinder {
+        super.onBind(intent)
         return binder
     }
 
