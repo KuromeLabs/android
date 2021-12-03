@@ -21,4 +21,5 @@ object Packets {
     const val ACTION_SET_LENGTH: Byte = 17
     const val ACTION_CONNECT: Byte = 18
     const val ACTION_PAIR: Byte = 19
+    const val ACTION_SET_FILE_TIME: Byte = 20
 }

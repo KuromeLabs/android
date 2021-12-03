@@ -20,8 +20,11 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.RandomAccessFile
+import java.nio.file.Files
+import java.nio.file.Paths
+import java.nio.file.attribute.BasicFileAttributeView
+import java.nio.file.attribute.FileTime
 import java.util.*
-import kotlin.collections.ArrayList
 
 
 @Entity(tableName = "device_table")
@@ -240,6 +243,21 @@ data class Device(
                 raf.setLength(length.toLong())
                 raf.close()
                 return byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
+            }
+            Packets.ACTION_SET_FILE_TIME -> {
+                val input = message!!.split(':')
+                val path = Environment.getExternalStorageDirectory().path + input[0]
+                val crTime = if (input[1] != "") input[1].toLong() else 0
+                val laTime = if (input[1] != "") input[2].toLong() else 0
+                val lwTime = if (input[1] != "") input[3].toLong() else 0
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val attributes = Files.getFileAttributeView(Paths.get(path), BasicFileAttributeView::class.java)
+                    attributes.setTimes(FileTime.fromMillis(crTime), FileTime.fromMillis(laTime), FileTime.fromMillis(lwTime))
+                } else { //
+                    val file = File(path)
+                    file.setLastModified(lwTime)
+
+                }
             }
         }
         return byteArrayOf(Packets.RESULT_ACTION_FAIL)
