@@ -19,6 +19,7 @@ import kotlinx.coroutines.*
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.FileNotFoundException
 import java.io.RandomAccessFile
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -170,14 +171,23 @@ data class Device(
 
             }
             Packets.ACTION_GET_FILE_TYPE -> {
-                val file = File(Environment.getExternalStorageDirectory().path + message!!)
+                val path = Environment.getExternalStorageDirectory().path + message!!
+                val file = File(path)
+//                Log.e("kurome/device","folder ${directory.path}")
                 return if (file.exists())
                     if (file.isDirectory)
                         byteArrayOf(Packets.RESULT_FILE_IS_DIRECTORY)
                     else
                         byteArrayOf(Packets.RESULT_FILE_IS_FILE)
-                else
-                    byteArrayOf(Packets.RESULT_FILE_NOT_FOUND)
+                else {
+                    val directory = File(path.dropLastWhile { it != '/' }.dropLast(1))
+                    if (!directory.exists()) {
+//                        Log.e("kurome/device","returning RESULT_PATH_NOT_FOUND for ${file.path}")
+                        byteArrayOf(Packets.RESULT_PATH_NOT_FOUND)
+                    } else
+                        byteArrayOf(Packets.RESULT_FILE_NOT_FOUND)
+                }
+
             }
             Packets.ACTION_DELETE -> {
                 val file = File(Environment.getExternalStorageDirectory().path + message!!)
@@ -278,7 +288,7 @@ data class Device(
     fun deactivate() {
         activeLinks.forEach { it.stopConnection() }
         activeLinks.clear()
-        Log.d("kurome/device","active links after deactivate: $activeLinks")
+        Log.d("kurome/device", "active links after deactivate: $activeLinks")
         scope.cancel()
     }
 }
