@@ -19,6 +19,7 @@ import com.kuromelabs.kurome.UI.MainActivity
 import com.kuromelabs.kurome.database.DeviceRepository
 import com.kuromelabs.kurome.models.Device
 import kotlinx.coroutines.*
+import timber.log.Timber
 import java.util.*
 import kotlin.collections.ArrayList
 
@@ -96,7 +97,7 @@ class ForegroundConnectionService : LifecycleService(), Device.DeviceStatusListe
 
     suspend fun killDevices() {
         for (device in activeDevices) {
-            Log.d("kurome/service", "deactivating $device")
+            Timber.d("deactivating $device")
             device.deactivate()
         }
         activeDevices.clear()
@@ -133,14 +134,14 @@ class ForegroundConnectionService : LifecycleService(), Device.DeviceStatusListe
     }
 
     override suspend fun onConnected(device: Device) {
-        Log.d("kurome/service","onConnected called $device")
+        Timber.d("onConnected called $device")
         connectedDevices.add(device)
         repository.setConnectedDevices(connectedDevices)
     }
 
     override suspend fun onDisconnected(device: Device) {
         connectedDevices.remove(device)
-        Log.e("kurome/service", "connectedDevices after remove: $connectedDevices")
+        Timber.d("onDisconnected called $device")
         repository.setConnectedDevices(connectedDevices)
         if (isWifiConnected && isServiceActive)
             monitorDevice(device)

@@ -5,6 +5,7 @@ import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.Dispatchers
+import timber.log.Timber
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.net.InetSocketAddress
@@ -25,7 +26,7 @@ class Link {
     suspend fun startConnection(ip: String, port: Int) {
         this.ip = ip
         clientSocket = socketBuilder.connect(InetSocketAddress(ip, port))
-//        Log.d("kurome", "connected to $ip:$port")
+        Timber.d("Link connected at $ip:$port")
         out = clientSocket!!.openWriteChannel(true)
         `in` = (clientSocket!!.openReadChannel())
 
@@ -40,9 +41,9 @@ class Link {
                 )
             )
             return Packets.RESULT_ACTION_SUCCESS
-        } catch (e: Exception){
+        } catch (e: Exception) {
             stopConnection()
-            Log.e("kurome/link","link died at send")
+            Timber.d("link died at send")
             e.printStackTrace()
             return Packets.RESULT_ACTION_FAIL
         }
@@ -56,9 +57,9 @@ class Link {
             val buffer = ByteArray(size)
             `in`?.readFully(buffer)
             buffer
-        } catch (e: Exception){
+        } catch (e: Exception) {
             stopConnection()
-            Log.e("kurome/link","link died at receive")
+            Timber.d("link died at receive")
             e.printStackTrace()
             byteArrayOf(Packets.RESULT_ACTION_FAIL)
         }

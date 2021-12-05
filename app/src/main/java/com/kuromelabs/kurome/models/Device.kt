@@ -18,6 +18,7 @@ import com.kuromelabs.kurome.network.Packets
 import kotlinx.coroutines.*
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import timber.log.Timber
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.RandomAccessFile
@@ -83,7 +84,7 @@ data class Device(
                     id
                 )
             } catch (e: Exception) {
-                Log.e("kurome/device", "creating control link from UDP failed ${this@Device}")
+                Timber.d("creating control link from UDP failed $this")
                 return@launch
             }
             controlLink.sendMessage(
@@ -96,7 +97,7 @@ data class Device(
                 listener!!.onConnected(this@Device)
             } else {
                 listener!!.onDisconnected(this@Device)
-                Log.e("kurome/service", "Device connection failed: ${this@Device}")
+                Timber.d("Device connection failed: $this")
             }
         }
     }
@@ -111,7 +112,7 @@ data class Device(
                     }
                 }
             } catch (e: Exception) {
-                Log.e("kurome/device", "control link died ${this@Device}")
+                Timber.d("control link died $this")
                 controlLink.stopConnection()
                 listener!!.onDisconnected(this@Device)
 
@@ -173,7 +174,6 @@ data class Device(
             Packets.ACTION_GET_FILE_TYPE -> {
                 val path = Environment.getExternalStorageDirectory().path + message!!
                 val file = File(path)
-//                Log.e("kurome/device","folder ${directory.path}")
                 return if (file.exists())
                     if (file.isDirectory)
                         byteArrayOf(Packets.RESULT_FILE_IS_DIRECTORY)
@@ -182,7 +182,7 @@ data class Device(
                 else {
                     val directory = File(path.dropLastWhile { it != '/' }.dropLast(1))
                     if (!directory.exists()) {
-//                        Log.e("kurome/device","returning RESULT_PATH_NOT_FOUND for ${file.path}")
+                        Timber.d("returning RESULT_PATH_NOT_FOUND for " + file.path)
                         byteArrayOf(Packets.RESULT_PATH_NOT_FOUND)
                     } else
                         byteArrayOf(Packets.RESULT_FILE_NOT_FOUND)
@@ -204,7 +204,7 @@ data class Device(
                 var pos = offset
                 val buffer = ByteArray(size)
                 while (count != size) {
-                    //Log.e("kurome/device", "reading file buffer")
+                    Timber.d("reading file buffer ($size) at $pos of file $path")
                     fis.channel.position(pos)
                     count += fis.read(buffer, count, size - count)
                     pos += count
@@ -232,9 +232,7 @@ data class Device(
                 val raf = RandomAccessFile(path, "rw")
                 val actualOffset = if (offset == (-1).toLong()) raf.length() else offset
                 raf.seek(actualOffset) //offset = -1 means append
-//                Log.d("kurome/device","setting file length to " + (raf.length() + buffer.size))
-//                raf.setLength(raf.length() + buffer.size)
-//                Log.d("kurome/device","writing file buffer at $offset")
+                Timber.d("writing file buffer at $offset")
                 raf.write(buffer)
                 raf.close()
                 return byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
@@ -288,7 +286,7 @@ data class Device(
     fun deactivate() {
         activeLinks.forEach { it.stopConnection() }
         activeLinks.clear()
-        Log.d("kurome/device", "active links after deactivate: $activeLinks")
+        Timber.d("active links after deactivate: $activeLinks")
         scope.cancel()
     }
 }

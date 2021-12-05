@@ -3,6 +3,7 @@ package com.kuromelabs.kurome.network
 import android.util.Log
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.job
+import timber.log.Timber
 import java.net.DatagramPacket
 import java.net.InetAddress
 import java.net.MulticastSocket
@@ -11,7 +12,7 @@ import java.net.SocketException
 @Suppress("BlockingMethodInNonBlockingContext")
 object LinkProvider {
     suspend fun createControlLinkFromUdp(ip: String, port: Int, id: String): Link {
-        Log.d("kurome/linkprovider","creating control link at $ip:$port, id: $id")
+        Timber.d("creating control link at $ip:$port, id: $id")
         var incomingId = String()
         var msg = String()
         val socket = MulticastSocket(port)
@@ -41,9 +42,9 @@ object LinkProvider {
         }
     }
 
-    suspend fun createPairLink(ip: String, port: Int): Link{
+    suspend fun createPairLink(ip: String, port: Int): Link {
         val link = Link()
-        Log.d("kurome/linkprovider","starting link at $ip:$port")
+        Timber.d("starting link at $ip:$port")
         link.startConnection(ip, port)
         return link
     }

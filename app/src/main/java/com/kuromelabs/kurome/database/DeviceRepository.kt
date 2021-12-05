@@ -5,6 +5,7 @@ import androidx.annotation.WorkerThread
 import com.kuromelabs.kurome.models.Device
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import timber.log.Timber
 import java.net.*
 
 
@@ -47,15 +48,15 @@ class DeviceRepository(private val deviceDao: DeviceDao) {
                     yield()
                 }
             } catch (e: TimeoutCancellationException) {
-                Log.d("kurome/devicerepository", "emitting network devices $set")
+                Timber.d("emitting network devices $set")
                 emit(ArrayList(set))
                 socket.close()
                 set.clear()
             } catch (e: SocketTimeoutException) {
-                Log.e("kurome/devicerepository", "UDP socket timeout: $set")
+                Timber.d("UDP socket timeout: $set")
                 emit(ArrayList(set))
             } catch (e: SocketException) {
-                Log.e("kurome/devicerepository", "UDP socket failed: $set")
+                Timber.i("UDP socket failed: $set")
                 emit(ArrayList(set))
                 delay(2000)
             }
@@ -72,12 +73,12 @@ class DeviceRepository(private val deviceDao: DeviceDao) {
             }
             saved.forEach { set.add(it) }
             network.forEach { if (it !in saved) set.add(it) }
-            Log.d("kurome/devicerepository", "emitting combined devices $set")
+            Timber.d("emitting combined devices $set")
             ArrayList(set)
         }
 
     suspend fun setConnectedDevices(list: List<Device>) {
-        Log.d("kurome/devicerepository", "emitting connected devices $list")
+        Timber.d("emitting connected devices $list")
         connectedDevices.emit(list)
     }
 }
