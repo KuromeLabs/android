@@ -5,7 +5,6 @@ import android.os.Build
 import android.os.Environment
 import android.os.PowerManager
 import android.os.StatFs
-import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.room.ColumnInfo
 import androidx.room.Entity
@@ -20,7 +19,6 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import timber.log.Timber
 import java.io.File
-import java.io.FileNotFoundException
 import java.io.RandomAccessFile
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -29,6 +27,7 @@ import java.nio.file.attribute.FileTime
 import java.util.*
 
 
+@Suppress("DEPRECATION")
 @Entity(tableName = "device_table")
 data class Device(
     @PrimaryKey @ColumnInfo(name = "name") val name: String,
@@ -72,6 +71,9 @@ data class Device(
 
     @Ignore
     private val activeLinks = Collections.synchronizedList(ArrayList<Link>())
+
+    @Ignore
+    private val rootPath = Environment.getExternalStorageDirectory().path
 
 
     fun activate() {
@@ -146,106 +148,48 @@ data class Device(
         }
     }
 
-    @Suppress("DEPRECATION")
     private fun parseMessage(bytes: ByteArray): ByteArray {
-        val result: String
         val message: String? = if (bytes.size > 1) String(bytes, 1, bytes.size - 1) else null
         when (bytes[0]) {
-            Packets.ACTION_GET_SPACE_INFO -> {
-                val totalSpace = StatFs(Environment.getDataDirectory().path).totalBytes
-                val availableSpace = StatFs(Environment.getDataDirectory().path).availableBytes
-                result = "$totalSpace:$availableSpace"
-                return result.toByteArray()
-            }
-
-            Packets.ACTION_GET_ENUMERATE_DIRECTORY -> {
-                result = Json.encodeToString(getFileNodes(message!!))
-                return result.toByteArray()
-            }
-            Packets.ACTION_WRITE_DIRECTORY -> {
-                val dirPath = Environment.getExternalStorageDirectory().path + message!!
-                val file = File(dirPath)
-                return if (file.mkdir())
-                    byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
-                else
-                    byteArrayOf(Packets.RESULT_ACTION_FAIL)
-
-            }
-            Packets.ACTION_GET_FILE_TYPE -> {
-                val path = Environment.getExternalStorageDirectory().path + message!!
-                val file = File(path)
-                return if (file.exists())
-                    if (file.isDirectory)
-                        byteArrayOf(Packets.RESULT_FILE_IS_DIRECTORY)
-                    else
-                        byteArrayOf(Packets.RESULT_FILE_IS_FILE)
-                else {
-                    val directory = File(path.dropLastWhile { it != '/' }.dropLast(1))
-                    if (!directory.exists()) {
-                        Timber.d("returning RESULT_PATH_NOT_FOUND for " + file.path)
-                        byteArrayOf(Packets.RESULT_PATH_NOT_FOUND)
-                    } else
-                        byteArrayOf(Packets.RESULT_FILE_NOT_FOUND)
-                }
-
-            }
+            Packets.ACTION_GET_SPACE_INFO -> return getSpaceInfo()
+            Packets.ACTION_GET_ENUMERATE_DIRECTORY -> return getFileNodes(rootPath + message!!)
+            Packets.ACTION_WRITE_DIRECTORY -> return createDirectory(rootPath + message!!)
+            Packets.ACTION_GET_FILE_TYPE -> return getFileType(rootPath + message!!)
+            Packets.ACTION_GET_DEVICE_NAME -> return Build.MODEL.toByteArray()
+            Packets.ACTION_GET_DEVICE_ID -> return getGuid(context!!).toByteArray()
             Packets.ACTION_DELETE -> {
-                val file = File(Environment.getExternalStorageDirectory().path + message!!)
+                val file = File(rootPath + message!!)
                 return if (file.deleteRecursively()) byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
                 else byteArrayOf(Packets.RESULT_ACTION_FAIL)
-
             }
             Packets.ACTION_SEND_TO_SERVER -> {
-                val path = Environment.getExternalStorageDirectory().path + message!!.split(':')[0]
+                val path = rootPath + message!!.split(':')[0]
                 val offset = message.split(':')[1].toLong()
                 val size = message.split(':')[2].toInt()
-                val fis = File(path).inputStream()
-                var count = 0
-                var pos = offset
-                val buffer = ByteArray(size)
-                while (count != size) {
-                    Timber.d("reading file buffer ($size) at $pos of file $path")
-                    fis.channel.position(pos)
-                    count += fis.read(buffer, count, size - count)
-                    pos += count
-                }
-                fis.close()
-                return buffer
+                return readFileBuffer(path, offset, size)
             }
             Packets.ACTION_GET_FILE_INFO -> {
-                val file = File(Environment.getExternalStorageDirectory().path + message)
-                result = Json.encodeToString(FileNode(file.name, file.isDirectory, file.length()))
-                return result.toByteArray()
+                val file = File(rootPath + message)
+                return Json.encodeToString(FileNode(file.name, file.isDirectory, file.length()))
+                    .toByteArray()
             }
-            Packets.ACTION_GET_DEVICE_NAME -> {
-                return Build.MODEL.toByteArray()
-            }
-            Packets.ACTION_GET_DEVICE_ID -> {
-                return getGuid(context!!).toByteArray()
-            }
+
             Packets.ACTION_WRITE_FILE_BUFFER -> {
-                val path = Environment.getExternalStorageDirectory().path + message!!.split(':')[0]
+                val path = rootPath + message!!.split(':')[0]
                 val offset = message.split(':')[1].toLong()
-                val first: Int = message.indexOf(':')
-                val index: Int = message.indexOf(':', first + 1) + 2 //offset action byte
+                val firstSymbol: Int = message.indexOf(':')
+                val index: Int = message.indexOf(':', firstSymbol + 1) + 2 //offset action byte
                 val buffer: ByteArray = bytes.copyOfRange(index, bytes.size)
-                val raf = RandomAccessFile(path, "rw")
-                val actualOffset = if (offset == (-1).toLong()) raf.length() else offset
-                raf.seek(actualOffset) //offset = -1 means append
-                Timber.d("writing file buffer at $offset")
-                raf.write(buffer)
-                raf.close()
-                return byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
+                return writeFileBuffer(path, offset, buffer)
             }
             Packets.ACTION_RENAME -> {
-                val oldPath =
-                    Environment.getExternalStorageDirectory().path + message!!.split(':')[0]
-                val newPath = Environment.getExternalStorageDirectory().path + message.split(':')[1]
+                val oldPath = rootPath + message!!.split(':')[0]
+                val newPath = rootPath + message.split(':')[1]
                 File(oldPath).renameTo(File(newPath))
                 return byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
             }
             Packets.ACTION_SET_LENGTH -> {
-                val path = Environment.getExternalStorageDirectory().path + message!!.split(':')[0]
+                val path = rootPath + message!!.split(':')[0]
                 val length = message.split(':')[1]
                 val raf = RandomAccessFile(path, "rw")
                 raf.setLength(length.toLong())
@@ -254,34 +198,100 @@ data class Device(
             }
             Packets.ACTION_SET_FILE_TIME -> {
                 val input = message!!.split(':')
-                val path = Environment.getExternalStorageDirectory().path + input[0]
+                val path = rootPath + input[0]
                 val crTime = if (input[1] != "") input[1].toLong() else 0
                 val laTime = if (input[1] != "") input[2].toLong() else 0
                 val lwTime = if (input[1] != "") input[3].toLong() else 0
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    val attributes = Files.getFileAttributeView(Paths.get(path), BasicFileAttributeView::class.java)
-                    attributes.setTimes(FileTime.fromMillis(crTime), FileTime.fromMillis(laTime), FileTime.fromMillis(lwTime))
-                } else { //
-                    val file = File(path)
-                    file.setLastModified(lwTime)
-
-                }
+                return setFileTime(path, crTime, laTime, lwTime)
             }
         }
         return byteArrayOf(Packets.RESULT_ACTION_FAIL)
     }
 
-    @Suppress("DEPRECATION")
-    private fun getFileNodes(path: String): ArrayList<FileNode> {
+    private fun getSpaceInfo(): ByteArray {
+        val totalSpace = StatFs(Environment.getDataDirectory().path).totalBytes
+        val availableSpace = StatFs(Environment.getDataDirectory().path).availableBytes
+        val result = "$totalSpace:$availableSpace"
+        return result.toByteArray()
+    }
+
+    private fun getFileNodes(path: String): ByteArray {
         val fileNodeList: ArrayList<FileNode> = ArrayList()
-        val envPath = Environment.getExternalStorageDirectory().path
-        val files = File(envPath + path).listFiles()
+        val files = File(path).listFiles()
         if (files != null)
             for (file in files) {
                 fileNodeList.add(FileNode(file.name, file.isDirectory, file.length()))
             }
-        return fileNodeList
+        return Json.encodeToString(fileNodeList).toByteArray()
     }
+
+    private fun createDirectory(path: String): ByteArray {
+        val file = File(path)
+        return if (file.mkdirs())
+            byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
+        else
+            byteArrayOf(Packets.RESULT_ACTION_FAIL)
+    }
+
+    private fun getFileType(path: String): ByteArray {
+        val file = File(path)
+        return if (file.exists())
+            if (file.isDirectory)
+                byteArrayOf(Packets.RESULT_FILE_IS_DIRECTORY)
+            else
+                byteArrayOf(Packets.RESULT_FILE_IS_FILE)
+        else {
+            val directory = File(path.dropLastWhile { it != '/' }.dropLast(1))
+            if (!directory.exists()) {
+                Timber.d("returning RESULT_PATH_NOT_FOUND for " + file.path)
+                byteArrayOf(Packets.RESULT_PATH_NOT_FOUND)
+            } else
+                byteArrayOf(Packets.RESULT_FILE_NOT_FOUND)
+        }
+    }
+
+    private fun readFileBuffer(path: String, offset: Long, length: Int): ByteArray {
+        val fis = File(path).inputStream()
+        var count = 0
+        var pos = offset
+        val buffer = ByteArray(length)
+        while (count != length) {
+            Timber.d("reading file buffer ($length) at $pos of file $path")
+            fis.channel.position(pos)
+            count += fis.read(buffer, count, length - count)
+            pos += count
+        }
+        fis.close()
+        return buffer
+    }
+
+    private fun writeFileBuffer(path: String, offset: Long, buffer: ByteArray): ByteArray {
+        val raf = RandomAccessFile(path, "rw")
+        val actualOffset = if (offset == (-1).toLong()) raf.length() else offset
+        raf.seek(actualOffset) //offset = -1 means append
+        Timber.d("writing file buffer at $offset")
+        raf.write(buffer)
+        raf.close()
+        return byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
+    }
+    private fun setFileTime(path: String, crTime: Long, laTime: Long, lwTime: Long): ByteArray {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val attributes = Files.getFileAttributeView(
+                Paths.get(path),
+                BasicFileAttributeView::class.java
+            )
+            attributes.setTimes(
+                FileTime.fromMillis(crTime),
+                FileTime.fromMillis(laTime),
+                FileTime.fromMillis(lwTime)
+            )
+        } else { //
+            val file = File(path)
+            file.setLastModified(lwTime)
+        }
+        return byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
+    }
+
 
     fun deactivate() {
         activeLinks.forEach { it.stopConnection() }
