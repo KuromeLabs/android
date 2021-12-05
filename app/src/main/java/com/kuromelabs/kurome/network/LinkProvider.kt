@@ -1,6 +1,5 @@
 package com.kuromelabs.kurome.network
 
-import android.util.Log
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.job
 import timber.log.Timber
@@ -33,7 +32,7 @@ object LinkProvider {
 
     suspend fun createLink(controlLink: Link): Link {
         val message = controlLink.receiveMessage()
-        if (message[0] == Packets.ACTION_CREATE_NEW_LINK){
+        if (message[0] == Packets.ACTION_CREATE_NEW_LINK) {
             val link = Link()
             link.startConnection(controlLink.ip, 33588)
             return link

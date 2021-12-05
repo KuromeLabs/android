@@ -2,7 +2,6 @@ package com.kuromelabs.kurome.UI
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.DialogInterface
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -11,17 +10,14 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
-import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
-import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
-import androidx.lifecycle.viewModelScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.kuromelabs.kurome.BuildConfig
@@ -32,13 +28,7 @@ import com.kuromelabs.kurome.models.Device
 import com.kuromelabs.kurome.models.DeviceViewModel
 import com.kuromelabs.kurome.models.DeviceViewModelFactory
 import com.kuromelabs.kurome.services.ForegroundConnectionService
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
-import java.net.DatagramPacket
-import java.net.InetAddress
-import java.net.MulticastSocket
+import timber.log.Timber
 import kotlin.system.exitProcess
 
 class MainFragment : Fragment(R.layout.fragment_main), PairingDialogFragment.NoticeDialogListener {
@@ -62,10 +52,10 @@ class MainFragment : Fragment(R.layout.fragment_main), PairingDialogFragment.Not
         stopButton.setOnClickListener { requireContext().stopService(serviceIntent) }
         val recyclerView: RecyclerView = view.findViewById(R.id.device_list)
         val deviceAdapter = DeviceAdapter {
-            Log.e("kurome/mainfragment", "CLICKED! $it")
+            Timber.e("CLICKED! $it")
             val dialog = PairingDialogFragment(it, this)
             dialog.show(requireActivity().supportFragmentManager, "")
-           // deviceViewModel.insert(device)
+            // deviceViewModel.insert(device)
         }
         recyclerView.adapter = deviceAdapter
         recyclerView.layoutManager = LinearLayoutManager(context)
@@ -116,7 +106,7 @@ class MainFragment : Fragment(R.layout.fragment_main), PairingDialogFragment.Not
         super.onResume()
         //If we are returning from Settings after requesting MANAGE_EXTERNAL_STORAGE, which is
         //only after the user wants to start the service, check if we can start the service.
-        if (requestedManageFilePermissions && Environment.isExternalStorageManager()){
+        if (requestedManageFilePermissions && Environment.isExternalStorageManager()) {
             val serviceIntent = Intent(context, ForegroundConnectionService::class.java)
             requireContext().startService(serviceIntent)
             requestedManageFilePermissions = false
@@ -136,7 +126,12 @@ class MainFragment : Fragment(R.layout.fragment_main), PairingDialogFragment.Not
                 if (isROrHigher) {
                     requestedManageFilePermissions = true
                     val uri = Uri.parse("package:${BuildConfig.APPLICATION_ID}")
-                    startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, uri))
+                    startActivity(
+                        Intent(
+                            Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                            uri
+                        )
+                    )
                 } else
                     requestPermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
             }

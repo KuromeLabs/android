@@ -6,7 +6,6 @@ import android.net.*
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
@@ -27,7 +26,7 @@ import kotlin.collections.ArrayList
 class ForegroundConnectionService : LifecycleService(), Device.DeviceStatusListener {
     private val CHANNEL_ID = "ForegroundServiceChannel"
     private val binder: IBinder = LocalBinder()
-    private val activeDevices = Collections.synchronizedList(ArrayList<Device>())
+
     private val connectedDevices = Collections.synchronizedList(ArrayList<Device>())
     private lateinit var repository: DeviceRepository
     private var isWifiConnected = false
@@ -57,11 +56,8 @@ class ForegroundConnectionService : LifecycleService(), Device.DeviceStatusListe
 
         val observer = Observer<List<Device>> {
             for (device in it) {
-                if (device !in activeDevices) {
-                    activeDevices.add(device)
-                    if (device !in connectedDevices)
-                        monitorDevice(device)
-                }
+                if (device !in connectedDevices)
+                    monitorDevice(device)
             }
 
         }
@@ -89,18 +85,17 @@ class ForegroundConnectionService : LifecycleService(), Device.DeviceStatusListe
         return super.onStartCommand(intent, flags, startId)
     }
 
-    fun monitorDevice(device: Device){
+    fun monitorDevice(device: Device) {
         device.context = applicationContext
         device.listener = this
         device.activate()
     }
 
     suspend fun killDevices() {
-        for (device in activeDevices) {
+        for (device in connectedDevices) {
             Timber.d("deactivating $device")
             device.deactivate()
         }
-        activeDevices.clear()
         connectedDevices.clear()
         repository.setConnectedDevices(connectedDevices)
     }

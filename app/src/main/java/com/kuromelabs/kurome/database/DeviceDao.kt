@@ -1,9 +1,11 @@
 package com.kuromelabs.kurome.database
 
-import androidx.room.*
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
 import com.kuromelabs.kurome.models.Device
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.StateFlow
 
 @Dao
 interface DeviceDao {

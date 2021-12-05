@@ -22,5 +22,6 @@ abstract class DeviceDatabase : RoomDatabase() {
             }
         }
     }
+
     abstract fun deviceDao(): DeviceDao
 }

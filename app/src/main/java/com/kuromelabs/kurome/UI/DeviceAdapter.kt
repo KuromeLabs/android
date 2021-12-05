@@ -10,9 +10,10 @@ import androidx.recyclerview.widget.RecyclerView
 import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.models.Device
 
-class DeviceAdapter(val onItemClicked: (Device) -> Unit) : ListAdapter<Device, DeviceAdapter.DeviceViewHolder>(
-    DeviceDiffUtil()
-) {
+class DeviceAdapter(val onItemClicked: (Device) -> Unit) :
+    ListAdapter<Device, DeviceAdapter.DeviceViewHolder>(
+        DeviceDiffUtil()
+    ) {
 
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): DeviceViewHolder {
@@ -37,13 +38,14 @@ class DeviceAdapter(val onItemClicked: (Device) -> Unit) : ListAdapter<Device, D
     }
 
     inner class DeviceViewHolder(view: View) : RecyclerView.ViewHolder(view), View.OnClickListener {
-        init{
+        init {
             view.setOnClickListener(this)
         }
+
         val deviceNameTextView: TextView = view.findViewById(R.id.device_name)
         val deviceStatusTextView: TextView = view.findViewById(R.id.device_status)
         var device: Device? = null
-        fun setReference(device: Device){
+        fun setReference(device: Device) {
             this.device = device
         }
 

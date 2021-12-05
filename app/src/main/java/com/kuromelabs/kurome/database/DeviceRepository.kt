@@ -1,6 +1,5 @@
 package com.kuromelabs.kurome.database
 
-import android.util.Log
 import androidx.annotation.WorkerThread
 import com.kuromelabs.kurome.models.Device
 import kotlinx.coroutines.*
@@ -13,7 +12,7 @@ class DeviceRepository(private val deviceDao: DeviceDao) {
     val savedDevices: Flow<List<Device>> = deviceDao.getAllDevices()
     val networkDevices: Flow<List<Device>> = availableDevices()
     private val connectedDevices: MutableSharedFlow<List<Device>> = MutableSharedFlow(1)
-    val _connectedDevices: SharedFlow<List<Device>> = connectedDevices.onSubscription {
+    private val _connectedDevices: SharedFlow<List<Device>> = connectedDevices.onSubscription {
         this.emit(emptyList())
     }
 
@@ -68,6 +67,7 @@ class DeviceRepository(private val deviceDao: DeviceDao) {
         combine(savedDevices, networkDevices, _connectedDevices) { saved, network, connected ->
             val set = HashSet<Device>()
             connected.forEach {
+                Timber.d("flowing connected device: $it")
                 it.isConnected = true
                 set.add(it)
             }

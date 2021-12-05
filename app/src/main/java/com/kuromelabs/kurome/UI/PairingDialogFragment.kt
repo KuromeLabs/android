@@ -1,8 +1,6 @@
 package com.kuromelabs.kurome.UI
 
-import android.app.Activity
 import android.app.Dialog
-import android.content.Context
 import android.content.DialogInterface
 import android.os.Build
 import android.os.Bundle
@@ -10,7 +8,6 @@ import android.os.CountDownTimer
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
-import androidx.fragment.app.Fragment
 import com.kuromelabs.kurome.KuromeApplication
 import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.getGuid
@@ -22,22 +19,26 @@ import kotlinx.coroutines.*
 import java.util.concurrent.TimeUnit
 
 
-class PairingDialogFragment(val device: Device, val listener: NoticeDialogListener) : DialogFragment(),
+class PairingDialogFragment(val device: Device, val listener: NoticeDialogListener) :
+    DialogFragment(),
     DialogInterface.OnShowListener {
 
     interface NoticeDialogListener {
         fun onSuccess(device: Device)
     }
+
     lateinit var alert: AlertDialog
     private var link = Link()
     private val pairingScope = CoroutineScope(Dispatchers.IO)
-    private val timeout =  object : CountDownTimer(30000, 1000) {
+    private val timeout = object : CountDownTimer(30000, 1000) {
         override fun onTick(l: Long) {
-            alert.getButton(AlertDialog.BUTTON_NEGATIVE).text = "Cancel (${TimeUnit.MILLISECONDS.toSeconds(l) + 1})"
+            alert.getButton(AlertDialog.BUTTON_NEGATIVE).text =
+                "Cancel (${TimeUnit.MILLISECONDS.toSeconds(l) + 1})"
         }
 
         override fun onFinish() {
-            Toast.makeText(requireContext(), "Pairing operation timed out", Toast.LENGTH_LONG).show()
+            Toast.makeText(requireContext(), "Pairing operation timed out", Toast.LENGTH_LONG)
+                .show()
             link.stopConnection()
             pairingScope.cancel()
             dismiss()
@@ -59,7 +60,7 @@ class PairingDialogFragment(val device: Device, val listener: NoticeDialogListen
 
         alert = builder.create()
         alert.setOnShowListener(this)
-        return alert;
+        return alert
     }
 
     override fun onShow(p0: DialogInterface?) {
@@ -71,7 +72,7 @@ class PairingDialogFragment(val device: Device, val listener: NoticeDialogListen
                         (Build.MODEL + ':' + getGuid(requireContext())).toByteArray(), false
             )
             val message = link.receiveMessage()
-            if (message[0] == Packets.RESULT_ACTION_SUCCESS){
+            if (message[0] == Packets.RESULT_ACTION_SUCCESS) {
                 val repository = (activity?.application as KuromeApplication).repository
                 device.isPaired = true
                 repository.insert(device)
@@ -87,7 +88,7 @@ class PairingDialogFragment(val device: Device, val listener: NoticeDialogListen
             }
         }
 
-            timeout.start()
+        timeout.start()
 
     }
 }

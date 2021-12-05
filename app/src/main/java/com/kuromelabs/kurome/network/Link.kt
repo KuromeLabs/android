@@ -1,20 +1,17 @@
 package com.kuromelabs.kurome.network
 
-import android.util.Log
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.Dispatchers
 import timber.log.Timber
 import java.io.ByteArrayOutputStream
-import java.io.File
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.zip.GZIPOutputStream
 
 
-@Suppress("BlockingMethodInNonBlockingContext")
 class Link {
     private val selector: ActorSelectorManager = ActorSelectorManager(Dispatchers.IO)
     private val socketBuilder = aSocket(selector).tcp()
@@ -33,19 +30,14 @@ class Link {
     }
 
     suspend fun sendMessage(msg: ByteArray, gzip: Boolean): Byte {
-        try {
-            out?.writeFully(littleEndianPrefixedByteArray(
-                    if (msg.size > 1500 && gzip) byteArrayToGzip(
-                        msg
-                    ) else msg
-                )
-            )
-            return Packets.RESULT_ACTION_SUCCESS
+        return try {
+            out?.writeFully(addLittleEndianPrefix(if (gzip) byteArrayToGzip(msg) else msg))
+            Packets.RESULT_ACTION_SUCCESS
         } catch (e: Exception) {
             stopConnection()
             Timber.d("link died at send")
             e.printStackTrace()
-            return Packets.RESULT_ACTION_FAIL
+            Packets.RESULT_ACTION_FAIL
         }
     }
 
@@ -65,14 +57,13 @@ class Link {
         }
     }
 
-    @Synchronized
     fun stopConnection() {
         `in`?.cancel()
         out?.close()
         clientSocket?.close()
     }
 
-    fun littleEndianPrefixedByteArray(array: ByteArray): ByteArray {
+    fun addLittleEndianPrefix(array: ByteArray): ByteArray {
         val size = Integer.reverseBytes(array.size)
         val sizeBytes = ByteBuffer.allocate(4).putInt(size).array()
         return sizeBytes + array

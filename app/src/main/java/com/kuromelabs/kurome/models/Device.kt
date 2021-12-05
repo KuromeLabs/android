@@ -274,6 +274,7 @@ data class Device(
         raf.close()
         return byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
     }
+
     private fun setFileTime(path: String, crTime: Long, laTime: Long, lwTime: Long): ByteArray {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val attributes = Files.getFileAttributeView(
