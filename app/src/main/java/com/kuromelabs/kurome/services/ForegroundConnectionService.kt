@@ -1,8 +1,14 @@
 package com.kuromelabs.kurome.services
 
-import android.app.*
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Intent
-import android.net.*
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
@@ -17,10 +23,10 @@ import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.UI.MainActivity
 import com.kuromelabs.kurome.database.DeviceRepository
 import com.kuromelabs.kurome.models.Device
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.*
-import kotlin.collections.ArrayList
 
 
 class ForegroundConnectionService : LifecycleService(), Device.DeviceStatusListener {
@@ -31,6 +37,7 @@ class ForegroundConnectionService : LifecycleService(), Device.DeviceStatusListe
     private lateinit var repository: DeviceRepository
     private var isWifiConnected = false
     private var isServiceActive = false
+    private val lifecycleOwner = this
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         //     val input = intent.getStringExtra("inputExtra")
@@ -56,28 +63,35 @@ class ForegroundConnectionService : LifecycleService(), Device.DeviceStatusListe
 
         val observer = Observer<List<Device>> {
             for (device in it) {
-                if (device !in connectedDevices)
+                if (device !in connectedDevices) {
                     monitorDevice(device)
+                    Timber.d("Observer: monitoring device $device")
+                }
             }
 
         }
+
         cm?.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
-            var runningJob: Job? = null
+            val data = repository.savedDevices.asLiveData()
             override fun onLost(network: Network) {
                 isWifiConnected = false
-                runningJob?.cancel()
-                CoroutineScope(Dispatchers.Main).launch {
-                    repository.savedDevices.asLiveData().removeObserver(observer)
+                lifecycleScope.launch(Dispatchers.Main) {
+                    data.removeObservers(lifecycleOwner)
+                    killDevices()
                 }
-                lifecycleScope.launch { killDevices() }
             }
 
-            override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) {
-                isWifiConnected = true
-                runningJob = CoroutineScope(Dispatchers.Main).launch {
-                    delay(3000)
-                    if (runningJob!!.isActive)
-                        repository.savedDevices.asLiveData().observeForever(observer)
+            override fun onCapabilitiesChanged(net: Network, capabilities: NetworkCapabilities) {
+                Timber.e("Monitor network capabilities: $capabilities network: $net")
+                if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
+                    capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                ) {
+                    isWifiConnected = true
+                    lifecycleScope.launch(Dispatchers.Main) {
+                        Timber.d("observe job launched")
+                        data.observe(lifecycleOwner, observer)
+                        Timber.d("made observe call")
+                    }
                 }
             }
         })
@@ -86,6 +100,7 @@ class ForegroundConnectionService : LifecycleService(), Device.DeviceStatusListe
     }
 
     fun monitorDevice(device: Device) {
+        Timber.d("monitorDevice called for $device")
         device.context = applicationContext
         device.listener = this
         device.activate()

@@ -147,6 +147,7 @@ class MainFragment : Fragment(R.layout.fragment_main), PairingDialogFragment.Not
     }
 
     override fun onSuccess(device: Device) {
-        deviceViewModel.insert(device)
+        Toast.makeText(context, "${device.name} paired successfully", Toast.LENGTH_LONG)
+            .show()
     }
 }

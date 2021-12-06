@@ -77,8 +77,6 @@ class PairingDialogFragment(val device: Device, val listener: NoticeDialogListen
                 device.isPaired = true
                 repository.insert(device)
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(requireContext(), "Paired successfully", Toast.LENGTH_LONG)
-                        .show()
                     timeout.cancel()
                     listener.onSuccess(device)
                     link.stopConnection()
