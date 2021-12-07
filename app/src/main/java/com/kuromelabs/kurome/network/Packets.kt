@@ -23,4 +23,5 @@ object Packets {
     const val ACTION_PAIR: Byte = 19
     const val ACTION_SET_FILE_TIME: Byte = 20
     const val RESULT_PATH_NOT_FOUND: Byte = 21
+    const val ACTION_CREATE_EMPTY_FILE: Byte = 22
 }

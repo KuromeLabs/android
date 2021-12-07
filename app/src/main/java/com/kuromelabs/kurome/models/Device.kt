@@ -204,6 +204,10 @@ data class Device(
                 val lwTime = if (input[1] != "") input[3].toLong() else 0
                 return setFileTime(path, crTime, laTime, lwTime)
             }
+            Packets.ACTION_CREATE_EMPTY_FILE -> {
+                File(rootPath + message!!).createNewFile()
+                return byteArrayOf(Packets.RESULT_ACTION_SUCCESS)
+            }
         }
         return byteArrayOf(Packets.RESULT_ACTION_FAIL)
     }
