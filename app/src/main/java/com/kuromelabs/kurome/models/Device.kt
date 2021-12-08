@@ -168,11 +168,8 @@ data class Device(
                 val size = message.split(':')[2].toInt()
                 return readFileBuffer(path, offset, size)
             }
-            Packets.ACTION_GET_FILE_INFO -> {
-                val file = File(rootPath + message)
-                return Json.encodeToString(FileNode(file.name, file.isDirectory, file.length()))
-                    .toByteArray()
-            }
+            Packets.ACTION_GET_FILE_INFO ->
+                return Json.encodeToString(getFileNode(rootPath + message)).toByteArray()
 
             Packets.ACTION_WRITE_FILE_BUFFER -> {
                 val path = rootPath + message!!.split(':')[0]
@@ -224,7 +221,7 @@ data class Device(
         val files = File(path).listFiles()
         if (files != null)
             for (file in files) {
-                fileNodeList.add(FileNode(file.name, file.isDirectory, file.length()))
+                fileNodeList.add(getFileNode(file.path))
             }
         return Json.encodeToString(fileNodeList).toByteArray()
     }
@@ -267,6 +264,31 @@ data class Device(
         }
         fis.close()
         return buffer
+    }
+
+    private fun getFileNode(path: String): FileNode {
+        val file = File(path)
+        var creationTime = 0L
+        val lastModifiedTime = file.lastModified()
+        var lastAccessTime = 0L
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val attributes = Files.getFileAttributeView(
+                Paths.get(path),
+                BasicFileAttributeView::class.java
+            )
+            creationTime = attributes.readAttributes().creationTime().toMillis()
+            lastAccessTime = attributes.readAttributes().lastAccessTime().toMillis()
+        }
+        Timber.d("returning fileNode for $path")
+        return FileNode(
+            file.name,
+            file.isDirectory,
+            file.length(),
+            creationTime,
+            lastAccessTime,
+            lastModifiedTime
+        )
+
     }
 
     private fun writeFileBuffer(path: String, offset: Long, buffer: ByteArray): ByteArray {
