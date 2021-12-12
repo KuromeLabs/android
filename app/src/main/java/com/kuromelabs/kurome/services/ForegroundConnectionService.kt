@@ -39,6 +39,11 @@ class ForegroundConnectionService : LifecycleService(), Device.DeviceStatusListe
     private var isServiceActive = false
     private val lifecycleOwner = this
 
+    override fun onCreate() {
+        repository = (application as KuromeApplication).repository
+        super.onCreate()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         //     val input = intent.getStringExtra("inputExtra")
         createNotificationChannel()
@@ -54,7 +59,7 @@ class ForegroundConnectionService : LifecycleService(), Device.DeviceStatusListe
             .setContentIntent(pendingIntent)
             .build()
         startForeground(1, notification)
-        repository = (application as KuromeApplication).repository
+
         val cm = ContextCompat.getSystemService(applicationContext, ConnectivityManager::class.java)
         val request = NetworkRequest.Builder()
             .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
