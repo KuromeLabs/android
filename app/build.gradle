@@ -6,6 +6,8 @@ plugins {
 }
 
 android {
+//    sourceSets.main.java.srcDirs += 'build/generated/source/fsb'
+    sourceSets.main.kotlin.srcDirs += 'build/generated/source/fsb'
     compileSdk 31
     buildToolsVersion "31.0.0"
     useLibrary("android.test.base")
@@ -62,6 +64,9 @@ android {
         android.applicationVariants.all { variant ->
             variant.javaCompileProvider.get().dependsOn(generateFbsKotlin)
         }
+    }
+    sourceSets {
+        main.java.srcDirs += 'build/generated/source/fsb'
     }
 }
 dependencies {
