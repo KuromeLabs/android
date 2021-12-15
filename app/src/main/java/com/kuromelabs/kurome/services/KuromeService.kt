@@ -27,15 +27,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.*
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.locks.ReentrantLock
 
 
-class ForegroundConnectionService : LifecycleService(), Device.DeviceStatusListener {
+class KuromeService : LifecycleService(), Device.DeviceStatusListener {
     private val CHANNEL_ID = "ForegroundServiceChannel"
     private val binder: IBinder = LocalBinder()
 
-    private val connectedDevices = Collections.synchronizedList(ArrayList<Device>())
+    private val connectedDevices = ArrayList<Device>()
+    private val monitoredDevices = HashSet<Device>()
     private lateinit var repository: DeviceRepository
-    private var isWifiConnected = false
+    private var isWifiConnected: AtomicBoolean = AtomicBoolean(false)
     private var isServiceActive = false
     private val lifecycleOwner = this
 
@@ -68,7 +71,8 @@ class ForegroundConnectionService : LifecycleService(), Device.DeviceStatusListe
 
         val observer = Observer<List<Device>> {
             for (device in it) {
-                if (device !in connectedDevices) {
+                if (device !in monitoredDevices) {
+                    monitoredDevices.add(device)
                     monitorDevice(device)
                     Timber.d("Observer: monitoring device $device")
                 }
@@ -79,11 +83,10 @@ class ForegroundConnectionService : LifecycleService(), Device.DeviceStatusListe
         cm?.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
             val data = repository.savedDevices.asLiveData()
             override fun onLost(network: Network) {
-                isWifiConnected = false
-                lifecycleScope.launch(Dispatchers.Main) {
-                    data.removeObservers(lifecycleOwner)
-                    killDevices()
-                }
+                Timber.e("Monitor network onLost: $network")
+                isWifiConnected.set(false)
+                killDevices()
+                lifecycleScope.launch(Dispatchers.Main) { data.removeObservers(lifecycleOwner) }
             }
 
             override fun onCapabilitiesChanged(net: Network, capabilities: NetworkCapabilities) {
@@ -91,7 +94,7 @@ class ForegroundConnectionService : LifecycleService(), Device.DeviceStatusListe
                 if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
                     capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
                 ) {
-                    isWifiConnected = true
+                    isWifiConnected.set(true)
                     lifecycleScope.launch(Dispatchers.Main) {
                         Timber.d("observe job launched")
                         data.observe(lifecycleOwner, observer)
@@ -104,20 +107,20 @@ class ForegroundConnectionService : LifecycleService(), Device.DeviceStatusListe
         return super.onStartCommand(intent, flags, startId)
     }
 
-    fun monitorDevice(device: Device) {
+    private fun monitorDevice(device: Device) {
         Timber.d("monitorDevice called for $device")
         device.context = applicationContext
         device.listener = this
         device.activate()
     }
 
-    suspend fun killDevices() {
-        for (device in connectedDevices) {
+    private val lock = ReentrantLock()
+    fun killDevices() = synchronized(lock) {
+        for (device in monitoredDevices) {
             Timber.d("deactivating $device")
             device.deactivate()
         }
-        connectedDevices.clear()
-        repository.setConnectedDevices(connectedDevices)
+        monitoredDevices.clear()
     }
 
     override fun onDestroy() {
@@ -145,7 +148,7 @@ class ForegroundConnectionService : LifecycleService(), Device.DeviceStatusListe
 
 
     inner class LocalBinder : Binder() {
-        fun getService(): ForegroundConnectionService = this@ForegroundConnectionService
+        fun getService(): KuromeService = this@KuromeService
     }
 
     override suspend fun onConnected(device: Device) {
@@ -156,9 +159,12 @@ class ForegroundConnectionService : LifecycleService(), Device.DeviceStatusListe
 
     override suspend fun onDisconnected(device: Device) {
         connectedDevices.remove(device)
+        monitoredDevices.remove(device)
         Timber.d("onDisconnected called $device")
         repository.setConnectedDevices(connectedDevices)
-        if (isWifiConnected && isServiceActive)
+        if (isWifiConnected.get() && isServiceActive) {
             monitorDevice(device)
+            monitoredDevices.add(device)
+        }
     }
 }

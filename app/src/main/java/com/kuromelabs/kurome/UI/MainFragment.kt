@@ -27,7 +27,7 @@ import com.kuromelabs.kurome.database.DeviceRepository
 import com.kuromelabs.kurome.models.Device
 import com.kuromelabs.kurome.models.DeviceViewModel
 import com.kuromelabs.kurome.models.DeviceViewModelFactory
-import com.kuromelabs.kurome.services.ForegroundConnectionService
+import com.kuromelabs.kurome.services.KuromeService
 import timber.log.Timber
 import kotlin.system.exitProcess
 
@@ -47,7 +47,7 @@ class MainFragment : Fragment(R.layout.fragment_main), PairingDialogFragment.Not
         super.onViewCreated(view, savedInstanceState)
         val startButton = view.findViewById<Button>(R.id.start_button)
         val stopButton = view.findViewById<Button>(R.id.stop_button)
-        val serviceIntent = Intent(context, ForegroundConnectionService::class.java)
+        val serviceIntent = Intent(context, KuromeService::class.java)
         startButton.setOnClickListener(startServiceWithPermission)
         stopButton.setOnClickListener { requireContext().stopService(serviceIntent) }
         val recyclerView: RecyclerView = view.findViewById(R.id.device_list)
@@ -69,7 +69,7 @@ class MainFragment : Fragment(R.layout.fragment_main), PairingDialogFragment.Not
             ActivityResultContracts.RequestPermission()
         ) { isGranted: Boolean ->
             if (isGranted) {
-                val serviceIntent = Intent(context, ForegroundConnectionService::class.java)
+                val serviceIntent = Intent(context, KuromeService::class.java)
                 requireContext().startService(serviceIntent)
             } else {
                 Toast.makeText(
@@ -83,7 +83,7 @@ class MainFragment : Fragment(R.layout.fragment_main), PairingDialogFragment.Not
 
 
     private val startServiceWithPermission: (View) -> Unit = {
-        val serviceIntent = Intent(context, ForegroundConnectionService::class.java)
+        val serviceIntent = Intent(context, KuromeService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!Environment.isExternalStorageManager())
                 getFilePermission(true)
@@ -107,7 +107,7 @@ class MainFragment : Fragment(R.layout.fragment_main), PairingDialogFragment.Not
         //If we are returning from Settings after requesting MANAGE_EXTERNAL_STORAGE, which is
         //only after the user wants to start the service, check if we can start the service.
         if (requestedManageFilePermissions && Environment.isExternalStorageManager()) {
-            val serviceIntent = Intent(context, ForegroundConnectionService::class.java)
+            val serviceIntent = Intent(context, KuromeService::class.java)
             requireContext().startService(serviceIntent)
             requestedManageFilePermissions = false
         }
