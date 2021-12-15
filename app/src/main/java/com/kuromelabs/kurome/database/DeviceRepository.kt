@@ -10,7 +10,7 @@ import java.net.*
 
 class DeviceRepository(private val deviceDao: DeviceDao) {
     val savedDevices: Flow<List<Device>> = deviceDao.getAllDevices()
-    val networkDevices: Flow<List<Device>> = availableDevices()
+    private val networkDevices: Flow<List<Device>> = availableDevices()
     private val connectedDevices: MutableSharedFlow<List<Device>> = MutableSharedFlow(1)
     private val _connectedDevices: SharedFlow<List<Device>> = connectedDevices.onSubscription {
         this.emit(emptyList())
@@ -25,17 +25,18 @@ class DeviceRepository(private val deviceDao: DeviceDao) {
         return deviceDao.getDevice(id)
     }
 
-    private fun availableDevices(): Flow<List<Device>> = flow {
+    private fun availableDevices():
+            Flow<List<Device>> = flow {
+        val buffer = ByteArray(1024)
+        val packet = DatagramPacket(buffer, buffer.size)
         emit(emptyList()) //to get instantaneous first combine
         val set = HashSet<Device>()
+        val socket = MulticastSocket(33586)
+        val group = InetAddress.getByName("235.132.20.12")
+        socket.joinGroup(group)
         while (currentCoroutineContext().job.isActive) {
-            val socket = MulticastSocket(33586)
             socket.soTimeout = 3000
-            val group = InetAddress.getByName("235.132.20.12")
             try {
-                socket.joinGroup(group)
-                val buffer = ByteArray(1024)
-                val packet = DatagramPacket(buffer, buffer.size)
                 withTimeout(2000) {
                     while (isActive) {
                         socket.receive(packet)
@@ -49,13 +50,15 @@ class DeviceRepository(private val deviceDao: DeviceDao) {
             } catch (e: TimeoutCancellationException) {
                 Timber.d("emitting network devices $set")
                 emit(ArrayList(set))
-                socket.close()
                 set.clear()
             } catch (e: SocketTimeoutException) {
                 Timber.d("UDP socket timeout: $set")
+                set.clear()
                 emit(ArrayList(set))
             } catch (e: SocketException) {
+                e.printStackTrace()
                 Timber.i("UDP socket failed: $set")
+                set.clear()
                 emit(ArrayList(set))
                 delay(2000)
             }
