@@ -324,6 +324,6 @@ data class Device(
         activeLinks.forEach { it.stopConnection() }
         activeLinks.clear()
         Timber.d("active links after deactivate: $activeLinks")
-        scope.cancel()
+        job.cancelChildren()
     }
 }
