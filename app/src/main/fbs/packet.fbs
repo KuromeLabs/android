@@ -1,50 +1,47 @@
-// Generated from packet.proto
-
 include "file_node.fbs";
+include "device_info.fbs";
 
 namespace kurome;
 
-
-
-enum ActionType : int {
-  NO_ACTION = 0,
-  ACTION_GET_ENUMERATE_DIRECTORY = 1,
-  ACTION_GET_SPACE_INFO = 2,
-  ACTION_GET_FILETYPE = 3,
-  ACTION_WRITE_DIRECTORY = 4,
-  ACTION_DELETE = 5,
-  ACTION_SEND_TO_SERVER = 6,
-  ACTION_GET_FILE_INFO = 7,
-  ACTION_GET_DEVICE_NAME = 8,
-  ACTION_GET_DEVICE_ID = 9,
-  ACTION_CREATE_NEW_LINK = 10,
-  ACTION_WRITE_FILE_BUFFER = 11,
-  ACTION_RENAME = 12,
-  ACTION_SET_LENGTH = 13,
-  ACTION_CONNECT = 14,
-  ACTION_PAIR = 15,
-  ACTION_SET_FILE_TIME = 16,
-  ACTION_CREATE_EMPTY_FILE = 17,
+enum ActionType : byte {
+    no_action = 0,
+    action_get_directory = 1,
+    action_get_space_info = 2,
+    action_get_filetype = 3,
+    action_create_directory = 4,
+    action_delete = 5,
+    action_read_file_buffer = 6,
+    action_get_file_info = 7,
+    action_get_device_name = 8,
+    action_get_device_id = 9,
+    action_create_new_link = 10,
+    action_write_file_buffer = 11,
+    action_rename = 12,
+    action_set_length = 13,
+    action_connect = 14,
+    action_pair = 15,
+    action_set_file_time = 16,
+    action_create_file = 17,
 }
 
-enum ResultType : int {
-  NO_RESULT = 0,
-  RESULT_ACTION_SUCCESS = 1,
-  RESULT_FILE_IS_DIRECTORY = 2,
-  RESULT_FILE_IS_FILE = 3,
-  RESULT_FILE_NOTFOUND = 4,
-  RESULT_PATH_NOTFOUND = 5,
+enum ResultType : byte {
+    no_result = 0,
+    result_action_success = 1,
+    result_file_is_directory = 2,
+    result_file_is_file = 3,
+    result_file_notfound = 4,
+    result_path_notfound = 5,
 }
 
 table Packet {
-  
-  path:string;
-  action:kurome.ActionType;
-  result:kurome.ResultType;
-  raw:[ubyte];
-  buffer_offset:ulong;
-  buffer_length:ulong;
-  nodes:[kurome.FileNode];
+    path:string;
+    action:kurome.ActionType;
+    result:kurome.ResultType;
+    device_info:kurome.DeviceInfo;
+    raw:[ubyte];
+    buffer_offset:ulong;
+    buffer_length:ulong;
+    nodes:[kurome.FileNode];
  
   
 }

@@ -1,6 +1,5 @@
-// Generated from file_node.proto
-
 namespace kurome;
+
 table FileNode {
   filename:string;
   is_directory:bool;
