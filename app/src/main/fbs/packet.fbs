@@ -1,9 +1,10 @@
 include "file_node.fbs";
 include "device_info.fbs";
+include "raw.fbs";
 
 namespace kurome;
 
-enum ActionType : byte {
+enum Action : byte {
     no_action = 0,
     action_get_directory = 1,
     action_get_space_info = 2,
@@ -24,7 +25,7 @@ enum ActionType : byte {
     action_create_file = 17,
 }
 
-enum ResultType : byte {
+enum Result : byte {
     no_result = 0,
     result_action_success = 1,
     result_file_is_directory = 2,
@@ -36,13 +37,9 @@ enum ResultType : byte {
 
 table Packet {
     path:string;
-    action:kurome.ActionType;
-    result:kurome.ResultType;
+    action:kurome.Action;
+    result:kurome.Result;
     device_info:kurome.DeviceInfo;
-    raw:[ubyte];
-    buffer_offset:long;
-    buffer_length:long;
+    file_buffer:kurome.Raw;
     nodes:[kurome.FileNode];
- 
-  
 }
