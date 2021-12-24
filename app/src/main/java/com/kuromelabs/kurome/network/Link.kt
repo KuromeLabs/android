@@ -1,9 +1,12 @@
 package com.kuromelabs.kurome.network
 
+import com.google.flatbuffers.FlatBufferBuilder
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.Dispatchers
+import kurome.Packet
+import kurome.Result
 import timber.log.Timber
 import java.io.ByteArrayOutputStream
 import java.net.InetSocketAddress
@@ -12,6 +15,7 @@ import java.nio.ByteOrder
 import java.util.zip.GZIPOutputStream
 
 
+@OptIn(ExperimentalUnsignedTypes::class)
 class Link {
     private val selector: ActorSelectorManager = ActorSelectorManager(Dispatchers.IO)
     private val socketBuilder = aSocket(selector).tcp()
@@ -19,7 +23,7 @@ class Link {
     private var clientSocket: Socket? = null
     private var out: ByteWriteChannel? = null
     private var `in`: ByteReadChannel? = null
-
+    var builder = FlatBufferBuilder(1024)
     suspend fun startConnection(ip: String, port: Int) {
         this.ip = ip
         clientSocket = socketBuilder.connect(InetSocketAddress(ip, port))
@@ -35,19 +39,34 @@ class Link {
             Packets.RESULT_ACTION_SUCCESS
         } catch (e: Exception) {
             stopConnection()
-            Timber.d("link died at send")
+            Timber.d("link died at sendMessage")
             e.printStackTrace()
             Packets.RESULT_ACTION_FAIL
         }
     }
 
+    suspend fun sendByteBuffer(packet: ByteBuffer) {
+        try {
+            out?.writeFully(packet)
+        } catch (e: Exception) {
+            stopConnection()
+            Timber.d("link died at sendByteBuffer")
+            e.printStackTrace()
+        }
+    }
+
+    private val sizeBytes = ByteArray(4)
+    private var size = 0
+    private var buffer = ByteArray(1024)
     suspend fun receiveMessage(): ByteArray {
         return try {
-            val sizeBytes = ByteArray(4)
             `in`?.readFully(sizeBytes)
-            val size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).int
-            val buffer = ByteArray(size)
-            `in`?.readFully(buffer)
+            size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).int
+            if (size > buffer.size) {
+                buffer = ByteArray(size)
+            }
+            //Timber.e("size: $size")
+            `in`?.readFully(buffer, 0, size)
             buffer
         } catch (e: Exception) {
             stopConnection()
@@ -55,6 +74,24 @@ class Link {
             e.printStackTrace()
             byteArrayOf(Packets.RESULT_ACTION_FAIL)
         }
+    }
+
+    suspend fun receivePacket(packet: Packet): Byte {
+        try {
+            `in`?.readFully(sizeBytes)
+            size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).int
+            if (size > buffer.size) {
+                buffer = ByteArray(size)
+            }
+            `in`?.readFully(buffer, 0, size)
+        } catch (e: Exception) {
+            stopConnection()
+            Timber.d("link died at receivePacket")
+            e.printStackTrace()
+            return Result.resultActionFail
+        }
+        Packet.getRootAsPacket(ByteBuffer.wrap(buffer), packet)
+        return Result.resultActionSuccess
     }
 
     fun stopConnection() {
