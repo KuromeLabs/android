@@ -73,7 +73,7 @@ data class Device(
     private val activeLinks = Collections.synchronizedList(ArrayList<Link>())
 
     @Ignore
-    private val rootPath = Environment.getExternalStorageDirectory().path
+    private val root = Environment.getExternalStorageDirectory().path
 
 
     fun activate() {
@@ -125,23 +125,21 @@ data class Device(
     private suspend fun monitorLink(link: Link) {
         activeLinks.add(link)
         scope.launch {
-            var message = link.receiveMessage()
+            val packet = Packet()
+            var resultStatus = link.receivePacket(packet)
             while (job.isActive) {
-                if (message[0] == Packets.RESULT_ACTION_FAIL) {
+                if (resultStatus == Result.resultActionFail || resultStatus == Result.noResult) {
                     break
                 }
                 val pm: PowerManager =
                     ContextCompat.getSystemService(context!!, PowerManager::class.java)!!
-                val wl =
-                    pm.newWakeLock(
-                        PowerManager.PARTIAL_WAKE_LOCK,
-                        "com.kuromelabs.kurome: tcp wakelock"
-                    )
+                val wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Kurome: tcp wakelock")
                 wl.acquire(10 * 60 * 1000L /*10 minutes*/)
-                val result = parseMessage(message)
-                link.sendMessage(result, false)
+                val result = parsePacket(packet, link.builder)
+                link.sendByteBuffer(result)
+                link.builder.clear()
                 wl.release()
-                message = link.receiveMessage()
+                resultStatus = link.receivePacket(packet)
             }
             link.stopConnection()
             activeLinks.remove(link)
@@ -164,6 +162,7 @@ data class Device(
             Action.actionGetFileInfo -> fileNodes = intArrayOf(getFileNode(builder, path))
             Action.actionWriteFileBuffer -> result = writeFileBuffer(packet)
             Action.actionRename -> result = rename(packet)
+            Action.actionSetLength -> result = setLength(packet)
             Action.actionSetFileTime -> result = setFileTime(packet)
             Action.actionCreateFile -> result = createFile(path)
         }
@@ -229,9 +228,9 @@ data class Device(
             pos += count
         }
         fis.close()
-        val byteVector = Raw.createRawVector(builder, buffer)
+        val byteVector = Raw.createBufferVector(builder, buffer)
         Raw.startRaw(builder)
-        Raw.addRaw(builder, byteVector)
+        Raw.addBuffer(builder, byteVector)
         return Raw.endRaw(builder)
     }
 
@@ -265,7 +264,7 @@ data class Device(
             val actualOffset = if (offset == (-1).toLong()) raf.length() else offset
             raf.seek(actualOffset) //offset = -1 means append
             Timber.d("writing file buffer at $offset")
-            raf.write(packet.fileBuffer!!.rawAsByteBuffer.array())
+            raf.write(packet.fileBuffer!!.bufferAsByteBuffer.array())
             raf.close()
         } catch (e: Exception) {
             e.printStackTrace()
@@ -279,6 +278,19 @@ data class Device(
             val oldPath = root + packet.path!!
             val newPath = root + packet.nodes(0)!!.filename!!
             File(oldPath).renameTo(File(newPath))
+            Result.resultActionSuccess
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.resultActionFail
+        }
+    }
+
+    private fun setLength(packet: Packet): Byte {
+        return try {
+            val path = root + packet.path!!
+            val raf = RandomAccessFile(path, "rw")
+            raf.setLength(packet.nodes(0)!!.length)
+            raf.close()
             Result.resultActionSuccess
         } catch (e: Exception) {
             e.printStackTrace()
