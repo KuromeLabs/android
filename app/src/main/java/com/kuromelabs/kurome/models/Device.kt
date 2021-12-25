@@ -259,12 +259,13 @@ data class Device(
 
     private fun writeFileBuffer(packet: Packet): Byte {
         val raf = RandomAccessFile(root + packet.path, "rw")
-        val offset = packet.fileBuffer!!.offset
+        val raw = packet.fileBuffer!!
+        val offset = raw.offset
         try {
             val actualOffset = if (offset == (-1).toLong()) raf.length() else offset
             raf.seek(actualOffset) //offset = -1 means append
-            Timber.d("writing file buffer at $offset")
-            raf.write(packet.fileBuffer!!.bufferAsByteBuffer.array())
+            Timber.d("writing file buffer at $offset size: ${packet.fileBuffer!!.dataLength} path: ${root + packet.path}")
+            raf.write(raw.dataAsByteBuffer.array(), raw.dataAsByteBuffer.position(), raw.dataLength)
             raf.close()
         } catch (e: Exception) {
             e.printStackTrace()
