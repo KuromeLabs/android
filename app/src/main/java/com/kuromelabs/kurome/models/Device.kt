@@ -10,16 +10,17 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Ignore
 import androidx.room.PrimaryKey
+import com.google.flatbuffers.FlatBufferBuilder
 import com.kuromelabs.kurome.getGuid
 import com.kuromelabs.kurome.network.Link
 import com.kuromelabs.kurome.network.LinkProvider
 import com.kuromelabs.kurome.network.Packets
 import kotlinx.coroutines.*
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
+import kurome.*
 import timber.log.Timber
 import java.io.File
 import java.io.RandomAccessFile
+import java.nio.ByteBuffer
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.attribute.BasicFileAttributeView
@@ -27,6 +28,7 @@ import java.nio.file.attribute.FileTime
 import java.util.*
 
 
+@OptIn(ExperimentalUnsignedTypes::class)
 @Suppress("DEPRECATION")
 @Entity(tableName = "device_table")
 data class Device(
@@ -228,9 +230,9 @@ data class Device(
             pos += count
         }
         fis.close()
-        val byteVector = Raw.createBufferVector(builder, buffer)
+        val byteVector = Raw.createDataVector(builder, buffer)
         Raw.startRaw(builder)
-        Raw.addBuffer(builder, byteVector)
+        Raw.addData(builder, byteVector)
         return Raw.endRaw(builder)
     }
 
