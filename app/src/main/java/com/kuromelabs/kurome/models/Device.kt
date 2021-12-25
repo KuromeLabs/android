@@ -123,7 +123,7 @@ data class Device(
     }
 
     private suspend fun monitorLink(link: Link) {
-        activeLinks.add(link)
+        synchronized(activeLinks) { activeLinks.add(link) }
         scope.launch {
             val packet = Packet()
             var resultStatus = link.receivePacket(packet)
@@ -142,7 +142,7 @@ data class Device(
                 resultStatus = link.receivePacket(packet)
             }
             link.stopConnection()
-            activeLinks.remove(link)
+            synchronized(activeLinks) { activeLinks.remove(link) }
         }
     }
 
@@ -327,9 +327,11 @@ data class Device(
     }
 
     fun deactivate() {
-        activeLinks.forEach { it.stopConnection() }
-        activeLinks.clear()
-        Timber.d("active links after deactivate: $activeLinks")
-        job.cancelChildren()
+        synchronized(activeLinks) {
+            activeLinks.forEach { it.stopConnection() }
+            activeLinks.clear()
+            Timber.d("active links after deactivate: $activeLinks")
+            job.cancelChildren()
+        }
     }
 }
