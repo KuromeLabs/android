@@ -3,6 +3,7 @@ package com.kuromelabs.kurome.network
 import com.google.flatbuffers.FlatBufferBuilder
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
+import io.ktor.network.tls.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.Dispatchers
 import kurome.Packet
@@ -12,7 +13,10 @@ import java.io.ByteArrayOutputStream
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.security.cert.X509Certificate
 import java.util.zip.GZIPOutputStream
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 
 @OptIn(ExperimentalUnsignedTypes::class)
@@ -25,8 +29,26 @@ class Link {
     private var `in`: ByteReadChannel? = null
     var builder = FlatBufferBuilder(1024)
     suspend fun startConnection(ip: String, port: Int) {
+
+        //Setup SSL
+        //TODO: Temporary, we should trust the server's certificate when pairing
+        val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
+            override fun getAcceptedIssuers(): Array<X509Certificate?> {
+                return arrayOfNulls(0)
+            }
+
+            override fun checkClientTrusted(certs: Array<X509Certificate>, authType: String) {}
+            override fun checkServerTrusted(certs: Array<X509Certificate>, authType: String) {}
+        }
+        )
+        val tlsConfigBuilder = TLSConfigBuilder()
+        tlsConfigBuilder.trustManager = trustAllCerts[0]
+        val tlsConfig = tlsConfigBuilder.build()
         this.ip = ip
-        clientSocket = socketBuilder.connect(InetSocketAddress(ip, port))
+
+        clientSocket = socketBuilder.connect(InetSocketAddress(ip, port)).tls(
+            Dispatchers.IO, tlsConfig
+        )
         Timber.d("Link connected at $ip:$port")
         out = clientSocket!!.openWriteChannel(true)
         `in` = (clientSocket!!.openReadChannel())
