@@ -9,9 +9,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
-import android.os.Binder
 import android.os.Build
-import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
@@ -23,28 +21,38 @@ import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.UI.MainActivity
 import com.kuromelabs.kurome.database.DeviceRepository
 import com.kuromelabs.kurome.models.Device
+import com.kuromelabs.kurome.network.Link
+import com.kuromelabs.kurome.network.LinkProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.locks.ReentrantLock
 
 
-class KuromeService : LifecycleService(), Device.DeviceStatusListener {
+class KuromeService : LifecycleService() {
     private val CHANNEL_ID = "ForegroundServiceChannel"
-    private val binder: IBinder = LocalBinder()
-
-    private val connectedDevices = ArrayList<Device>()
-    private val monitoredDevices = HashSet<Device>()
+    private lateinit var linkProvider: LinkProvider
     private lateinit var repository: DeviceRepository
     private var isWifiConnected: AtomicBoolean = AtomicBoolean(false)
     private var isServiceActive = false
     private val lifecycleOwner = this
 
+    private val devicesMap = ConcurrentHashMap<String, Device>()
+
     override fun onCreate() {
-        repository = (application as KuromeApplication).repository
         super.onCreate()
+        repository = (application as KuromeApplication).repository
+        initializeObserver()
+        linkProvider = LinkProvider(baseContext)
+        linkProvider.addLinkListener(deviceConnectionListener)
+        linkProvider.listening = true
+        try{
+            linkProvider.initializeUdpListener("235.132.20.12", 33586)
+        } catch (e: Exception) {
+            Timber.e(e)
+        }
+
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -61,31 +69,32 @@ class KuromeService : LifecycleService(), Device.DeviceStatusListener {
             .setSmallIcon(R.drawable.ic_launcher_background)
             .setContentIntent(pendingIntent)
             .build()
+
         startForeground(1, notification)
 
+        isServiceActive = true
+        super.onStartCommand(intent, flags, startId)
+        return START_NOT_STICKY
+    }
+
+    private fun initializeObserver(){
+        val observer = Observer<List<Device>> {
+            Timber.d("Observed size: ${it.size}")
+            for (device in it) {
+                devicesMap[device.id] = device
+                Timber.d("devicesMap contents: ${devicesMap.keys}")
+            }
+
+        }
         val cm = ContextCompat.getSystemService(applicationContext, ConnectivityManager::class.java)
         val request = NetworkRequest.Builder()
             .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
             .build()
-
-
-        val observer = Observer<List<Device>> {
-            for (device in it) {
-                if (device !in monitoredDevices) {
-                    monitoredDevices.add(device)
-                    monitorDevice(device)
-                    Timber.d("Observer: monitoring device $device")
-                }
-            }
-
-        }
-
         cm?.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
             val data = repository.savedDevices.asLiveData()
             override fun onLost(network: Network) {
                 Timber.e("Monitor network onLost: $network")
                 isWifiConnected.set(false)
-                killDevices()
                 lifecycleScope.launch(Dispatchers.Main) { data.removeObservers(lifecycleOwner) }
             }
 
@@ -103,35 +112,39 @@ class KuromeService : LifecycleService(), Device.DeviceStatusListener {
                 }
             }
         })
-        isServiceActive = true
-        return super.onStartCommand(intent, flags, startId)
     }
 
-    private fun monitorDevice(device: Device) {
-        Timber.d("monitorDevice called for $device")
-        device.context = applicationContext
-        device.listener = this
-        device.activate()
-    }
+    @OptIn(ExperimentalUnsignedTypes::class)
+    private val deviceConnectionListener = object : LinkProvider.LinkListener {
+        override fun onLinkConnected(packetString: String?, link: Link?) {
+            val split = packetString!!.split(':')
+            val ip = split[1]
+            val name = split[2]
+            val id = split[3]
+            var device = devicesMap[id]
+            if (device != null){
+                Timber.d("Known device: $device")
+                device.context = applicationContext
+                device.setLink(link!!)
+            } else {
+                Timber.d("Unknown device: $id")
+                device = Device(name, id)
 
-    private val lock = ReentrantLock()
-    fun killDevices() = synchronized(lock) {
-        for (device in monitoredDevices) {
-            Timber.d("deactivating $device")
-            device.deactivate()
+            }
         }
-        monitoredDevices.clear()
+
+        override fun onLinkDisconnected(id: String?, link: Link?) {
+            val device = devicesMap[id]
+            if (device != null) {
+//                devicesMap.remove(id)
+                Timber.d("Device disconnected: $device")
+            }
+        }
+
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        isServiceActive = false
-        lifecycleScope.launch { killDevices() }
-    }
-
-    override fun onBind(intent: Intent): IBinder {
-        super.onBind(intent)
-        return binder
     }
 
     private fun createNotificationChannel() {
@@ -143,28 +156,6 @@ class KuromeService : LifecycleService(), Device.DeviceStatusListener {
             )
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(serviceChannel)
-        }
-    }
-
-
-    inner class LocalBinder : Binder() {
-        fun getService(): KuromeService = this@KuromeService
-    }
-
-    override suspend fun onConnected(device: Device) {
-        Timber.d("onConnected called $device")
-        connectedDevices.add(device)
-        repository.setConnectedDevices(connectedDevices)
-    }
-
-    override suspend fun onDisconnected(device: Device) {
-        connectedDevices.remove(device)
-        monitoredDevices.remove(device)
-        Timber.d("onDisconnected called $device")
-        repository.setConnectedDevices(connectedDevices)
-        if (isWifiConnected.get() && isServiceActive) {
-            monitorDevice(device)
-            monitoredDevices.add(device)
         }
     }
 }

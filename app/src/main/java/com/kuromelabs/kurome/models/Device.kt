@@ -3,19 +3,17 @@ package com.kuromelabs.kurome.models
 import android.content.Context
 import android.os.Build
 import android.os.Environment
-import android.os.PowerManager
 import android.os.StatFs
-import androidx.core.content.ContextCompat
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Ignore
 import androidx.room.PrimaryKey
 import com.google.flatbuffers.FlatBufferBuilder
-import com.kuromelabs.kurome.getGuid
 import com.kuromelabs.kurome.network.Link
-import com.kuromelabs.kurome.network.LinkProvider
-import com.kuromelabs.kurome.network.Packets
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kurome.*
 import timber.log.Timber
 import java.io.File
@@ -25,7 +23,6 @@ import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.attribute.BasicFileAttributeView
 import java.nio.file.attribute.FileTime
-import java.util.*
 
 
 @OptIn(ExperimentalUnsignedTypes::class)
@@ -34,31 +31,13 @@ import java.util.*
 data class Device(
     @PrimaryKey @ColumnInfo(name = "name") val name: String,
     @ColumnInfo(name = "id") val id: String,
-) {
-    constructor(name: String, id: String, listener: DeviceStatusListener, context: Context) : this(
-        name,
-        id
-    ) {
+) : Link.PacketReceivedCallback {
+    constructor(name: String, id: String, context: Context) : this(name, id) {
         this.context = context
-        this.listener = listener
-    }
-
-    @Ignore
-    var listener: DeviceStatusListener? = null
-
-    interface DeviceStatusListener {
-        suspend fun onConnected(device: Device)
-        suspend fun onDisconnected(device: Device)
     }
 
     @Ignore
     var context: Context? = null
-
-    @Ignore
-    var ip = String()
-
-    @Ignore
-    var linkProvider = LinkProvider
 
     @Ignore
     private val job = SupervisorJob()
@@ -72,80 +51,15 @@ data class Device(
     var isConnected = false
 
     @Ignore
-    private val activeLinks = Collections.synchronizedList(ArrayList<Link>())
+    private lateinit var link: Link
 
     @Ignore
     private val root = Environment.getExternalStorageDirectory().path
 
-
-    fun activate() {
-        scope.launch {
-            val controlLink: Link
-            try {
-                controlLink = linkProvider.createControlLinkFromUdp(
-                    "235.132.20.12",
-                    33586,
-                    id
-                )
-            } catch (e: Exception) {
-                Timber.d("creating control link from UDP failed $this")
-                return@launch
-            }
-            controlLink.sendMessage(
-                byteArrayOf(Packets.ACTION_CONNECT) +
-                        (Build.MODEL + ':' + getGuid(context!!)).toByteArray(),
-                false
-            )
-            if (controlLink.receiveMessage()[0] == Packets.RESULT_ACTION_SUCCESS) {
-                monitorControlLink(controlLink)
-                listener!!.onConnected(this@Device)
-            } else {
-                listener!!.onDisconnected(this@Device)
-                Timber.d("Device connection failed: $this")
-            }
-        }
-    }
-
-    private fun monitorControlLink(controlLink: Link) {
-        scope.launch {
-            try {
-                while (job.isActive) {
-                    val link = linkProvider.createLink(controlLink)
-                    scope.launch {
-                        monitorLink(link)
-                    }
-                }
-            } catch (e: Exception) {
-                Timber.d("control link died $this")
-                controlLink.stopConnection()
-                listener!!.onDisconnected(this@Device)
-
-            }
-        }
-    }
-
-    private suspend fun monitorLink(link: Link) {
-        synchronized(activeLinks) { activeLinks.add(link) }
-        scope.launch {
-            val packet = Packet()
-            var resultStatus = link.receivePacket(packet)
-            while (job.isActive) {
-                if (resultStatus == Result.resultActionFail || resultStatus == Result.noResult) {
-                    break
-                }
-                val pm: PowerManager =
-                    ContextCompat.getSystemService(context!!, PowerManager::class.java)!!
-                val wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Kurome: tcp wakelock")
-                wl.acquire(10 * 60 * 1000L /*10 minutes*/)
-                val result = parsePacket(packet, link.builder)
-                link.sendByteBuffer(result)
-                link.builder.clear()
-                wl.release()
-                resultStatus = link.receivePacket(packet)
-            }
-            link.stopConnection()
-            synchronized(activeLinks) { activeLinks.remove(link) }
-        }
+    fun setLink(link: Link) {
+        Timber.d("Setting link")
+        this.link = link
+        link.addPacketCallback(this)
     }
 
     private fun parsePacket(packet: Packet, builder: FlatBufferBuilder): ByteBuffer {
@@ -237,26 +151,32 @@ data class Device(
     }
 
     private fun getFileNode(builder: FlatBufferBuilder, path: String): Int {
-        val file = File(path)
-        var crTime = 0L
-        val lwTime = file.lastModified()
-        var laTime = 0L
-        val filename = builder.createString(file.name)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val pathObj = Paths.get(path)
-            val attributes = Files.getFileAttributeView(pathObj, BasicFileAttributeView::class.java)
-            crTime = attributes.readAttributes().creationTime().toMillis()
-            laTime = attributes.readAttributes().lastAccessTime().toMillis()
+        try {
+            val file = File(path)
+            var crTime = 0L
+            val lwTime = file.lastModified()
+            var laTime = 0L
+            val filename = builder.createString(file.name)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val pathObj = Paths.get(path)
+                val attributes =
+                    Files.getFileAttributeView(pathObj, BasicFileAttributeView::class.java)
+                crTime = attributes.readAttributes().creationTime().toMillis()
+                laTime = attributes.readAttributes().lastAccessTime().toMillis()
+            }
+            return FileNode.createFileNode(
+                builder,
+                filename,
+                file.isDirectory,
+                file.length(),
+                crTime,
+                laTime,
+                lwTime
+            )
+        } catch (e: Exception) {
+            Timber.e(e)
+            return 0
         }
-        return kurome.FileNode.createFileNode(
-            builder,
-            filename,
-            file.isDirectory,
-            file.length(),
-            crTime,
-            laTime,
-            lwTime
-        )
     }
 
     private fun writeFileBuffer(packet: Packet): Byte {
@@ -328,12 +248,12 @@ data class Device(
         else Result.resultActionFail
     }
 
-    fun deactivate() {
-        synchronized(activeLinks) {
-            activeLinks.forEach { it.stopConnection() }
-            activeLinks.clear()
-            Timber.d("active links after deactivate: $activeLinks")
-            job.cancelChildren()
+
+    override fun onPacketReceived(packet: Packet) {
+        scope.launch {
+            val result = parsePacket(packet, link.builder)
+            link.sendByteBuffer(result)
+            link.builder.clear()
         }
     }
 }

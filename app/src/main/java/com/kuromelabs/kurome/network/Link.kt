@@ -5,29 +5,49 @@ import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
 import io.ktor.network.tls.*
 import io.ktor.utils.io.*
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kurome.Packet
-import kurome.Result
 import timber.log.Timber
-import java.io.ByteArrayOutputStream
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.cert.X509Certificate
-import java.util.zip.GZIPOutputStream
+import java.util.concurrent.CopyOnWriteArrayList
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 
 
 @OptIn(ExperimentalUnsignedTypes::class)
-class Link {
+class Link(var deviceId: String, provider: LinkProvider) {
     private val selector: ActorSelectorManager = ActorSelectorManager(Dispatchers.IO)
     private val socketBuilder = aSocket(selector).tcp()
-    var ip = String()
     private var clientSocket: Socket? = null
     private var out: ByteWriteChannel? = null
     private var `in`: ByteReadChannel? = null
     var builder = FlatBufferBuilder(1024)
+
+    interface LinkDisconnectedCallback {
+        fun onLinkDisconnected(link: Link);
+    }
+
+    interface PacketReceivedCallback {
+        fun onPacketReceived(packet: Packet)
+    }
+
+    private var callback: LinkDisconnectedCallback = provider
+    private var packetCallbacks = CopyOnWriteArrayList<PacketReceivedCallback>()
+    private val sizeBytes = ByteArray(4)
+    private var size = 0
+    private var buffer = ByteArray(1024)
+
+    private val job = SupervisorJob()
+    private val scope = CoroutineScope(Dispatchers.IO + job)
+
     suspend fun startConnection(ip: String, port: Int) {
 
         //Setup SSL
@@ -44,7 +64,6 @@ class Link {
         val tlsConfigBuilder = TLSConfigBuilder()
         tlsConfigBuilder.trustManager = trustAllCerts[0]
         val tlsConfig = tlsConfigBuilder.build()
-        this.ip = ip
 
         clientSocket = socketBuilder.connect(InetSocketAddress(ip, port)).tls(
             Dispatchers.IO, tlsConfig
@@ -53,88 +72,65 @@ class Link {
         out = clientSocket!!.openWriteChannel(true)
         `in` = (clientSocket!!.openReadChannel())
 
-    }
+        scope.launch {
+            while (true) {
+                Timber.d("Reading from socket")
+                try {
+                    `in`?.readFully(sizeBytes)
+                    size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).int
+                    if (size > buffer.size) {
+                        buffer = ByteArray(size)
+                    }
+                    `in`?.readFully(buffer, 0, size)
 
-    suspend fun sendMessage(msg: ByteArray, gzip: Boolean): Byte {
-        return try {
-            out?.writeFully(addLittleEndianPrefix(if (gzip) byteArrayToGzip(msg) else msg))
-            Packets.RESULT_ACTION_SUCCESS
-        } catch (e: Exception) {
-            stopConnection()
-            Timber.d("link died at sendMessage")
-            e.printStackTrace()
-            Packets.RESULT_ACTION_FAIL
-        }
-    }
+                } catch (e: Exception) {
+                    Timber.e("died at startConnection: $e")
+                    stopConnection()
+                    break
+                }
+                val packet = Packet.getRootAsPacket(ByteBuffer.wrap(buffer))
+                packetReceived(packet)
 
-    suspend fun sendByteBuffer(packet: ByteBuffer) {
-        try {
-            out?.writeFully(packet)
-        } catch (e: Exception) {
-            stopConnection()
-            Timber.d("link died at sendByteBuffer")
-            e.printStackTrace()
-        }
-    }
-
-    private val sizeBytes = ByteArray(4)
-    private var size = 0
-    private var buffer = ByteArray(1024)
-    suspend fun receiveMessage(): ByteArray {
-        return try {
-            `in`?.readFully(sizeBytes)
-            size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).int
-            if (size > buffer.size) {
-                buffer = ByteArray(size)
             }
-            //Timber.e("size: $size")
-            `in`?.readFully(buffer, 0, size)
-            buffer
-        } catch (e: Exception) {
-            stopConnection()
-            Timber.d("link died at receive")
-            e.printStackTrace()
-            byteArrayOf(Packets.RESULT_ACTION_FAIL)
         }
+
     }
 
-    suspend fun receivePacket(packet: Packet): Byte {
+    private val mutex = Mutex()
+     suspend fun sendByteBuffer(packet: ByteBuffer) {
         try {
-            `in`?.readFully(sizeBytes)
-            size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).int
-            if (size > buffer.size) {
-                buffer = ByteArray(size)
+            mutex.withLock {
+                `out`?.writeFully(packet)
             }
-            `in`?.readFully(buffer, 0, size)
         } catch (e: Exception) {
+            Timber.e("died at sendByteBuffer: $e")
             stopConnection()
-            Timber.d("link died at receivePacket")
-            e.printStackTrace()
-            return Result.resultActionFail
         }
-        Packet.getRootAsPacket(ByteBuffer.wrap(buffer), packet)
-        return Result.resultActionSuccess
     }
 
-    fun stopConnection() {
+    private fun packetReceived(packet: Packet) {
+//        Timber.d("Called packetReceived. Size of callbacks: ${packetCallbacks.size}")
+        packetCallbacks.forEach {
+            it.onPacketReceived(packet)
+        }
+    }
+
+    fun addPacketCallback(callback: PacketReceivedCallback) {
+        packetCallbacks.add(callback)
+    }
+
+    fun removePacketCallback(callback: PacketReceivedCallback) {
+        packetCallbacks.remove(callback)
+    }
+
+    private fun stopConnection() {
+        Timber.d("Stopping connection: $deviceId")
+        packetCallbacks.clear()
+        callback.onLinkDisconnected(this)
         `in`?.cancel()
         out?.close()
         clientSocket?.close()
+//        scope.cancel()
     }
 
-    fun addLittleEndianPrefix(array: ByteArray): ByteArray {
-        val size = Integer.reverseBytes(array.size)
-        val sizeBytes = ByteBuffer.allocate(4).putInt(size).array()
-        return sizeBytes + array
-    }
-
-    fun byteArrayToGzip(str: ByteArray): ByteArray {
-        val byteArrayOutputStream = ByteArrayOutputStream(str.size)
-        val gzip = GZIPOutputStream(byteArrayOutputStream)
-        gzip.write(str)
-        gzip.close()
-        val compressed = byteArrayOutputStream.toByteArray()
-        byteArrayOutputStream.close()
-        return compressed
-    }
 }

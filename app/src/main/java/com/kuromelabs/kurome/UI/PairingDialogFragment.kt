@@ -2,23 +2,22 @@ package com.kuromelabs.kurome.UI
 
 import android.app.Dialog
 import android.content.DialogInterface
-import android.os.Build
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
-import com.kuromelabs.kurome.KuromeApplication
 import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.getGuid
 import com.kuromelabs.kurome.models.Device
 import com.kuromelabs.kurome.network.Link
 import com.kuromelabs.kurome.network.LinkProvider
-import com.kuromelabs.kurome.network.Packets
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import java.util.concurrent.TimeUnit
 
-
+//TODO:Fix
 class PairingDialogFragment(val device: Device, val listener: NoticeDialogListener) :
     DialogFragment(),
     DialogInterface.OnShowListener {
@@ -28,7 +27,7 @@ class PairingDialogFragment(val device: Device, val listener: NoticeDialogListen
     }
 
     lateinit var alert: AlertDialog
-    private var link = Link()
+    private var link = Link("",  LinkProvider(requireContext()))
     private val pairingScope = CoroutineScope(Dispatchers.IO)
     private val timeout = object : CountDownTimer(30000, 1000) {
         override fun onTick(l: Long) {
@@ -39,7 +38,7 @@ class PairingDialogFragment(val device: Device, val listener: NoticeDialogListen
         override fun onFinish() {
             Toast.makeText(requireContext(), "Pairing operation timed out", Toast.LENGTH_LONG)
                 .show()
-            link.stopConnection()
+//            link.stopConnection()
             pairingScope.cancel()
             dismiss()
         }
@@ -53,7 +52,7 @@ class PairingDialogFragment(val device: Device, val listener: NoticeDialogListen
                 Toast.makeText(requireContext(), "Pairing operation cancelled", Toast.LENGTH_LONG)
                     .show()
                 timeout.cancel()
-                link.stopConnection()
+//                link.stopConnection()
                 pairingScope.cancel()
                 dismiss()
             }
@@ -65,28 +64,28 @@ class PairingDialogFragment(val device: Device, val listener: NoticeDialogListen
 
     override fun onShow(p0: DialogInterface?) {
 
-        pairingScope.launch {
-            link = LinkProvider.createPairLink(device.ip, 33587)
-            link.sendMessage(
-                byteArrayOf(Packets.ACTION_PAIR) +
-                        (Build.MODEL + ':' + getGuid(requireContext())).toByteArray(), false
-            )
-            val message = link.receiveMessage()
-            if (message[0] == Packets.RESULT_ACTION_SUCCESS) {
-                val repository = (activity?.application as KuromeApplication).repository
-                device.isPaired = true
-                repository.insert(device)
-                withContext(Dispatchers.Main) {
-                    timeout.cancel()
-                    listener.onSuccess(device)
-                    link.stopConnection()
-                    pairingScope.cancel()
-                    dismiss()
-                }
-            }
+//        pairingScope.launch {
+//            link = LinkProvider(requireContext()).createPairLink(device.ip, 33587)
+////            link.sendMessage(
+////                byteArrayOf(Packets.ACTION_PAIR) +
+////                        (Build.MODEL + ':' + getGuid(requireContext())).toByteArray(), false
+////            )
+//            val message = link.receiveMessage()
+//            if (message[0] == Packets.RESULT_ACTION_SUCCESS) {
+//                val repository = (activity?.application as KuromeApplication).repository
+//                device.isPaired = true
+//                repository.insert(device)
+//                withContext(Dispatchers.Main) {
+//                    timeout.cancel()
+//                    listener.onSuccess(device)
+//                    link.stopConnection()
+//                    pairingScope.cancel()
+//                    dismiss()
+//                }
+//            }
         }
-
-        timeout.start()
-
-    }
+//
+//        timeout.start()
+//
+//    }
 }

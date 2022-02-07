@@ -1,50 +1,116 @@
 package com.kuromelabs.kurome.network
 
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.job
+import android.content.Context
+import android.os.Build
+import com.google.flatbuffers.FlatBufferBuilder
+import com.kuromelabs.kurome.getGuid
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kurome.Action
+import kurome.DeviceInfo
+import kurome.Packet
 import timber.log.Timber
 import java.net.DatagramPacket
 import java.net.InetAddress
 import java.net.MulticastSocket
 import java.net.SocketException
+import java.util.concurrent.CopyOnWriteArrayList
 
 @Suppress("BlockingMethodInNonBlockingContext")
-object LinkProvider {
-    suspend fun createControlLinkFromUdp(ip: String, port: Int, id: String): Link {
-        Timber.d("creating control link at $ip:$port, id: $id")
-        var incomingId = String()
-        var msg = String()
-        val socket = MulticastSocket(port)
-        val group = InetAddress.getByName(ip)
-        socket.joinGroup(group)
-        val buffer = ByteArray(1024)
-        val packet = DatagramPacket(buffer, buffer.size)
-        while (incomingId != id && currentCoroutineContext().job.isActive) {
-            socket.receive(packet)
-            msg = String(packet.data, packet.offset, packet.length)
-            incomingId = msg.split(':')[3]
-        }
-        socket.close()
-        val link = Link()
-        link.startConnection(msg.split(':')[1], 33587)
-        return link
+class LinkProvider(val context: Context) : Link.LinkDisconnectedCallback {
+    private var udpSocket: MulticastSocket? = null
+    var listening = false
+    private val linkListeners = CopyOnWriteArrayList<LinkListener>()
+    private val builder = FlatBufferBuilder(128)
+
+    interface LinkListener {
+        fun onLinkConnected(identityPacket: String?, link: Link?)
+        fun onLinkDisconnected(id: String?, link: Link?)
     }
 
-    suspend fun createLink(controlLink: Link): Link {
-        val message = controlLink.receiveMessage()
-        if (message[0] == Packets.ACTION_CREATE_NEW_LINK) {
-            val link = Link()
-            link.startConnection(controlLink.ip, 33588)
-            return link
-        } else {
-            throw SocketException()
+
+    fun initializeUdpListener(ip: String, port: Int) {
+        CoroutineScope(Dispatchers.IO).launch {
+            Timber.d("initializing udp listener at $ip:$port")
+            udpSocket = MulticastSocket(33586)
+            val group = InetAddress.getByName(ip)
+            udpSocket!!.joinGroup(group)
+            Timber.e("Listening: $listening")
+            while (listening) {
+
+                val buffer = ByteArray(1024)
+                val packet = DatagramPacket(buffer, buffer.size)
+                try {
+                    Timber.e("attempting to receive UDP packet")
+                    udpSocket!!.receive(packet)
+                    Timber.d("received packet: ${String(packet.data, packet.offset, packet.length)}")
+                    datagramPacketReceived(packet)
+                } catch (e: SocketException) {
+                    Timber.e(e)
+                }
+            }
         }
     }
 
-    suspend fun createPairLink(ip: String, port: Int): Link {
-        val link = Link()
-        Timber.d("starting link at $ip:$port")
-        link.startConnection(ip, port)
-        return link
+    private suspend fun datagramPacketReceived(packet: DatagramPacket) {
+            val packetString = String(packet.data, packet.offset, packet.length)
+            val split = packetString.split(':')
+            val ip = split[1]
+            val name = split[2]
+            val id = split[3]
+            Timber.d("Received UDP. name: $name, id: $id")
+            val link = Link(id, this@LinkProvider)
+            link.startConnection(ip, 33587)
+            linkConnected(packetString, link)
+            Timber.d("Link connection started from UDP")
+            val modelOffset = builder.createString(Build.MODEL)
+            val guidOffset = builder.createString(getGuid(context))
+
+            val info = DeviceInfo.createDeviceInfo(builder, modelOffset, guidOffset, 0, 0, 0)
+            val packet = Packet.createPacket(builder, 0, Action.actionConnect, 0, info, 0, 0)
+            builder.finishSizePrefixed(packet)
+        try {
+            link.sendByteBuffer(builder.dataBuffer())
+        } catch (e: Exception) {
+            Timber.e("died at datagramPacketReceived: $e")
+        }
+            Timber.d("Sent identity packet. Size: ${builder.dataBuffer().capacity()}")
+            builder.clear()
+
+
+    }
+
+
+    fun onStop() {
+        listening = false;
+        udpSocket?.close()
+    }
+
+
+    fun addLinkListener(linkListener: LinkListener) {
+        linkListeners.add(linkListener)
+    }
+
+    fun removeLinkListener(linkListener: LinkListener) {
+        linkListeners.remove(linkListener)
+    }
+
+    private fun linkConnected(packet: String, link: Link) {
+        for (receiver in linkListeners) {
+            Timber.d("linkConnected called. Num of callbacks: ${linkListeners.size}")
+            receiver.onLinkConnected(packet, link)
+        }
+    }
+
+    private fun linkDisconnected(link: Link) {
+        for (receiver in linkListeners) {
+            Timber.d("disconnected link: ${link.deviceId}")
+            receiver.onLinkDisconnected(link.deviceId, link)
+        }
+    }
+
+    override fun onLinkDisconnected(link: Link) {
+        linkDisconnected(link)
     }
 }

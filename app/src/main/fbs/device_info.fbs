@@ -5,4 +5,5 @@ table DeviceInfo {
   id:string;
   total_bytes:long;
   free_bytes:long;
+  local_ip:string;
 }
