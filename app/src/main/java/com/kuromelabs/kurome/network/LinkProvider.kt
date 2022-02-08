@@ -30,25 +30,25 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
 
     fun initializeUdpListener(ip: String, port: Int) {
         serviceScope.launch(Dispatchers.IO) {
-            try {
-                Timber.d("initializing udp listener at $ip:$port")
-                udpSocket = MulticastSocket(33586)
-                udpSocket!!.soTimeout = 5000
-                val group = InetAddress.getByName(ip)
-                udpSocket!!.joinGroup(group)
-                Timber.e("Listening: $listening")
-                while (listening) {
+            Timber.d("initializing udp listener at $ip:$port")
+            udpSocket = MulticastSocket(33586)
+            udpSocket!!.soTimeout = 20000
+            val group = InetAddress.getByName(ip)
+            udpSocket!!.joinGroup(group)
+            Timber.e("Listening: $listening")
+            while (listening) {
+                try {
                     val buffer = ByteArray(1024)
                     val packet = DatagramPacket(buffer, buffer.size)
-                    Timber.e("attempting to receive UDP packet")
+                    Timber.d("attempting to receive UDP packet")
                     udpSocket!!.receive(packet)
                     Timber.d("received UDP: ${String(packet.data, packet.offset, packet.length)}")
                     launch { datagramPacketReceived(packet) }
+                } catch (e: SocketTimeoutException) {
+                    Timber.d("UDP timeout")
+                } catch (e: Exception) {
+                    Timber.e("Exception at initializeUdpListener: $e")
                 }
-            } catch (e: SocketException) {
-                Timber.e("Exception while receiving UDP packet: $e")
-            } catch (e: SocketTimeoutException) {
-                Timber.d("Socket timeout while receiving UDP packet")
             }
         }
 
