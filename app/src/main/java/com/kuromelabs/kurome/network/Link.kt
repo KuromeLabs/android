@@ -1,38 +1,31 @@
 package com.kuromelabs.kurome.network
 
 import com.google.flatbuffers.FlatBufferBuilder
-import io.ktor.network.selector.*
-import io.ktor.network.sockets.*
-import io.ktor.network.tls.*
-import io.ktor.utils.io.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.*
 import kurome.Packet
 import timber.log.Timber
-import java.net.InetSocketAddress
+import java.io.InputStream
+import java.io.OutputStream
+import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.channels.Channels
+import java.nio.channels.WritableByteChannel
 import java.security.cert.X509Certificate
 import java.util.concurrent.CopyOnWriteArrayList
-import javax.net.ssl.TrustManager
-import javax.net.ssl.X509TrustManager
+import javax.net.ssl.*
 
 
 @OptIn(ExperimentalUnsignedTypes::class)
 class Link(var deviceId: String, provider: LinkProvider) {
-    private val selector: ActorSelectorManager = ActorSelectorManager(Dispatchers.IO)
-    private val socketBuilder = aSocket(selector).tcp()
-    private var clientSocket: Socket? = null
-    private var out: ByteWriteChannel? = null
-    private var `in`: ByteReadChannel? = null
+    private lateinit var inputStream: InputStream
+    private lateinit var outputStream: OutputStream
+    private lateinit var clientSocket: Socket
+    private lateinit var outputChannel: WritableByteChannel
     var builder = FlatBufferBuilder(1024)
 
     interface LinkDisconnectedCallback {
-        fun onLinkDisconnected(link: Link);
+        fun onLinkDisconnected(link: Link)
     }
 
     interface PacketReceivedCallback {
@@ -48,8 +41,8 @@ class Link(var deviceId: String, provider: LinkProvider) {
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
 
-    suspend fun startConnection(ip: String, port: Int) {
-
+    @Suppress("BlockingMethodInNonBlockingContext")
+    fun startConnection(ip: String, port: Int) {
         //Setup SSL
         //TODO: Temporary, we should trust the server's certificate when pairing
         val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
@@ -61,27 +54,33 @@ class Link(var deviceId: String, provider: LinkProvider) {
             override fun checkServerTrusted(certs: Array<X509Certificate>, authType: String) {}
         }
         )
-        val tlsConfigBuilder = TLSConfigBuilder()
-        tlsConfigBuilder.trustManager = trustAllCerts[0]
-        val tlsConfig = tlsConfigBuilder.build()
 
-        clientSocket = socketBuilder.connect(InetSocketAddress(ip, port)).tls(
-            Dispatchers.IO, tlsConfig
-        )
+
+        val sslContext = SSLContext.getInstance("TLSv1.2")
+        sslContext.init(null, trustAllCerts, java.security.SecureRandom())
+        val sslSocket: SSLSocket = sslContext.socketFactory.createSocket(ip, port) as SSLSocket
+        sslSocket.startHandshake()
+        clientSocket = sslSocket
+        outputStream = clientSocket.getOutputStream()
+        outputChannel = Channels.newChannel(outputStream)
+        inputStream = clientSocket.getInputStream()
         Timber.d("Link connected at $ip:$port")
-        out = clientSocket!!.openWriteChannel(true)
-        `in` = (clientSocket!!.openReadChannel())
+
 
         scope.launch {
             while (true) {
-                Timber.d("Reading from socket")
+//                Timber.d("Reading from socket")
                 try {
-                    `in`?.readFully(sizeBytes)
+                    var readSoFar = 0
+                    while (readSoFar != 4)
+                        readSoFar += inputStream.read(sizeBytes, readSoFar, 4 - readSoFar)
+                    readSoFar = 0
                     size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).int
                     if (size > buffer.size) {
                         buffer = ByteArray(size)
                     }
-                    `in`?.readFully(buffer, 0, size)
+                    while (readSoFar != size)
+                        readSoFar += inputStream.read(buffer, readSoFar, size - readSoFar)
 
                 } catch (e: Exception) {
                     Timber.e("died at startConnection: $e")
@@ -96,12 +95,11 @@ class Link(var deviceId: String, provider: LinkProvider) {
 
     }
 
-    private val mutex = Mutex()
-     suspend fun sendByteBuffer(packet: ByteBuffer) {
+
+    fun sendByteBuffer(buffer: ByteBuffer) {
         try {
-            mutex.withLock {
-                `out`?.writeFully(packet)
-            }
+            outputChannel.write(buffer)
+//            Timber.d("Sent buffer")
         } catch (e: Exception) {
             Timber.e("died at sendByteBuffer: $e")
             stopConnection()
@@ -127,10 +125,8 @@ class Link(var deviceId: String, provider: LinkProvider) {
         Timber.d("Stopping connection: $deviceId")
         packetCallbacks.clear()
         callback.onLinkDisconnected(this)
-        `in`?.cancel()
-        out?.close()
-        clientSocket?.close()
-//        scope.cancel()
+        clientSocket.close()
+        scope.cancel()
     }
 
 }
