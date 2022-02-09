@@ -2,8 +2,7 @@ package com.kuromelabs.kurome.UI
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.DialogInterface
-import android.content.Intent
+import android.content.*
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -11,7 +10,6 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
 import android.view.View
-import android.widget.Button
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -28,7 +26,6 @@ import com.kuromelabs.kurome.models.Device
 import com.kuromelabs.kurome.models.DeviceViewModel
 import com.kuromelabs.kurome.models.DeviceViewModelFactory
 import com.kuromelabs.kurome.services.KuromeService
-import timber.log.Timber
 import kotlin.system.exitProcess
 
 class MainFragment : Fragment(R.layout.fragment_main), PairingDialogFragment.NoticeDialogListener {
@@ -43,19 +40,17 @@ class MainFragment : Fragment(R.layout.fragment_main), PairingDialogFragment.Not
         repository = (activity?.application as KuromeApplication).repository
     }
 
+    override fun onResume() {
+        super.onResume()
+        initializePermission()
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        val startButton = view.findViewById<Button>(R.id.start_button)
-        val stopButton = view.findViewById<Button>(R.id.stop_button)
-        val serviceIntent = Intent(context, KuromeService::class.java)
-        startButton.setOnClickListener(startServiceWithPermission)
-        stopButton.setOnClickListener { requireContext().stopService(serviceIntent) }
         val recyclerView: RecyclerView = view.findViewById(R.id.device_list)
         val deviceAdapter = DeviceAdapter {
-            Timber.e("CLICKED! $it")
             val dialog = PairingDialogFragment(it, this)
             dialog.show(requireActivity().supportFragmentManager, "")
-            // deviceViewModel.insert(device)
         }
         recyclerView.adapter = deviceAdapter
         recyclerView.layoutManager = LinearLayoutManager(context)
@@ -82,36 +77,20 @@ class MainFragment : Fragment(R.layout.fragment_main), PairingDialogFragment.Not
         }
 
 
-    private val startServiceWithPermission: (View) -> Unit = {
-        val serviceIntent = Intent(context, KuromeService::class.java)
+    private fun initializePermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!Environment.isExternalStorageManager())
                 getFilePermission(true)
-            else
-                requireContext().startService(serviceIntent)
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (ContextCompat.checkSelfPermission(
                     requireContext(),
                     Manifest.permission.WRITE_EXTERNAL_STORAGE
-                ) == PackageManager.PERMISSION_GRANTED
+                ) != PackageManager.PERMISSION_GRANTED
             )
-                requireContext().startService(serviceIntent)
-            else
                 getFilePermission(false)
         }
     }
 
-    @SuppressLint("NewApi")
-    override fun onResume() {
-        super.onResume()
-        //If we are returning from Settings after requesting MANAGE_EXTERNAL_STORAGE, which is
-        //only after the user wants to start the service, check if we can start the service.
-        if (requestedManageFilePermissions && Environment.isExternalStorageManager()) {
-            val serviceIntent = Intent(context, KuromeService::class.java)
-            requireContext().startService(serviceIntent)
-            requestedManageFilePermissions = false
-        }
-    }
 
     @SuppressLint("InlinedApi")
     private fun getFilePermission(isROrHigher: Boolean) {
@@ -121,7 +100,7 @@ class MainFragment : Fragment(R.layout.fragment_main), PairingDialogFragment.Not
                 "Kurome is a filesystem application and needs to manage your device's storage." +
                         " Please allow access to all files in the next screen."
             )
-            .setCancelable(true)
+            .setCancelable(false)
             .setPositiveButton("OK") { _: DialogInterface, _: Int ->
                 if (isROrHigher) {
                     requestedManageFilePermissions = true
@@ -141,6 +120,7 @@ class MainFragment : Fragment(R.layout.fragment_main), PairingDialogFragment.Not
                     "Kurome can't work without File Access permissions.",
                     Toast.LENGTH_LONG
                 ).show()
+                exitProcess(0)
             }
         val alert = builder.create()
         alert.show()
