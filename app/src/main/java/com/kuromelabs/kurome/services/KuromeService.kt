@@ -5,13 +5,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
-import android.net.ConnectivityManager
-import android.net.Network
-import android.net.NetworkCapabilities
-import android.net.NetworkRequest
+import android.os.Binder
 import android.os.Build
+import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.Observer
 import androidx.lifecycle.asLiveData
@@ -23,7 +20,8 @@ import com.kuromelabs.kurome.database.DeviceRepository
 import com.kuromelabs.kurome.models.Device
 import com.kuromelabs.kurome.network.Link
 import com.kuromelabs.kurome.network.LinkProvider
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.concurrent.ConcurrentHashMap
@@ -35,49 +33,47 @@ class KuromeService : LifecycleService() {
     private lateinit var linkProvider: LinkProvider
     private lateinit var repository: DeviceRepository
     private var isWifiConnected: AtomicBoolean = AtomicBoolean(false)
-    private var isServiceActive = false
+    private var isServiceStarted = false
     private val lifecycleOwner = this
-
     private val devicesMap = ConcurrentHashMap<String, Device>()
+    private val binder: IBinder = LocalBinder()
 
     override fun onCreate() {
         super.onCreate()
         repository = (application as KuromeApplication).repository
         initializeObserver()
-        linkProvider = LinkProvider(baseContext)
+        linkProvider = LinkProvider(baseContext, lifecycleScope)
         linkProvider.addLinkListener(deviceConnectionListener)
         linkProvider.listening = true
-        try{
-            linkProvider.initializeUdpListener("235.132.20.12", 33586)
-        } catch (e: Exception) {
-            Timber.e(e)
-        }
-
+        linkProvider.initializeUdpListener("235.132.20.12", 33586)
+        createNotificationChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         //     val input = intent.getStringExtra("inputExtra")
-        createNotificationChannel()
+        isServiceStarted = true
+        startForeground(1, createForegroundNotification())
+        super.onStartCommand(intent, flags, startId)
+        return START_NOT_STICKY
+    }
+
+    private fun createForegroundNotification(): Notification {
+
         val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
             this,
             0, notificationIntent, 0
         )
-        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+
+        return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Kurome is running in the background")
             .setContentText("Tap to hide notification (no effect on functionality)")
             .setSmallIcon(R.drawable.ic_launcher_background)
             .setContentIntent(pendingIntent)
             .build()
-
-        startForeground(1, notification)
-
-        isServiceActive = true
-        super.onStartCommand(intent, flags, startId)
-        return START_NOT_STICKY
     }
 
-    private fun initializeObserver(){
+    private fun initializeObserver() {
         val observer = Observer<List<Device>> {
             Timber.d("Observed size: ${it.size}")
             for (device in it) {
@@ -86,32 +82,7 @@ class KuromeService : LifecycleService() {
             }
 
         }
-        val cm = ContextCompat.getSystemService(applicationContext, ConnectivityManager::class.java)
-        val request = NetworkRequest.Builder()
-            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-            .build()
-        cm?.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
-            val data = repository.savedDevices.asLiveData()
-            override fun onLost(network: Network) {
-                Timber.e("Monitor network onLost: $network")
-                isWifiConnected.set(false)
-                lifecycleScope.launch(Dispatchers.Main) { data.removeObservers(lifecycleOwner) }
-            }
-
-            override fun onCapabilitiesChanged(net: Network, capabilities: NetworkCapabilities) {
-                Timber.e("Monitor network capabilities: $capabilities network: $net")
-                if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
-                    capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-                ) {
-                    isWifiConnected.set(true)
-                    lifecycleScope.launch(Dispatchers.Main) {
-                        Timber.d("observe job launched")
-                        data.observe(lifecycleOwner, observer)
-                        Timber.d("made observe call")
-                    }
-                }
-            }
-        })
+        repository.savedDevices.asLiveData().observe(lifecycleOwner, observer)
     }
 
     @OptIn(ExperimentalUnsignedTypes::class)
@@ -122,7 +93,9 @@ class KuromeService : LifecycleService() {
             val name = split[2]
             val id = split[3]
             var device = devicesMap[id]
-            if (device != null){
+            if (device != null) {
+                device.isConnected = true
+                lifecycleScope.launch { _linkFlow.emit(".$id") }
                 Timber.d("Known device: $device")
                 device.context = applicationContext
                 device.setLink(link!!)
@@ -136,14 +109,19 @@ class KuromeService : LifecycleService() {
         override fun onLinkDisconnected(id: String?, link: Link?) {
             val device = devicesMap[id]
             if (device != null) {
-//                devicesMap.remove(id)
+                device.isConnected = false
+                lifecycleScope.launch { _linkFlow.emit("/$id") }
                 Timber.d("Device disconnected: $device")
             }
         }
 
     }
 
+    private val _linkFlow = MutableStateFlow<String?>(null)
+    val linkFlow: StateFlow<String?> = _linkFlow
+
     override fun onDestroy() {
+        linkProvider.onStop()
         super.onDestroy()
     }
 
@@ -157,5 +135,20 @@ class KuromeService : LifecycleService() {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(serviceChannel)
         }
+    }
+
+    inner class LocalBinder : Binder() {
+        fun getService(): KuromeService = this@KuromeService
+    }
+
+    override fun onBind(intent: Intent): IBinder {
+        super.onBind(intent)
+        if (!isServiceStarted)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+        return binder
     }
 }

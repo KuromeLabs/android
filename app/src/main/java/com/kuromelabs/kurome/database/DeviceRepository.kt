@@ -1,16 +1,27 @@
 package com.kuromelabs.kurome.database
 
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
+import android.os.IBinder
 import androidx.annotation.WorkerThread
+import androidx.lifecycle.lifecycleScope
+
 import com.kuromelabs.kurome.models.Device
+import com.kuromelabs.kurome.services.KuromeService
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
 
-class DeviceRepository(private val deviceDao: DeviceDao) {
+class DeviceRepository(private val deviceDao: DeviceDao, private val context: Context) {
     val savedDevices: Flow<List<Device>> = deviceDao.getAllDevices()
-    private val connectedDevices: MutableSharedFlow<List<Device>> = MutableSharedFlow(1)
-    private val _connectedDevices: SharedFlow<List<Device>> = connectedDevices.onSubscription {
-        this.emit(emptyList())
+    private val linkFlow = MutableStateFlow<String?>(null)
+    lateinit var service: KuromeService
+
+    init {
+        bindService()
     }
 
     @WorkerThread
@@ -22,23 +33,35 @@ class DeviceRepository(private val deviceDao: DeviceDao) {
         return deviceDao.getDevice(id)
     }
 
-
-
-    fun combineDevices(): Flow<List<Device>> =
-        combine(savedDevices, _connectedDevices) { saved, connected ->
-            val set = HashSet<Device>()
-            connected.forEach {
-                Timber.d("flowing connected device: $it")
-                it.isConnected = true
-                set.add(it)
-            }
-            saved.forEach { set.add(it) }
-            Timber.d("emitting combined devices $set")
-            ArrayList(set)
+    fun combineDevices(): Flow<List<Device>> = combine(savedDevices, linkFlow) { saved, connected ->
+        val map = HashMap<String, Device>()
+        saved.forEach { map[it.id] = it }
+        if (connected != null) {
+            Timber.d(connected)
+            map[connected.drop(1)]?.isConnected = connected[0] == '.'
         }
+        ArrayList(map.values)
 
-    suspend fun setConnectedDevices(list: List<Device>) {
-        Timber.d("emitting connected devices $list")
-        connectedDevices.emit(list)
+    }
+
+    private fun bindService() {
+        val connection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName, binder: IBinder) {
+                service = (binder as KuromeService.LocalBinder).getService()
+                Timber.d("Connected to service")
+                service.lifecycleScope.launch {
+                    service.linkFlow.collect {
+                        linkFlow.emit(it)
+                    }
+                }
+            }
+
+            override fun onServiceDisconnected(name: ComponentName) {
+                Timber.d("Disconnected from service")
+            }
+        }
+        Intent(context, KuromeService::class.java).also { intent ->
+            context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
+        }
     }
 }

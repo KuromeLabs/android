@@ -60,7 +60,7 @@ class DeviceAdapter(val onItemClicked: (Device) -> Unit) :
         }
 
         override fun areContentsTheSame(oldItem: Device, newItem: Device): Boolean {
-            return oldItem.id == newItem.id && oldItem.isPaired == newItem.isPaired && oldItem.isConnected == newItem.isConnected
+            return false
         }
     }
 

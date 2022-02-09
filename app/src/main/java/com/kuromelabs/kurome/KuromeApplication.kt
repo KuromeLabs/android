@@ -7,7 +7,7 @@ import timber.log.Timber
 
 class KuromeApplication : Application() {
     val database by lazy { DeviceDatabase.getDatabase(this) }
-    val repository by lazy { DeviceRepository(database.deviceDao()) }
+    val repository by lazy { DeviceRepository(database.deviceDao(), baseContext) }
     override fun onCreate() {
         Timber.plant(Timber.DebugTree())
         super.onCreate()
