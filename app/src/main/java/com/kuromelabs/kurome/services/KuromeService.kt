@@ -108,6 +108,7 @@ class KuromeService : LifecycleService() {
             val device = devicesMap[id]
             if (device != null) {
                 device.isConnected = false
+                device.disconnect()
                 lifecycleScope.launch { _connectedDeviceFlow.emit(devicesMap.values.toList()) }
                 Timber.d("Device disconnected: $device")
             }

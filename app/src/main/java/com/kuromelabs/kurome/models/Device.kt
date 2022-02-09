@@ -10,10 +10,7 @@ import androidx.room.Ignore
 import androidx.room.PrimaryKey
 import com.google.flatbuffers.FlatBufferBuilder
 import com.kuromelabs.kurome.network.Link
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import kurome.*
 import timber.log.Timber
 import java.io.File
@@ -31,7 +28,7 @@ import java.nio.file.attribute.FileTime
 data class Device(
     @PrimaryKey @ColumnInfo(name = "name") val name: String,
     @ColumnInfo(name = "id") val id: String,
-) : Link.PacketReceivedCallback {
+) {
     constructor(name: String, id: String, context: Context) : this(name, id) {
         this.context = context
     }
@@ -59,7 +56,13 @@ data class Device(
     fun setLink(link: Link) {
         Timber.d("Setting link")
         this.link = link
-        link.addPacketCallback(this)
+        scope.launch {
+            link.packetFlow.collect {
+                val result = parsePacket(it, link.builder)
+                link.sendByteBuffer(result)
+                link.builder.clear()
+            }
+        }
     }
 
     private fun parsePacket(packet: Packet, builder: FlatBufferBuilder): ByteBuffer {
@@ -248,12 +251,7 @@ data class Device(
         else Result.resultActionFail
     }
 
-
-    override fun onPacketReceived(packet: Packet) {
-        scope.launch {
-            val result = parsePacket(packet, link.builder)
-            link.sendByteBuffer(result)
-            link.builder.clear()
-        }
+    fun disconnect() {
+        job.cancelChildren()
     }
 }

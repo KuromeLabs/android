@@ -2,6 +2,8 @@ package com.kuromelabs.kurome.network
 
 import com.google.flatbuffers.FlatBufferBuilder
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kurome.Packet
 import timber.log.Timber
 import java.io.InputStream
@@ -12,8 +14,10 @@ import java.nio.ByteOrder
 import java.nio.channels.Channels
 import java.nio.channels.WritableByteChannel
 import java.security.cert.X509Certificate
-import java.util.concurrent.CopyOnWriteArrayList
-import javax.net.ssl.*
+import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLSocket
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 
 @OptIn(ExperimentalUnsignedTypes::class)
@@ -28,18 +32,17 @@ class Link(var deviceId: String, provider: LinkProvider) {
         fun onLinkDisconnected(link: Link)
     }
 
-    interface PacketReceivedCallback {
-        fun onPacketReceived(packet: Packet)
-    }
 
     private var callback: LinkDisconnectedCallback = provider
-    private var packetCallbacks = CopyOnWriteArrayList<PacketReceivedCallback>()
     private val sizeBytes = ByteArray(4)
     private var size = 0
     private var buffer = ByteArray(1024)
 
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
+
+    private val _packetFlow = MutableSharedFlow<Packet>(0)
+    val packetFlow : SharedFlow<Packet> = _packetFlow
 
     @Suppress("BlockingMethodInNonBlockingContext")
     fun startConnection(ip: String, port: Int) {
@@ -88,7 +91,7 @@ class Link(var deviceId: String, provider: LinkProvider) {
                     break
                 }
                 val packet = Packet.getRootAsPacket(ByteBuffer.wrap(buffer))
-                packetReceived(packet)
+                _packetFlow.emit(packet)
 
             }
         }
@@ -106,24 +109,8 @@ class Link(var deviceId: String, provider: LinkProvider) {
         }
     }
 
-    private fun packetReceived(packet: Packet) {
-//        Timber.d("Called packetReceived. Size of callbacks: ${packetCallbacks.size}")
-        packetCallbacks.forEach {
-            it.onPacketReceived(packet)
-        }
-    }
-
-    fun addPacketCallback(callback: PacketReceivedCallback) {
-        packetCallbacks.add(callback)
-    }
-
-    fun removePacketCallback(callback: PacketReceivedCallback) {
-        packetCallbacks.remove(callback)
-    }
-
     private fun stopConnection() {
         Timber.d("Stopping connection: $deviceId")
-        packetCallbacks.clear()
         callback.onLinkDisconnected(this)
         clientSocket.close()
         scope.cancel()
