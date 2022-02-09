@@ -20,8 +20,8 @@ import com.kuromelabs.kurome.database.DeviceRepository
 import com.kuromelabs.kurome.models.Device
 import com.kuromelabs.kurome.network.Link
 import com.kuromelabs.kurome.network.LinkProvider
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.concurrent.ConcurrentHashMap
@@ -37,6 +37,9 @@ class KuromeService : LifecycleService() {
     private val lifecycleOwner = this
     private val devicesMap = ConcurrentHashMap<String, Device>()
     private val binder: IBinder = LocalBinder()
+
+    private val _connectedDeviceFlow = MutableSharedFlow<List<Device>>(1)
+    val connectedDeviceFlow: SharedFlow<List<Device>> = _connectedDeviceFlow
 
     override fun onCreate() {
         super.onCreate()
@@ -58,13 +61,8 @@ class KuromeService : LifecycleService() {
     }
 
     private fun createForegroundNotification(): Notification {
-
         val notificationIntent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0, notificationIntent, 0
-        )
-
+        val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, 0)
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Kurome is running in the background")
             .setContentText("Tap to hide notification (no effect on functionality)")
@@ -95,7 +93,7 @@ class KuromeService : LifecycleService() {
             var device = devicesMap[id]
             if (device != null) {
                 device.isConnected = true
-                lifecycleScope.launch { _linkFlow.emit(".$id") }
+                lifecycleScope.launch { _connectedDeviceFlow.emit(devicesMap.values.toList()) }
                 Timber.d("Known device: $device")
                 device.context = applicationContext
                 device.setLink(link!!)
@@ -110,15 +108,13 @@ class KuromeService : LifecycleService() {
             val device = devicesMap[id]
             if (device != null) {
                 device.isConnected = false
-                lifecycleScope.launch { _linkFlow.emit("/$id") }
+                lifecycleScope.launch { _connectedDeviceFlow.emit(devicesMap.values.toList()) }
                 Timber.d("Device disconnected: $device")
             }
         }
 
     }
 
-    private val _linkFlow = MutableStateFlow<String?>(null)
-    val linkFlow: StateFlow<String?> = _linkFlow
 
     override fun onDestroy() {
         linkProvider.onStop()

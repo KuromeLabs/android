@@ -5,7 +5,7 @@ import com.kuromelabs.kurome.database.DeviceRepository
 import kotlinx.coroutines.launch
 
 class DeviceViewModel(private val repository: DeviceRepository) : ViewModel() {
-    val combinedDevices: LiveData<List<Device>> = repository.combineDevices().asLiveData()
+    val combinedDevices: LiveData<List<Device>> = repository.serviceDevices.asLiveData()
 
     fun insert(device: Device) = viewModelScope.launch {
         repository.insert(device)

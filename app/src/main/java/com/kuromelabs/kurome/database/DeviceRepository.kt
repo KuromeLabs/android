@@ -10,6 +10,8 @@ import androidx.lifecycle.lifecycleScope
 
 import com.kuromelabs.kurome.models.Device
 import com.kuromelabs.kurome.services.KuromeService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -17,10 +19,11 @@ import timber.log.Timber
 
 class DeviceRepository(private val deviceDao: DeviceDao, private val context: Context) {
     val savedDevices: Flow<List<Device>> = deviceDao.getAllDevices()
-    private val linkFlow = MutableStateFlow<String?>(null)
+    val serviceDevices: MutableSharedFlow<List<Device>> = MutableSharedFlow(1)
     lateinit var service: KuromeService
 
     init {
+        CoroutineScope(Dispatchers.IO).launch { savedDevices.collectLatest { serviceDevices.emit(it) } }
         bindService()
     }
 
@@ -33,25 +36,14 @@ class DeviceRepository(private val deviceDao: DeviceDao, private val context: Co
         return deviceDao.getDevice(id)
     }
 
-    fun combineDevices(): Flow<List<Device>> = combine(savedDevices, linkFlow) { saved, connected ->
-        val map = HashMap<String, Device>()
-        saved.forEach { map[it.id] = it }
-        if (connected != null) {
-            Timber.d(connected)
-            map[connected.drop(1)]?.isConnected = connected[0] == '.'
-        }
-        ArrayList(map.values)
-
-    }
-
     private fun bindService() {
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName, binder: IBinder) {
                 service = (binder as KuromeService.LocalBinder).getService()
                 Timber.d("Connected to service")
                 service.lifecycleScope.launch {
-                    service.linkFlow.collect {
-                        linkFlow.emit(it)
+                    service.connectedDeviceFlow.collect {
+                        serviceDevices.emit(it)
                     }
                 }
             }
