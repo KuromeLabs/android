@@ -1,15 +1,24 @@
 package com.kuromelabs.kurome.network
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.os.Build
+import androidx.core.content.ContextCompat
 import com.google.flatbuffers.FlatBufferBuilder
 import com.kuromelabs.kurome.getGuid
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kurome.Action
 import kurome.DeviceInfo
 import kurome.Packet
 import timber.log.Timber
-import java.net.*
+import java.net.DatagramPacket
+import java.net.InetAddress
+import java.net.MulticastSocket
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -21,37 +30,57 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
     private val linkListeners = CopyOnWriteArrayList<LinkListener>()
     private val builder = FlatBufferBuilder(128)
     val activeLinks = ConcurrentHashMap<String, Link>()
+    private val udpIp = "235.132.20.12"
+    private val udpPort = 33586
 
     interface LinkListener {
         fun onLinkConnected(packetString: String?, link: Link?)
         fun onLinkDisconnected(id: String?, link: Link?)
     }
 
-
-    fun initializeUdpListener(ip: String, port: Int) {
+    fun initialize() {
+        initializeNetworkCallback()
+        setUdpSocket()
         serviceScope.launch(Dispatchers.IO) {
-            Timber.d("initializing udp listener at $ip:$port")
-            udpSocket = MulticastSocket(33586)
-            udpSocket!!.soTimeout = 20000
-            val group = InetAddress.getByName(ip)
-            udpSocket!!.joinGroup(group)
-            Timber.e("Listening: $listening")
+            Timber.d("initializing udp listener at $udpIp:$udpPort")
             while (listening) {
                 try {
                     val buffer = ByteArray(1024)
                     val packet = DatagramPacket(buffer, buffer.size)
-                    Timber.d("attempting to receive UDP packet")
                     udpSocket!!.receive(packet)
                     Timber.d("received UDP: ${String(packet.data, packet.offset, packet.length)}")
                     launch { datagramPacketReceived(packet) }
-                } catch (e: SocketTimeoutException) {
-                    Timber.d("UDP timeout")
                 } catch (e: Exception) {
                     Timber.e("Exception at initializeUdpListener: $e")
                 }
             }
         }
+    }
 
+    private fun initializeNetworkCallback() {
+        val cm = ContextCompat.getSystemService(context, ConnectivityManager::class.java)
+        val request = NetworkRequest.Builder()
+            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+            .build()
+        cm?.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
+            override fun onCapabilitiesChanged(net: Network, capabilities: NetworkCapabilities) {
+                Timber.e("Monitor network capabilities: $capabilities network: $net")
+                setUdpSocket()
+            }
+        })
+    }
+
+    fun setUdpSocket() {
+        try {
+            udpSocket?.close()
+            udpSocket = MulticastSocket(33586)
+            udpSocket?.reuseAddress = true
+            udpSocket?.broadcast = true
+            val group = InetAddress.getByName(udpIp)
+            udpSocket?.joinGroup(group)
+        } catch (e: Exception) {
+            Timber.e("Exception at setUdpSocket: $e")
+        }
     }
 
     private fun datagramPacketReceived(packet: DatagramPacket) {

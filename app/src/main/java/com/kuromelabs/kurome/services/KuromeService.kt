@@ -48,7 +48,7 @@ class KuromeService : LifecycleService() {
         linkProvider = LinkProvider(baseContext, lifecycleScope)
         linkProvider.addLinkListener(deviceConnectionListener)
         linkProvider.listening = true
-        linkProvider.initializeUdpListener("235.132.20.12", 33586)
+        linkProvider.initialize()
         createNotificationChannel()
     }
 
