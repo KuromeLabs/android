@@ -8,7 +8,6 @@ enum Action : byte {
     no_action = 0,
     action_get_directory = 1,
     action_get_space_info = 2,
-    action_get_file_type = 3,
     action_create_directory = 4,
     action_delete = 5,
     action_read_file_buffer = 6,
@@ -28,11 +27,7 @@ enum Action : byte {
 enum Result : byte {
     no_result = 0,
     result_action_success = 1,
-    result_file_is_directory = 2,
-    result_file_is_file = 3,
-    result_file_not_found = 4,
-    result_path_not_found = 5,
-    result_action_fail = 6
+    result_action_fail = 2
 }
 
 table Packet {

@@ -76,7 +76,6 @@ data class Device(
             Action.actionGetSpaceInfo -> deviceInfo = getSpaceInfo(builder)
             Action.actionGetDirectory -> fileNodes = getDirectory(builder, path)
             Action.actionCreateDirectory -> result = createDirectory(path)
-            Action.actionGetFileType -> result = getFileType(path)
             Action.actionDelete -> result = delete(path)
             Action.actionReadFileBuffer -> raw = readFileBuffer(builder, packet)
             Action.actionGetFileInfo -> fileNodes = intArrayOf(getFileNode(builder, path))
@@ -117,18 +116,6 @@ data class Device(
         else Result.resultActionFail
     }
 
-    private fun getFileType(path: String): Byte {
-        val file = File(path)
-        return if (file.exists())
-            if (file.isDirectory) Result.resultFileIsDirectory
-            else Result.resultFileIsFile
-        else {
-            val directory = File(path.substring(0, path.lastIndexOf("/")))
-            if (!directory.exists()) Result.resultPathNotFound
-            else Result.resultFileNotFound
-        }
-    }
-
     private fun delete(path: String): Byte {
         return if (File(path).deleteRecursively()) Result.resultActionSuccess
         else Result.resultActionFail
@@ -158,21 +145,35 @@ data class Device(
     private fun getFileNode(builder: FlatBufferBuilder, path: String): Int {
         try {
             val file = File(path)
+            val type = if (file.exists())
+                if (file.isDirectory)
+                    FileType.Directory
+                else FileType.File
+            else
+            {
+                val directory = File(path.substring(0, path.lastIndexOf("/")))
+                if (!directory.exists()) FileType.PathNotFound
+                else FileType.FileNotFound
+            }
+            var filename = 0
             var crTime = 0L
-            val lwTime = file.lastModified()
+            var lwTime = 0L
             var laTime = 0L
-            val filename = builder.createString(file.name)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val pathObj = Paths.get(path)
-                val attributes =
-                    Files.getFileAttributeView(pathObj, BasicFileAttributeView::class.java)
-                crTime = attributes.readAttributes().creationTime().toMillis()
-                laTime = attributes.readAttributes().lastAccessTime().toMillis()
+            if (file.exists()) {
+                filename = builder.createString(file.name)
+                lwTime = file.lastModified()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val pathObj = Paths.get(path)
+                    val attributes =
+                        Files.getFileAttributeView(pathObj, BasicFileAttributeView::class.java)
+                    crTime = attributes.readAttributes().creationTime().toMillis()
+                    laTime = attributes.readAttributes().lastAccessTime().toMillis()
+                }
             }
             return FileNode.createFileNode(
                 builder,
                 filename,
-                file.isDirectory,
+                type,
                 file.length(),
                 crTime,
                 laTime,
