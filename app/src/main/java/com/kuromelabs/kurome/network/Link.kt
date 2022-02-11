@@ -34,9 +34,6 @@ class Link(var deviceId: String, provider: LinkProvider) {
 
 
     private var callback: LinkDisconnectedCallback = provider
-    private val sizeBytes = ByteArray(4)
-    private var size = 0
-    private var buffer = ByteArray(1024)
 
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
@@ -68,41 +65,37 @@ class Link(var deviceId: String, provider: LinkProvider) {
         outputChannel = Channels.newChannel(outputStream)
         inputStream = clientSocket.getInputStream()
         Timber.d("Link connected at $ip:$port")
+        startListening()
+    }
 
-
+    private fun startListening() {
         scope.launch {
             while (true) {
 //                Timber.d("Reading from socket")
                 try {
+                    val sizeBytes = ByteArray(4)
                     var readSoFar = 0
                     while (readSoFar != 4)
                         readSoFar += inputStream.read(sizeBytes, readSoFar, 4 - readSoFar)
                     readSoFar = 0
-                    size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).int
-                    if (size > buffer.size) {
-                        buffer = ByteArray(size)
-                    }
+                    val size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).int
+                    val buffer = ByteArray(size)
                     while (readSoFar != size)
                         readSoFar += inputStream.read(buffer, readSoFar, size - readSoFar)
-
+                    val packet = Packet.getRootAsPacket(ByteBuffer.wrap(buffer))
+                    _packetFlow.emit(packet)
                 } catch (e: Exception) {
                     Timber.e("died at startConnection: $e")
                     stopConnection()
                     break
                 }
-                val packet = Packet.getRootAsPacket(ByteBuffer.wrap(buffer))
-                _packetFlow.emit(packet)
-
             }
         }
-
     }
-
 
     fun sendByteBuffer(buffer: ByteBuffer) {
         try {
             outputChannel.write(buffer)
-//            Timber.d("Sent buffer")
         } catch (e: Exception) {
             Timber.e("died at sendByteBuffer: $e")
             stopConnection()

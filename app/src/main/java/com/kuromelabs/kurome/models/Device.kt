@@ -59,7 +59,7 @@ data class Device(
         scope.launch {
             link.packetFlow.collect {
                 val result = parsePacket(it, link.builder)
-                link.sendByteBuffer(result)
+                if (it.id != 0) link.sendByteBuffer(result)
                 link.builder.clear()
             }
         }
@@ -69,6 +69,7 @@ data class Device(
         var deviceInfo = 0
         var fileNodes = IntArray(0)
         var raw = 0
+        val id = packet.id
         var result = Result.noResult
         val path = root + packet.path
         when (packet.action) {
@@ -91,6 +92,7 @@ data class Device(
         Packet.addResult(builder, result)
         Packet.addDeviceInfo(builder, deviceInfo)
         Packet.addFileBuffer(builder, raw)
+        Packet.addId(builder, id)
         val res = Packet.endPacket(builder)
         builder.finishSizePrefixed(res)
         return builder.dataBuffer()
