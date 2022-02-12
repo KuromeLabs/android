@@ -53,10 +53,14 @@ data class Device(
     @Ignore
     private val root = Environment.getExternalStorageDirectory().path
 
+    @Ignore
+    private var linkJob: Job? = null
+
     fun setLink(link: Link) {
+        linkJob?.cancel()
         Timber.d("Setting link")
         this.link = link
-        scope.launch {
+        linkJob = scope.launch {
             link.packetFlow.collect {
                 val result = parsePacket(it, link.builder)
                 if (it.id != 0) link.sendByteBuffer(result)
@@ -149,8 +153,7 @@ data class Device(
                 if (file.isDirectory)
                     FileType.Directory
                 else FileType.File
-            else
-            {
+            else {
                 val directory = File(path.substring(0, path.lastIndexOf("/")))
                 if (!directory.exists()) FileType.PathNotFound
                 else FileType.FileNotFound
