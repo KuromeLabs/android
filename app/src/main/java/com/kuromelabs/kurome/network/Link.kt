@@ -9,6 +9,7 @@ import timber.log.Timber
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.Socket
+import java.net.SocketException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.Channels
@@ -32,14 +33,13 @@ class Link(var deviceId: String, provider: LinkProvider) {
         fun onLinkDisconnected(link: Link)
     }
 
-
-    private var callback: LinkDisconnectedCallback = provider
+    private var callback: LinkDisconnectedCallback? = provider
 
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
 
     private val _packetFlow = MutableSharedFlow<Packet>(0)
-    val packetFlow : SharedFlow<Packet> = _packetFlow
+    val packetFlow: SharedFlow<Packet> = _packetFlow
 
     @Suppress("BlockingMethodInNonBlockingContext")
     fun startConnection(ip: String, port: Int) {
@@ -84,7 +84,7 @@ class Link(var deviceId: String, provider: LinkProvider) {
                         readSoFar += inputStream.read(buffer, readSoFar, size - readSoFar)
                     val packet = Packet.getRootAsPacket(ByteBuffer.wrap(buffer))
                     _packetFlow.emit(packet)
-                } catch (e: Exception) {
+                } catch (e: SocketException) {
                     Timber.e("died at startConnection: $e")
                     stopConnection()
                     break
@@ -102,9 +102,10 @@ class Link(var deviceId: String, provider: LinkProvider) {
         }
     }
 
-    private fun stopConnection() {
+    fun stopConnection() {
         Timber.d("Stopping connection: $deviceId")
-        callback.onLinkDisconnected(this)
+        callback?.onLinkDisconnected(this)
+        callback = null;
         clientSocket.close()
         scope.cancel()
     }

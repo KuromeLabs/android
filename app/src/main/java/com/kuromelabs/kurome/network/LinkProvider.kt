@@ -44,15 +44,16 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
         serviceScope.launch(Dispatchers.IO) {
             Timber.d("initializing udp listener at $udpIp:$udpPort")
             while (listening) {
-                try {
-                    val buffer = ByteArray(1024)
-                    val packet = DatagramPacket(buffer, buffer.size)
-                    udpSocket!!.receive(packet)
-                    Timber.d("received UDP: ${String(packet.data, packet.offset, packet.length)}")
-                    launch { datagramPacketReceived(packet) }
-                } catch (e: Exception) {
-                    Timber.e("Exception at initializeUdpListener: $e")
-                }
+                if (udpSocket != null && !udpSocket!!.isClosed)
+                    try {
+                        val buffer = ByteArray(1024)
+                        val packet = DatagramPacket(buffer, buffer.size)
+                        udpSocket!!.receive(packet)
+                        Timber.d("received UDP: ${String(packet.data, packet.offset, packet.length)}")
+                        launch { datagramPacketReceived(packet) }
+                    } catch (e: Exception) {
+                        Timber.e("Exception at initializeUdpListener: $e")
+                    }
             }
         }
     }
@@ -66,6 +67,13 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
             override fun onCapabilitiesChanged(net: Network, capabilities: NetworkCapabilities) {
                 Timber.e("Monitor network capabilities: $capabilities network: $net")
                 setUdpSocket()
+            }
+            override fun onLost(net: Network) {
+                Timber.e("Monitor network lost: $net")
+                udpSocket?.close()
+                for (link in activeLinks.values) {
+                    link.stopConnection()
+                }
             }
         })
     }
@@ -93,6 +101,7 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
             Timber.d("Received UDP. name: $name, id: $id")
             val link = Link(id, this)
             link.startConnection(ip, 33587)
+            activeLinks[id] = link
             linkConnected(packetString, link)
             Timber.d("Link connection started from UDP")
             val modelOffset = builder.createString(Build.MODEL)
