@@ -173,7 +173,7 @@ data class Device(
                     laTime = attributes.readAttributes().lastAccessTime().toMillis()
                 }
             }
-            return FileNode.createFileNode(
+            return FileBuffer.createFileBuffer(
                 builder,
                 filename,
                 type,
