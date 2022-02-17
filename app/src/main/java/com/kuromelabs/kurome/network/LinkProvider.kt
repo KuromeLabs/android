@@ -99,6 +99,10 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
             val name = split[2]
             val id = split[3]
             Timber.d("Received UDP. name: $name, id: $id")
+            if (activeLinks.containsKey(id)) {
+                Timber.d("Link already exists, not connecting")
+                return
+            }
             val link = Link(id, this)
             link.startConnection(ip, 33587)
             activeLinks[id] = link
