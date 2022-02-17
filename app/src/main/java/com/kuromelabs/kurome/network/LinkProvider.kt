@@ -11,6 +11,7 @@ import com.google.flatbuffers.FlatBufferBuilder
 import com.kuromelabs.kurome.getGuid
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kurome.Action
 import kurome.DeviceInfo
@@ -40,7 +41,6 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
 
     fun initialize() {
         initializeNetworkCallback()
-        setUdpSocket()
         serviceScope.launch(Dispatchers.IO) {
             Timber.d("initializing udp listener at $udpIp:$udpPort")
             while (listening) {
@@ -52,7 +52,9 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
                         Timber.d("received UDP: ${String(packet.data, packet.offset, packet.length)}")
                         launch { datagramPacketReceived(packet) }
                     } catch (e: Exception) {
-                        Timber.e("Exception at initializeUdpListener: $e")
+                        delay(5000)
+                        setUdpSocket()
+                        Timber.d("Exception at initializeUdpListener: $e")
                     }
             }
         }
@@ -65,12 +67,12 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
             .build()
         cm?.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
             override fun onCapabilitiesChanged(net: Network, capabilities: NetworkCapabilities) {
-                Timber.e("Monitor network capabilities: $capabilities network: $net")
+                Timber.d("Monitor network capabilities: $capabilities network: $net")
                 setUdpSocket()
             }
             override fun onLost(net: Network) {
-                Timber.e("Monitor network lost: $net")
-                udpSocket?.close()
+                Timber.d("Monitor network lost: $net")
+                setUdpSocket()
                 for (link in activeLinks.values) {
                     link.stopConnection()
                 }
@@ -80,6 +82,7 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
 
     fun setUdpSocket() {
         try {
+            Timber.d("Setting up socket")
             udpSocket?.close()
             udpSocket = MulticastSocket(33586)
             udpSocket?.reuseAddress = true
@@ -87,7 +90,7 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
             val group = InetAddress.getByName(udpIp)
             udpSocket?.joinGroup(group)
         } catch (e: Exception) {
-            Timber.e("Exception at setUdpSocket: $e")
+            Timber.d("Exception at setUdpSocket: $e")
         }
     }
 
