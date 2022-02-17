@@ -146,6 +146,7 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
     }
 
     private fun linkDisconnected(link: Link) {
+        activeLinks.remove(link.deviceId)
         for (receiver in linkListeners) {
             Timber.d("disconnected link: ${link.deviceId}")
             receiver.onLinkDisconnected(link.deviceId, link)
