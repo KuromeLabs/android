@@ -29,7 +29,7 @@ class DeviceAdapter(val onItemClicked: (Device) -> Unit) :
         holder.deviceNameTextView.text = device.name
         holder.deviceStatusTextView.text =
             if (device.isPaired)
-                if (device.isConnected)
+                if (device.isConnected())
                     resources.getString(R.string.status_connected)
                 else
                     resources.getString(R.string.status_disconnected)

@@ -25,7 +25,7 @@ import javax.net.ssl.X509TrustManager
 class Link(var deviceId: String, provider: LinkProvider) {
     private lateinit var inputStream: InputStream
     private lateinit var outputStream: OutputStream
-    private lateinit var clientSocket: Socket
+    private var clientSocket: Socket? = null
     private lateinit var outputChannel: WritableByteChannel
     var builder = FlatBufferBuilder(1024)
 
@@ -61,9 +61,9 @@ class Link(var deviceId: String, provider: LinkProvider) {
         val sslSocket: SSLSocket = sslContext.socketFactory.createSocket(ip, port) as SSLSocket
         sslSocket.startHandshake()
         clientSocket = sslSocket
-        outputStream = clientSocket.getOutputStream()
+        outputStream = (clientSocket as SSLSocket).outputStream
         outputChannel = Channels.newChannel(outputStream)
-        inputStream = clientSocket.getInputStream()
+        inputStream = (clientSocket as SSLSocket).inputStream
         Timber.d("Link connected at $ip:$port")
         startListening()
     }
@@ -102,11 +102,13 @@ class Link(var deviceId: String, provider: LinkProvider) {
         }
     }
 
+    fun isConnected(): Boolean = clientSocket != null && clientSocket!!.isConnected
+
     fun stopConnection() {
         Timber.d("Stopping connection: $deviceId")
         callback?.onLinkDisconnected(this)
-        callback = null;
-        clientSocket.close()
+        callback = null
+        clientSocket?.close()
         scope.cancel()
     }
 

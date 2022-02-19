@@ -45,16 +45,15 @@ data class Device(
     var isPaired = false
 
     @Ignore
-    var isConnected = false
-
-    @Ignore
-    private lateinit var link: Link
+    private var link: Link? = null
 
     @Ignore
     private val root = Environment.getExternalStorageDirectory().path
 
     @Ignore
     private var linkJob: Job? = null
+
+    fun isConnected(): Boolean = link != null && link!!.isConnected()
 
     fun setLink(link: Link) {
         linkJob?.cancel()
@@ -258,6 +257,7 @@ data class Device(
     }
 
     fun disconnect() {
+        link = null
         job.cancelChildren()
     }
 }

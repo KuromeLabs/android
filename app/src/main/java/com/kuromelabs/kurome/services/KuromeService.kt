@@ -92,22 +92,24 @@ class KuromeService : LifecycleService() {
             val id = split[3]
             var device = devicesMap[id]
             if (device != null) {
-                device.isConnected = true
-                lifecycleScope.launch { _connectedDeviceFlow.emit(devicesMap.values.toList()) }
                 Timber.d("Known device: $device")
                 device.context = applicationContext
                 device.setLink(link!!)
+                lifecycleScope.launch { _connectedDeviceFlow.emit(devicesMap.values.toList()) }
             } else {
                 Timber.d("Unknown device: $id")
                 device = Device(name, id)
-
+                device.setLink(link!!)
+                devicesMap[id] = device
+                lifecycleScope.launch { _connectedDeviceFlow.emit(devicesMap.values.toList()) }
             }
         }
 
         override fun onLinkDisconnected(id: String?, link: Link?) {
             val device = devicesMap[id]
             if (device != null) {
-                device.isConnected = false
+                if (!device.isPaired)
+                    devicesMap.remove(id)
                 device.disconnect()
                 lifecycleScope.launch { _connectedDeviceFlow.emit(devicesMap.values.toList()) }
                 Timber.d("Device disconnected: $device")
