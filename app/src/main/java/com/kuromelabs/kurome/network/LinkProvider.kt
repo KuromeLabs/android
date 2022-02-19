@@ -40,6 +40,7 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
     }
 
     fun initialize() {
+        setUdpSocket()
         initializeNetworkCallback()
         serviceScope.launch(Dispatchers.IO) {
             Timber.d("initializing udp listener at $udpIp:$udpPort")
