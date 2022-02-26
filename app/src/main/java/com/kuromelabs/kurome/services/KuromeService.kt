@@ -93,7 +93,6 @@ class KuromeService : LifecycleService() {
             var device = devicesMap[id]
             if (device != null) {
                 Timber.d("Known device: $device")
-                device.context = applicationContext
                 device.setLink(link!!)
                 lifecycleScope.launch { _connectedDeviceFlow.emit(devicesMap.values.toList()) }
             } else {
