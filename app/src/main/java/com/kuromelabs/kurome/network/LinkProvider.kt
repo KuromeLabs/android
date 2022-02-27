@@ -11,7 +11,6 @@ import com.google.flatbuffers.FlatBufferBuilder
 import com.kuromelabs.kurome.getGuid
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kurome.Action
 import kurome.DeviceInfo
@@ -53,7 +52,6 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
                         Timber.d("received UDP: ${String(packet.data, packet.offset, packet.length)}")
                         launch { datagramPacketReceived(packet) }
                     } catch (e: Exception) {
-                        delay(5000)
                         setUdpSocket()
                         Timber.d("Exception at initializeUdpListener: $e")
                     }
@@ -69,11 +67,11 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
         cm?.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
             override fun onCapabilitiesChanged(net: Network, capabilities: NetworkCapabilities) {
                 Timber.d("Monitor network capabilities: $capabilities network: $net")
-                setUdpSocket()
+                udpSocket?.close()
             }
             override fun onLost(net: Network) {
                 Timber.d("Monitor network lost: $net")
-                setUdpSocket()
+                udpSocket?.close()
                 for (link in activeLinks.values) {
                     link.stopConnection()
                 }
@@ -86,7 +84,7 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
             Timber.d("Setting up socket")
             udpSocket?.close()
             udpSocket = MulticastSocket(33586)
-            udpSocket?.reuseAddress = true
+            udpSocket?.reuseAddress = false
             udpSocket?.broadcast = true
             val group = InetAddress.getByName(udpIp)
             udpSocket?.joinGroup(group)
