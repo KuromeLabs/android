@@ -33,7 +33,7 @@ class FileSystemHandler(private val root: String, private val device: Device) {
             Action.actionReadFileBuffer -> sendFileBuffer(path, packet.id, fb.length, fb.offset)
             Action.actionGetFileInfo -> sendFileNode(path, packet.id)
             Action.actionWriteFileBuffer -> writeFileBuffer(path, fb)
-            Action.actionRename -> rename(path, node.filename!!)
+            Action.actionRename -> rename(path, root + node.filename!!)
             Action.actionSetLength -> setLength(path, node.length)
             Action.actionSetFileTime -> setFileTime(
                 path, node.creationTime, node.lastWriteTime, node.lastAccessTime
