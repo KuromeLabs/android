@@ -8,7 +8,7 @@ android {
 //    sourceSets.main.java.srcDirs += 'build/generated/source/fsb'
     sourceSets.main.kotlin.srcDirs += 'build/generated/source/fsb'
     compileSdk 32
-    buildToolsVersion "31.0.0"
+    buildToolsVersion "32.1.0-rc1"
     useLibrary("android.test.base")
     useLibrary("android.test.mock")
     defaultConfig {
@@ -32,9 +32,15 @@ android {
         sourceCompatibility JavaVersion.VERSION_11
         targetCompatibility JavaVersion.VERSION_11
     }
+    composeOptions {
+        kotlinCompilerExtensionVersion rootProject.compose_version
+    }
     kotlinOptions {
         jvmTarget = '11'
         freeCompilerArgs += "-Xopt-in=kotlin.RequiresOptIn"
+    }
+    buildFeatures {
+        compose true
     }
     task generateFbsKotlin(type: Exec) {
         def inputDir = file("$projectDir/src/main/fbs")
@@ -73,15 +79,15 @@ android {
 dependencies {
 
     implementation 'androidx.lifecycle:lifecycle-service:2.4.1'
-    kapt 'androidx.room:room-compiler:2.4.1'
+    kapt 'androidx.room:room-compiler:2.4.2'
 
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.4.1'
     implementation 'androidx.core:core-ktx:1.7.0'
     implementation 'androidx.appcompat:appcompat:1.4.1'
     implementation 'com.google.android.material:material:1.5.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.3'
-    implementation 'androidx.room:room-runtime:2.4.1'
-    implementation 'androidx.room:room-ktx:2.4.1'
+    implementation 'androidx.room:room-runtime:2.4.2'
+    implementation 'androidx.room:room-ktx:2.4.2'
     implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.4.1'
     implementation 'androidx.fragment:fragment-ktx:1.4.1'
     implementation 'androidx.preference:preference-ktx:1.2.0'
@@ -99,5 +105,15 @@ dependencies {
     androidTestImplementation 'androidx.test:core:1.4.0'
     androidTestImplementation 'androidx.test:runner:1.4.0'
     androidTestImplementation 'androidx.test:rules:1.4.0'
+
+    // Compose
+    implementation "androidx.compose.runtime:runtime:$rootProject.compose_version"
+    implementation "androidx.compose.ui:ui:$rootProject.compose_version"
+    implementation "androidx.compose.foundation:foundation:$rootProject.compose_version"
+    implementation "androidx.compose.foundation:foundation-layout:$rootProject.compose_version"
+    implementation "androidx.compose.material:material:$rootProject.compose_version"
+    implementation "androidx.compose.runtime:runtime-livedata:$rootProject.compose_version"
+    implementation "androidx.compose.ui:ui-tooling:$rootProject.compose_version"
+    implementation "com.google.android.material:compose-theme-adapter:$rootProject.compose_version"
 
 }
