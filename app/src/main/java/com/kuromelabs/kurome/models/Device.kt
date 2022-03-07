@@ -18,7 +18,14 @@ import java.nio.ByteBuffer
 data class Device(
     @PrimaryKey @ColumnInfo(name = "name") val name: String,
     @ColumnInfo(name = "id") val id: String,
+    @Ignore val root: String
 ) {
+    constructor(name: String, id: String) : this(
+        name,
+        id,
+        Environment.getExternalStorageDirectory().path
+    )
+
     @Ignore
     private val job = SupervisorJob()
 
@@ -31,7 +38,16 @@ data class Device(
     private var link: Link? = null
 
     @Ignore
-    private val root = Environment.getExternalStorageDirectory().path
+    private var pairingHandler: PairingHandler? = null
+
+    @Ignore
+    private var packetJob: Job? = null
+
+    @Ignore
+    private var pairJob: Job? = null
+
+    @Ignore
+    private var fileSystemHandler: FileSystemHandler? = null
 
     @Ignore
     private var linkJob: Job? = null

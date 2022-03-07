@@ -22,6 +22,7 @@ import com.kuromelabs.kurome.network.Link
 import com.kuromelabs.kurome.network.LinkProvider
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.concurrent.ConcurrentHashMap
@@ -44,7 +45,7 @@ class KuromeService : LifecycleService() {
     override fun onCreate() {
         super.onCreate()
         repository = (application as KuromeApplication).repository
-        initializeObserver()
+        initializeMap()
         linkProvider = LinkProvider(baseContext, lifecycleScope)
         linkProvider.addLinkListener(deviceConnectionListener)
         linkProvider.listening = true
@@ -71,16 +72,16 @@ class KuromeService : LifecycleService() {
             .build()
     }
 
-    private fun initializeObserver() {
-        val observer = Observer<List<Device>> {
-            Timber.d("Observed size: ${it.size}")
-            for (device in it) {
-                devicesMap[device.id] = device
-                Timber.d("devicesMap contents: ${devicesMap.keys}")
+    private fun initializeMap() {
+        lifecycleScope.launch {
+            repository.savedDevices.collectLatest {
+                Timber.d("Observed size: ${it.size}")
+                for (device in it) {
+                    devicesMap[device.id] = device
+                    Timber.d("devicesMap contents: ${devicesMap.keys}")
+                }
             }
-
         }
-        repository.savedDevices.asLiveData().observe(lifecycleOwner, observer)
     }
 
     @OptIn(ExperimentalUnsignedTypes::class)

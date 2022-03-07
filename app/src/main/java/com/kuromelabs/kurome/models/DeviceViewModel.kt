@@ -1,11 +1,13 @@
 package com.kuromelabs.kurome.models
 
-import androidx.lifecycle.*
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import com.kuromelabs.kurome.database.DeviceRepository
 import kotlinx.coroutines.launch
 
 class DeviceViewModel(private val repository: DeviceRepository) : ViewModel() {
-    val combinedDevices: LiveData<List<Device>> = repository.serviceDevices.asLiveData()
+    val combinedDevices = repository.serviceDevices
 
     fun insert(device: Device) = viewModelScope.launch {
         repository.insert(device)
