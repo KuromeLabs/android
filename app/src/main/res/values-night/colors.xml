@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="kurome_orange">#FFFF9833</color>
+    <color name="kurome_black">#FF1C1B1F</color>
+
+    <color name="kurome_primary">#ffbac3ff</color>
+    <color name="kurome_surface">#FF000000</color>
+    <color name="kurome_on_surface">#FFE6E1E5</color>
+    <color name="kurome_on_primary">#ff112286</color>
+</resources>
