@@ -9,17 +9,18 @@ import androidx.compose.ui.graphics.Color
 
 private val DarkColorPalette = darkColors(
     primary = kurome_dark_primary,
-    primaryVariant = Purple700,
+    primaryVariant = kurome_dark_primary,
     secondary = kurome_orange,
     onPrimary = kurome_dark_on_primary,
     surface = kurome_dark_surface,
     onSurface = kurome_dark_on_surface,
-    background = Color.Black
+    background = Color.Black,
+    onBackground = kurome_dark_on_surface,
 )
 
 private val LightColorPalette = lightColors(
     primary = kurome_light_primary,
-    primaryVariant = Purple700,
+    primaryVariant = kurome_light_primary,
     secondary = kurome_orange,
     onPrimary = Color.White,
     background = Color.White,
