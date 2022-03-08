@@ -1,6 +1,16 @@
 <resources>
-    <string name="app_name">Kurome</string>
+    <string name="app_name" translatable="false">Kurome</string>
     <string name="status_disconnected">Offline (Paired)</string>
     <string name="status_connected">Connected</string>
     <string name="status_available">Available (Tap to pair)</string>
+    <string name="manage_external_storage_title">Manage External Storage</string>
+    <string name="manage_external_storage_body">Required on Android 11+. Kurome needs this permission to expose the filesystem to connected computers.</string>
+    <string name="write_external_storage_title">Write External Storage</string>
+    <string name="write_external_storage_body">Kurome needs this permission to expose the filesystem to connected computers.</string>
+    <string name="write_external_storage_denied_permanently">You have permanently denied this permission, enable it in Settings</string>
+    <string name="grant_permission">Grant</string>
+    <string name="granted_permission">Granted</string>
+    <string name="permissions_title">Hello.</string>
+    <string name="permissions_body">Grant the following permissions to continue</string>
+    <string name="done">Done</string>
 </resources>
