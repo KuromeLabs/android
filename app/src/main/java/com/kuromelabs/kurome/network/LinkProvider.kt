@@ -17,20 +17,20 @@ import kurome.DeviceInfo
 import kurome.Packet
 import timber.log.Timber
 import java.net.DatagramPacket
+import java.net.DatagramSocket
 import java.net.InetAddress
-import java.net.MulticastSocket
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
 @Suppress("BlockingMethodInNonBlockingContext")
 class LinkProvider(private val context: Context, private val serviceScope: CoroutineScope) :
     Link.LinkDisconnectedCallback {
-    private var udpSocket: MulticastSocket? = null
+    private var udpSocket: DatagramSocket? = null
     var listening = false
     private val linkListeners = CopyOnWriteArrayList<LinkListener>()
     private val builder = FlatBufferBuilder(128)
     val activeLinks = ConcurrentHashMap<String, Link>()
-    private val udpIp = "235.132.20.12"
+    private val udpIp = "255.255.255.255"
     private val udpPort = 33586
 
     interface LinkListener {
@@ -52,7 +52,8 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
                         Timber.d("received UDP: ${String(packet.data, packet.offset, packet.length)}")
                         launch { datagramPacketReceived(packet) }
                     } catch (e: Exception) {
-                        setUdpSocket()
+                        if (!e.toString().contains("Socket closed"))
+                            setUdpSocket()
                         Timber.d("Exception at initializeUdpListener: $e")
                     }
             }
@@ -67,11 +68,11 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
         cm?.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
             override fun onCapabilitiesChanged(net: Network, capabilities: NetworkCapabilities) {
                 Timber.d("Monitor network capabilities: $capabilities network: $net")
-                udpSocket?.close()
+                setUdpSocket()
             }
             override fun onLost(net: Network) {
                 Timber.d("Monitor network lost: $net")
-                udpSocket?.close()
+                setUdpSocket()
                 for (link in activeLinks.values) {
                     link.stopConnection()
                 }
@@ -79,15 +80,13 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
         })
     }
 
-    fun setUdpSocket() {
+    fun setUdpSocket() = synchronized(this) {
         try {
             Timber.d("Setting up socket")
             udpSocket?.close()
-            udpSocket = MulticastSocket(33586)
-            udpSocket?.reuseAddress = false
+            udpSocket = DatagramSocket(33586)
+            udpSocket?.reuseAddress = true
             udpSocket?.broadcast = true
-            val group = InetAddress.getByName(udpIp)
-            udpSocket?.joinGroup(group)
         } catch (e: Exception) {
             Timber.d("Exception at setUdpSocket: $e")
         }
