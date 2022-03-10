@@ -84,8 +84,8 @@ class Link(var deviceId: String, provider: LinkProvider) {
                         readSoFar += inputStream.read(buffer, readSoFar, size - readSoFar)
                     val packet = Packet.getRootAsPacket(ByteBuffer.wrap(buffer))
                     _packetFlow.emit(packet)
-                } catch (e: SocketException) {
-                    Timber.e("died at startConnection: $e")
+                } catch (e: Exception) {
+                    Timber.e("Exception at startConnection: $e")
                     stopConnection()
                     break
                 }

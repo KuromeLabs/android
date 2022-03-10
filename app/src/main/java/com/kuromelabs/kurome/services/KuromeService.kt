@@ -33,9 +33,7 @@ class KuromeService : LifecycleService() {
     private val CHANNEL_ID = "ForegroundServiceChannel"
     private lateinit var linkProvider: LinkProvider
     private lateinit var repository: DeviceRepository
-    private var isWifiConnected: AtomicBoolean = AtomicBoolean(false)
     private var isServiceStarted = false
-    private val lifecycleOwner = this
     private val devicesMap = ConcurrentHashMap<String, Device>()
     private val binder: IBinder = LocalBinder()
 

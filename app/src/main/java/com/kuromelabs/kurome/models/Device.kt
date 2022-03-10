@@ -38,18 +38,6 @@ data class Device(
     private var link: Link? = null
 
     @Ignore
-    private var pairingHandler: PairingHandler? = null
-
-    @Ignore
-    private var packetJob: Job? = null
-
-    @Ignore
-    private var pairJob: Job? = null
-
-    @Ignore
-    private var fileSystemHandler: FileSystemHandler? = null
-
-    @Ignore
     private var linkJob: Job? = null
 
     @Ignore
