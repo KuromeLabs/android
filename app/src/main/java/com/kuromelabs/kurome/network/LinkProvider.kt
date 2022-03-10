@@ -113,7 +113,7 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
             val guidOffset = builder.createString(getGuid(context))
 
             val info = DeviceInfo.createDeviceInfo(builder, modelOffset, guidOffset, 0, 0, 0)
-            val result = Packet.createPacket(builder, 0, Action.actionConnect, 0, info, 0, 0, 0)
+            val result = Packet.createPacket(builder, 0, Action.actionConnect, 0, info, 0, 0, 0, 0)
             builder.finishSizePrefixed(result)
             link.sendByteBuffer(builder.dataBuffer())
             Timber.d("Sent identity packet. Size: ${builder.dataBuffer().capacity()}")

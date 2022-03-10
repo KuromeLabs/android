@@ -30,6 +30,12 @@ enum Result : byte {
     result_action_fail = 2
 }
 
+enum Pair: byte {
+    not_paired = 0,
+    requested = 1,
+    paired = 2
+}
+
 table Packet {
     path:string;
     action:kurome.Action;
@@ -38,4 +44,5 @@ table Packet {
     file_buffer:kurome.Raw;
     nodes:[kurome.FileBuffer];
     id:int32;
+    pair:kurome.Pair;
 }

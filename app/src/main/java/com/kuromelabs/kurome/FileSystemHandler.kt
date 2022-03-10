@@ -176,7 +176,7 @@ class FileSystemHandler(private val root: String, private val device: Device) {
         val byteVector = Raw.createDataVector(builder, buffer)
         val raw = Raw.createRaw(builder, byteVector, 0, 0)
         val nodesVector = Packet.createNodesVector(builder, fileNodes)
-        val packet = Packet.createPacket(builder, 0, 0, result, deviceInfo, raw, nodesVector, id)
+        val packet = Packet.createPacket(builder, 0, 0, result, deviceInfo, raw, nodesVector, id, 0)
         builder.finishSizePrefixed(packet)
         device.sendBuffer(builder.dataBuffer())
     }
