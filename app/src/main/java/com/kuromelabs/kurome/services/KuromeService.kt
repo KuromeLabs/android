@@ -10,29 +10,28 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
-import androidx.lifecycle.Observer
-import androidx.lifecycle.asLiveData
 import androidx.lifecycle.lifecycleScope
-import com.kuromelabs.kurome.KuromeApplication
 import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.UI.MainActivity
 import com.kuromelabs.kurome.database.DeviceRepository
 import com.kuromelabs.kurome.models.Device
 import com.kuromelabs.kurome.network.Link
 import com.kuromelabs.kurome.network.LinkProvider
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicBoolean
+import javax.inject.Inject
 
-
+@AndroidEntryPoint
 class KuromeService : LifecycleService() {
     private val CHANNEL_ID = "ForegroundServiceChannel"
     private lateinit var linkProvider: LinkProvider
-    private lateinit var repository: DeviceRepository
+    @Inject
+    lateinit var repository: DeviceRepository
     private var isServiceStarted = false
     private val devicesMap = ConcurrentHashMap<String, Device>()
     private val binder: IBinder = LocalBinder()
@@ -42,7 +41,7 @@ class KuromeService : LifecycleService() {
 
     override fun onCreate() {
         super.onCreate()
-        repository = (application as KuromeApplication).repository
+
         initializeMap()
         linkProvider = LinkProvider(baseContext, lifecycleScope)
         linkProvider.addLinkListener(deviceConnectionListener)
@@ -86,7 +85,6 @@ class KuromeService : LifecycleService() {
     private val deviceConnectionListener = object : LinkProvider.LinkListener {
         override fun onLinkConnected(packetString: String?, link: Link?) {
             val split = packetString!!.split(':')
-            val ip = split[1]
             val name = split[2]
             val id = split[3]
             var device = devicesMap[id]
