@@ -38,19 +38,16 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.shouldShowRationale
 import com.kuromelabs.kurome.BuildConfig
-import com.kuromelabs.kurome.KuromeApplication
 import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.UI.theme.KuromeTheme
 import com.kuromelabs.kurome.UI.theme.topAppBar
 import com.kuromelabs.kurome.models.Device
 import com.kuromelabs.kurome.models.DeviceViewModel
-import com.kuromelabs.kurome.models.DeviceViewModelFactory
+import dagger.hilt.android.AndroidEntryPoint
 
-
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-    private val deviceViewModel: DeviceViewModel by viewModels {
-        DeviceViewModelFactory((application as KuromeApplication).repository)
-    }
+    private val deviceViewModel: DeviceViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
