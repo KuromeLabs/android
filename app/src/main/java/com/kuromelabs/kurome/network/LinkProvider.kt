@@ -18,7 +18,7 @@ import kurome.Packet
 import timber.log.Timber
 import java.net.DatagramPacket
 import java.net.DatagramSocket
-import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -84,9 +84,10 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
         try {
             Timber.d("Setting up socket")
             udpSocket?.close()
-            udpSocket = DatagramSocket(33586)
+            udpSocket = DatagramSocket(null)
             udpSocket?.reuseAddress = true
             udpSocket?.broadcast = true
+            udpSocket?.bind(InetSocketAddress(udpPort))
         } catch (e: Exception) {
             Timber.d("Exception at setUdpSocket: $e")
         }
