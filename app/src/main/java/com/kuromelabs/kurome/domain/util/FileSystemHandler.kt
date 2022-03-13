@@ -1,10 +1,10 @@
-package com.kuromelabs.kurome
+package com.kuromelabs.kurome.domain.util
 
 import android.os.Build
 import android.os.Environment
 import android.os.StatFs
 import com.google.flatbuffers.FlatBufferBuilder
-import com.kuromelabs.kurome.models.Device
+import com.kuromelabs.kurome.domain.model.Device
 import kurome.*
 import timber.log.Timber
 import java.io.File

@@ -23,10 +23,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Kurome">
 
-        <service android:name="com.kuromelabs.kurome.services.KuromeService" />
+        <service android:name="com.kuromelabs.kurome.domain.service.KuromeService" />
 
         <activity
-            android:name="com.kuromelabs.kurome.UI.MainActivity"
+            android:name="com.kuromelabs.kurome.presentation.MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import com.kuromelabs.kurome.services.KuromeService
+import com.kuromelabs.kurome.domain.service.KuromeService
 import timber.log.Timber
 
 class KuromeBroadcastReceiver: BroadcastReceiver() {

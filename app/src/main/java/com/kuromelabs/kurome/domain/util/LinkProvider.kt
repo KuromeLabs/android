@@ -1,14 +1,9 @@
-package com.kuromelabs.kurome.network
+package com.kuromelabs.kurome.domain.util
 
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.Network
-import android.net.NetworkCapabilities
-import android.net.NetworkRequest
 import android.os.Build
-import androidx.core.content.ContextCompat
+import androidx.preference.PreferenceManager
 import com.google.flatbuffers.FlatBufferBuilder
-import com.kuromelabs.kurome.getGuid
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -19,6 +14,7 @@ import timber.log.Timber
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetSocketAddress
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -40,7 +36,6 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
 
     fun initialize() {
         setUdpSocket()
-        initializeNetworkCallback()
         serviceScope.launch(Dispatchers.IO) {
             Timber.d("initializing udp listener at $udpIp:$udpPort")
             while (listening) {
@@ -52,35 +47,13 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
                         Timber.d("received UDP: ${String(packet.data, packet.offset, packet.length)}")
                         launch { datagramPacketReceived(packet) }
                     } catch (e: Exception) {
-                        if (!e.toString().contains("Socket closed"))
-                            setUdpSocket()
                         Timber.d("Exception at initializeUdpListener: $e")
                     }
             }
         }
     }
 
-    private fun initializeNetworkCallback() {
-        val cm = ContextCompat.getSystemService(context, ConnectivityManager::class.java)
-        val request = NetworkRequest.Builder()
-            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-            .build()
-        cm?.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
-            override fun onCapabilitiesChanged(net: Network, capabilities: NetworkCapabilities) {
-                Timber.d("Monitor network capabilities: $capabilities network: $net")
-                setUdpSocket()
-            }
-            override fun onLost(net: Network) {
-                Timber.d("Monitor network lost: $net")
-                setUdpSocket()
-                for (link in activeLinks.values) {
-                    link.stopConnection()
-                }
-            }
-        })
-    }
-
-    fun setUdpSocket() = synchronized(this) {
+    private fun setUdpSocket() {
         try {
             Timber.d("Setting up socket")
             udpSocket?.close()
@@ -93,6 +66,7 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
         }
     }
 
+    @ExperimentalUnsignedTypes
     private fun datagramPacketReceived(packet: DatagramPacket) {
         try {
             val packetString = String(packet.data, packet.offset, packet.length)
@@ -157,5 +131,15 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
 
     override fun onLinkDisconnected(link: Link) {
         linkDisconnected(link)
+    }
+
+    private fun getGuid(context: Context): String {
+        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+        var id = preferences.getString("id", null)
+        if (id == null) {
+            id = UUID.randomUUID().toString()
+            preferences.edit().putString("id", id).apply()
+        }
+        return id
     }
 }

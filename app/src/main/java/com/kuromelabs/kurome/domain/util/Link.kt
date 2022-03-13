@@ -1,6 +1,5 @@
-package com.kuromelabs.kurome.network
+package com.kuromelabs.kurome.domain.util
 
-import com.google.flatbuffers.FlatBufferBuilder
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -9,7 +8,6 @@ import timber.log.Timber
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.Socket
-import java.net.SocketException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.Channels
@@ -27,7 +25,6 @@ class Link(var deviceId: String, provider: LinkProvider) {
     private lateinit var outputStream: OutputStream
     private var clientSocket: Socket? = null
     private lateinit var outputChannel: WritableByteChannel
-    var builder = FlatBufferBuilder(1024)
 
     interface LinkDisconnectedCallback {
         fun onLinkDisconnected(link: Link)

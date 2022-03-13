@@ -1,19 +1,18 @@
-package com.kuromelabs.kurome.models
+package com.kuromelabs.kurome.domain.model
 
 import android.os.Environment
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Ignore
 import androidx.room.PrimaryKey
-import com.kuromelabs.kurome.FileSystemHandler
-import com.kuromelabs.kurome.network.Link
+import com.kuromelabs.kurome.domain.util.FileSystemHandler
+import com.kuromelabs.kurome.domain.util.Link
 import kotlinx.coroutines.*
 import timber.log.Timber
 import java.nio.ByteBuffer
 
 
 @OptIn(ExperimentalUnsignedTypes::class)
-@Suppress("DEPRECATION")
 @Entity(tableName = "device_table")
 data class Device(
     @PrimaryKey @ColumnInfo(name = "name") val name: String,
@@ -65,3 +64,5 @@ data class Device(
         link!!.sendByteBuffer(buffer)
     }
 }
+
+class PairingException(message: String) : Exception(message)

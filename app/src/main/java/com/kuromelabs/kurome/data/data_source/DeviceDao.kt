@@ -1,10 +1,10 @@
-package com.kuromelabs.kurome.database
+package com.kuromelabs.kurome.data.data_source
 
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import com.kuromelabs.kurome.models.Device
+import com.kuromelabs.kurome.domain.model.Device
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -13,7 +13,7 @@ interface DeviceDao {
     suspend fun insert(device: Device)
 
     @Query("SELECT * FROM device_table WHERE id = :id")
-    fun getDevice(id: String): Device?
+    suspend fun getDevice(id: String): Device?
 
     @Query("SELECT * FROM device_table ORDER BY name ASC")
     fun getAllDevices(): Flow<List<Device>>

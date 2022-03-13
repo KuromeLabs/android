@@ -1,6 +1,6 @@
-package com.kuromelabs.kurome.network
+package com.kuromelabs.kurome.domain.util
 
-import com.kuromelabs.kurome.models.Device
+import com.kuromelabs.kurome.domain.model.Device
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kurome.Packet
 

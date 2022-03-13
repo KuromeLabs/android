@@ -1,4 +1,4 @@
-package com.kuromelabs.kurome.services
+package com.kuromelabs.kurome.domain.service
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -12,14 +12,12 @@ import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.kuromelabs.kurome.R
-import com.kuromelabs.kurome.UI.MainActivity
-import com.kuromelabs.kurome.database.DeviceRepository
-import com.kuromelabs.kurome.models.Device
-import com.kuromelabs.kurome.network.Link
-import com.kuromelabs.kurome.network.LinkProvider
+import com.kuromelabs.kurome.domain.model.Device
+import com.kuromelabs.kurome.domain.repository.DeviceRepository
+import com.kuromelabs.kurome.domain.util.Link
+import com.kuromelabs.kurome.domain.util.LinkProvider
+import com.kuromelabs.kurome.presentation.MainActivity
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -36,8 +34,6 @@ class KuromeService : LifecycleService() {
     private val devicesMap = ConcurrentHashMap<String, Device>()
     private val binder: IBinder = LocalBinder()
 
-    private val _connectedDeviceFlow = MutableSharedFlow<List<Device>>(1)
-    val connectedDeviceFlow: SharedFlow<List<Device>> = _connectedDeviceFlow
 
     override fun onCreate() {
         super.onCreate()
@@ -71,7 +67,7 @@ class KuromeService : LifecycleService() {
 
     private fun initializeMap() {
         lifecycleScope.launch {
-            repository.savedDevices.collectLatest {
+            repository.getSavedDevices().collectLatest {
                 Timber.d("Observed size: ${it.size}")
                 for (device in it) {
                     devicesMap[device.id] = device
@@ -91,13 +87,13 @@ class KuromeService : LifecycleService() {
             if (device != null) {
                 Timber.d("Known device: $device")
                 device.setLink(link!!)
-                lifecycleScope.launch { _connectedDeviceFlow.emit(devicesMap.values.toList()) }
+                lifecycleScope.launch { repository.setServiceDevices(devicesMap.values.toList()) }
             } else {
                 Timber.d("Unknown device: $id")
                 device = Device(name, id)
                 device.setLink(link!!)
                 devicesMap[id] = device
-                lifecycleScope.launch { _connectedDeviceFlow.emit(devicesMap.values.toList()) }
+                lifecycleScope.launch { repository.setServiceDevices(devicesMap.values.toList()) }
             }
         }
 
@@ -107,7 +103,7 @@ class KuromeService : LifecycleService() {
                 if (!device.isPaired)
                     devicesMap.remove(id)
                 device.disconnect()
-                lifecycleScope.launch { _connectedDeviceFlow.emit(devicesMap.values.toList()) }
+                lifecycleScope.launch { repository.setServiceDevices(devicesMap.values.toList()) }
                 Timber.d("Device disconnected: $device")
             }
         }
