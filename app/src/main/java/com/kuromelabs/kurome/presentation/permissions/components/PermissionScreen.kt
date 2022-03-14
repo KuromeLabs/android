@@ -13,29 +13,47 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat.startActivity
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.navigation.NavController
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.shouldShowRationale
 import com.kuromelabs.kurome.BuildConfig
 import com.kuromelabs.kurome.R
+import com.kuromelabs.kurome.presentation.getFilePermissionEvent
 import com.kuromelabs.kurome.presentation.permissions.PermissionViewModel
+import com.kuromelabs.kurome.presentation.util.Screen
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun PermissionScreen(
-    onDone: () -> Unit,
-    viewModel: PermissionViewModel
+    navController: NavController,
+    viewModel: PermissionViewModel = hiltViewModel()
 ) {
-    val permissionsState =
-        rememberPermissionState(permission = Manifest.permission.WRITE_EXTERNAL_STORAGE)
+    val lifecycleOwner = LocalLifecycleOwner.current
+
     val context = LocalContext.current
     val resources = context.resources
+    DisposableEffect(key1 = lifecycleOwner, effect = {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME)
+                viewModel.onEvent(getFilePermissionEvent(context))
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    })
     Surface(
         modifier = Modifier
             .fillMaxSize()
@@ -69,6 +87,8 @@ fun PermissionScreen(
                     }, storage
                 )
             } else {
+                val permissionsState =
+                    rememberPermissionState(permission = Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 val permanentlyDenied =
                     !permissionsState.status.shouldShowRationale && !permissionsState.status.isGranted
                 PermissionRow(
@@ -84,7 +104,7 @@ fun PermissionScreen(
             }
             Spacer(Modifier.weight(1f))
             Button(
-                onClick = onDone,
+                onClick = { navController.navigate(Screen.DevicesScreen.route) },
                 modifier = Modifier
                     .align(Alignment.End)
                     .padding(top = 20.dp, bottom = 8.dp),
@@ -95,3 +115,5 @@ fun PermissionScreen(
         }
     }
 }
+
+

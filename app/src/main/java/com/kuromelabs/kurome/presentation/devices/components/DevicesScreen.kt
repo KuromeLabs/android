@@ -8,11 +8,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
 import com.kuromelabs.kurome.UI.theme.topAppBar
 import com.kuromelabs.kurome.presentation.devices.DeviceViewModel
 
 @Composable
-fun DevicesScreen(viewModel: DeviceViewModel, modifier: Modifier) {
+fun DevicesScreen(
+    viewModel: DeviceViewModel = hiltViewModel(),
+    modifier: Modifier,
+    navController: NavController
+) {
     Scaffold(
         topBar = {
             TopAppBar(title = { Text("Kurome") },
