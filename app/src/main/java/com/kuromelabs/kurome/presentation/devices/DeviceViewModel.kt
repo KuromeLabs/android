@@ -35,8 +35,8 @@ class DeviceViewModel @Inject constructor(
 
     private fun getDevices() {
         getDevicesJob?.cancel()
-        getDevicesJob = deviceUseCases.getDevices().onEach {
-            _state.value = _state.value.copy(devices = it)
+        getDevicesJob = deviceUseCases.getDevices().onEach { deviceList ->
+            _state.value = _state.value.copy(devices = deviceList.map { DeviceState(it ,it.isConnected(), it.isPaired) })
         }.launchIn(viewModelScope)
     }
 }

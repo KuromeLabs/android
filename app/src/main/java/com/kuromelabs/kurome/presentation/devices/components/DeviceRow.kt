@@ -16,10 +16,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kuromelabs.kurome.R
-import com.kuromelabs.kurome.domain.model.Device
+import com.kuromelabs.kurome.presentation.devices.DeviceState
 
 @Composable
-fun DeviceRow(device: Device) {
+fun DeviceRow(state: DeviceState) {
     val resources = LocalContext.current.resources
     Row(
         modifier = Modifier
@@ -37,11 +37,11 @@ fun DeviceRow(device: Device) {
         )
         Column {
             Text(
-                text = device.name,
+                text = state.device.name,
                 style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold)
             )
             Text(
-                text = if (device.isPaired) if (device.isConnected()) resources.getString(R.string.status_connected)
+                text = if (state.isPaired) if (state.isConnected) resources.getString(R.string.status_connected)
                 else resources.getString(R.string.status_disconnected)
                 else resources.getString(R.string.status_available),
                 style = MaterialTheme.typography.subtitle2
