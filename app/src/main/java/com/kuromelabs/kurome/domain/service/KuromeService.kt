@@ -14,8 +14,8 @@ import androidx.lifecycle.lifecycleScope
 import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.domain.model.Device
 import com.kuromelabs.kurome.domain.repository.DeviceRepository
-import com.kuromelabs.kurome.domain.util.LinkProvider
-import com.kuromelabs.kurome.domain.util.LinkState
+import com.kuromelabs.kurome.domain.util.link.LinkProvider
+import com.kuromelabs.kurome.domain.util.link.LinkState
 import com.kuromelabs.kurome.presentation.MainActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest

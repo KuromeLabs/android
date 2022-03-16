@@ -1,7 +1,7 @@
 package com.kuromelabs.kurome.di
 
 import android.content.Context
-import com.kuromelabs.kurome.domain.util.LinkProvider
+import com.kuromelabs.kurome.domain.util.link.LinkProvider
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

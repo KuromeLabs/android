@@ -1,4 +1,4 @@
-package com.kuromelabs.kurome.domain.util
+package com.kuromelabs.kurome.domain.util.link
 
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow

@@ -6,7 +6,7 @@ import androidx.room.Entity
 import androidx.room.Ignore
 import androidx.room.PrimaryKey
 import com.kuromelabs.kurome.domain.util.FileSystemHandler
-import com.kuromelabs.kurome.domain.util.Link
+import com.kuromelabs.kurome.domain.util.link.Link
 import kotlinx.coroutines.*
 import timber.log.Timber
 import java.nio.ByteBuffer

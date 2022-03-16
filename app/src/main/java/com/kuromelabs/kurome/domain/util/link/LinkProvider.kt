@@ -1,4 +1,4 @@
-package com.kuromelabs.kurome.domain.util
+package com.kuromelabs.kurome.domain.util.link
 
 import android.content.Context
 import android.os.Build
@@ -57,15 +57,7 @@ class LinkProvider(val context: Context) {
                         val buffer = ByteArray(1024)
                         val packet = DatagramPacket(buffer, buffer.size)
                         udpSocket!!.receive(packet)
-                        Timber.d(
-                            "received UDP: ${
-                                String(
-                                    packet.data,
-                                    packet.offset,
-                                    packet.length
-                                )
-                            }"
-                        )
+                        Timber.d("received UDP: ${String(packet.data, packet.offset, packet.length)}")
                         launch { datagramPacketReceived(packet) }
                     } catch (e: Exception) {
                         Timber.d("Exception at initializeUdpListener: $e")
