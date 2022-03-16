@@ -4,9 +4,7 @@ import android.content.Context
 import android.os.Build
 import androidx.preference.PreferenceManager
 import com.google.flatbuffers.FlatBufferBuilder
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import kurome.Action
 import kurome.DeviceInfo
 import kurome.Packet
@@ -19,26 +17,44 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
 @Suppress("BlockingMethodInNonBlockingContext")
-class LinkProvider(private val context: Context, private val serviceScope: CoroutineScope) :
+class LinkProvider(val context: Context) :
     Link.LinkDisconnectedCallback {
     private var udpSocket: DatagramSocket? = null
-    var listening = false
     private val linkListeners = CopyOnWriteArrayList<LinkListener>()
     private val builder = FlatBufferBuilder(128)
-    val activeLinks = ConcurrentHashMap<String, Link>()
+    private val activeLinks = ConcurrentHashMap<String, Link>()
     private val udpIp = "255.255.255.255"
     private val udpPort = 33586
-
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO)
+    private var listenJob: Job? = null
     interface LinkListener {
         fun onLinkConnected(packetString: String?, link: Link?)
         fun onLinkDisconnected(id: String?, link: Link?)
     }
 
-    fun initialize() {
-        setUdpSocket()
-        serviceScope.launch(Dispatchers.IO) {
+    init {
+        setUdpListener()
+        startUdpListener()
+    }
+
+    private fun setUdpListener() {
+        try {
+            Timber.d("Setting up socket")
+            udpSocket?.close()
+            udpSocket = DatagramSocket(null)
+            udpSocket?.reuseAddress = true
+            udpSocket?.broadcast = true
+            udpSocket?.bind(InetSocketAddress(udpPort))
+        } catch (e: Exception) {
+            Timber.d("Exception at setUdpListener: $e")
+        }
+    }
+
+    private fun startUdpListener() {
+        listenJob?.cancel()
+        listenJob = scope.launch(Dispatchers.IO) {
             Timber.d("initializing udp listener at $udpIp:$udpPort")
-            while (listening) {
+            while (currentCoroutineContext().isActive) {
                 if (udpSocket != null && !udpSocket!!.isClosed)
                     try {
                         val buffer = ByteArray(1024)
@@ -50,19 +66,6 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
                         Timber.d("Exception at initializeUdpListener: $e")
                     }
             }
-        }
-    }
-
-    private fun setUdpSocket() {
-        try {
-            Timber.d("Setting up socket")
-            udpSocket?.close()
-            udpSocket = DatagramSocket(null)
-            udpSocket?.reuseAddress = true
-            udpSocket?.broadcast = true
-            udpSocket?.bind(InetSocketAddress(udpPort))
-        } catch (e: Exception) {
-            Timber.d("Exception at setUdpSocket: $e")
         }
     }
 
@@ -101,7 +104,7 @@ class LinkProvider(private val context: Context, private val serviceScope: Corou
 
 
     fun onStop() {
-        listening = false
+        listenJob?.cancel()
         udpSocket?.close()
     }
 

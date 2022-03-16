@@ -27,7 +27,8 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class KuromeService : LifecycleService() {
     private val CHANNEL_ID = "ForegroundServiceChannel"
-    private lateinit var linkProvider: LinkProvider
+    @Inject
+    lateinit var linkProvider: LinkProvider
     @Inject
     lateinit var repository: DeviceRepository
     private var isServiceStarted = false
@@ -37,12 +38,8 @@ class KuromeService : LifecycleService() {
 
     override fun onCreate() {
         super.onCreate()
-
         initializeMap()
-        linkProvider = LinkProvider(baseContext, lifecycleScope)
         linkProvider.addLinkListener(deviceConnectionListener)
-        linkProvider.listening = true
-        linkProvider.initialize()
         createNotificationChannel()
     }
 
