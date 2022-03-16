@@ -5,6 +5,8 @@ import android.os.Build
 import androidx.preference.PreferenceManager
 import com.google.flatbuffers.FlatBufferBuilder
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kurome.Action
 import kurome.DeviceInfo
 import kurome.Packet
@@ -14,23 +16,18 @@ import java.net.DatagramSocket
 import java.net.InetSocketAddress
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.CopyOnWriteArrayList
 
 @Suppress("BlockingMethodInNonBlockingContext")
-class LinkProvider(val context: Context) :
-    Link.LinkDisconnectedCallback {
+class LinkProvider(val context: Context) {
     private var udpSocket: DatagramSocket? = null
-    private val linkListeners = CopyOnWriteArrayList<LinkListener>()
     private val builder = FlatBufferBuilder(128)
     private val activeLinks = ConcurrentHashMap<String, Link>()
     private val udpIp = "255.255.255.255"
     private val udpPort = 33586
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO)
     private var listenJob: Job? = null
-    interface LinkListener {
-        fun onLinkConnected(packetString: String?, link: Link?)
-        fun onLinkDisconnected(id: String?, link: Link?)
-    }
+
+    private val _linkFlow = MutableSharedFlow<LinkState>(0)
 
     init {
         setUdpListener()
@@ -60,7 +57,15 @@ class LinkProvider(val context: Context) :
                         val buffer = ByteArray(1024)
                         val packet = DatagramPacket(buffer, buffer.size)
                         udpSocket!!.receive(packet)
-                        Timber.d("received UDP: ${String(packet.data, packet.offset, packet.length)}")
+                        Timber.d(
+                            "received UDP: ${
+                                String(
+                                    packet.data,
+                                    packet.offset,
+                                    packet.length
+                                )
+                            }"
+                        )
                         launch { datagramPacketReceived(packet) }
                     } catch (e: Exception) {
                         Timber.d("Exception at initializeUdpListener: $e")
@@ -82,10 +87,9 @@ class LinkProvider(val context: Context) :
                 Timber.d("Link already exists, not connecting")
                 return
             }
-            val link = Link(id, this)
-            link.startConnection(ip, 33587)
+            val link = Link(id, name, ip, 33587)
             activeLinks[id] = link
-            linkConnected(packetString, link)
+            observeLinkState(link)
             Timber.d("Link connection started from UDP")
             val modelOffset = builder.createString(Build.MODEL)
             val guidOffset = builder.createString(getGuid(context))
@@ -102,38 +106,27 @@ class LinkProvider(val context: Context) :
 
     }
 
+    private fun observeLinkState(link: Link) {
+        var linkJob: Job? = null
+        linkJob = scope.launch {
+            link.observeState().collect {
+                when (it.state) {
+                    LinkState.State.CONNECTED -> _linkFlow.emit(LinkState(LinkState.State.CONNECTED, link))
+                    LinkState.State.DISCONNECTED -> {
+                        _linkFlow.emit(LinkState(LinkState.State.DISCONNECTED, link))
+                        linkJob?.cancel()
+                        if (!linkJob!!.isActive) Timber.e("linkJob was cancelled in linkDisconnected")
+                    }
+                }
+            }
+        }
+    }
+
+    fun observeLinks(): Flow<LinkState> = _linkFlow
 
     fun onStop() {
         listenJob?.cancel()
         udpSocket?.close()
-    }
-
-
-    fun addLinkListener(linkListener: LinkListener) {
-        linkListeners.add(linkListener)
-    }
-
-    fun removeLinkListener(linkListener: LinkListener) {
-        linkListeners.remove(linkListener)
-    }
-
-    private fun linkConnected(packet: String, link: Link) {
-        for (receiver in linkListeners) {
-            Timber.d("linkConnected called. Num of callbacks: ${linkListeners.size}")
-            receiver.onLinkConnected(packet, link)
-        }
-    }
-
-    private fun linkDisconnected(link: Link) {
-        activeLinks.remove(link.deviceId)
-        for (receiver in linkListeners) {
-            Timber.d("disconnected link: ${link.deviceId}")
-            receiver.onLinkDisconnected(link.deviceId, link)
-        }
-    }
-
-    override fun onLinkDisconnected(link: Link) {
-        linkDisconnected(link)
     }
 
     private fun getGuid(context: Context): String {

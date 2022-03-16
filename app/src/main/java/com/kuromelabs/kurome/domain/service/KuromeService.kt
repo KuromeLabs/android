@@ -14,8 +14,8 @@ import androidx.lifecycle.lifecycleScope
 import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.domain.model.Device
 import com.kuromelabs.kurome.domain.repository.DeviceRepository
-import com.kuromelabs.kurome.domain.util.Link
 import com.kuromelabs.kurome.domain.util.LinkProvider
+import com.kuromelabs.kurome.domain.util.LinkState
 import com.kuromelabs.kurome.presentation.MainActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
@@ -39,7 +39,7 @@ class KuromeService : LifecycleService() {
     override fun onCreate() {
         super.onCreate()
         initializeMap()
-        linkProvider.addLinkListener(deviceConnectionListener)
+        observeLinkProvider()
         createNotificationChannel()
     }
 
@@ -74,39 +74,39 @@ class KuromeService : LifecycleService() {
         }
     }
 
-    @OptIn(ExperimentalUnsignedTypes::class)
-    private val deviceConnectionListener = object : LinkProvider.LinkListener {
-        override fun onLinkConnected(packetString: String?, link: Link?) {
-            val split = packetString!!.split(':')
-            val name = split[2]
-            val id = split[3]
-            var device = devicesMap[id]
-            if (device != null) {
-                Timber.d("Known device: $device")
-                device.setLink(link!!)
-                lifecycleScope.launch { repository.setServiceDevices(devicesMap.values.toList()) }
-            } else {
-                Timber.d("Unknown device: $id")
-                device = Device(name, id)
-                device.setLink(link!!)
-                devicesMap[id] = device
-                lifecycleScope.launch { repository.setServiceDevices(devicesMap.values.toList()) }
+    private fun observeLinkProvider() {
+        lifecycleScope.launch {
+            linkProvider.observeLinks().collect {
+                val link = it.link
+                when (it.state) {
+                    LinkState.State.CONNECTED -> {
+                        var device = devicesMap[link.deviceId]
+                        if (device != null) {
+                            Timber.d("Known device: $device")
+                            device.setLink(link)
+                            lifecycleScope.launch { repository.setServiceDevices(devicesMap.values.toList()) }
+                        } else {
+                            Timber.d("Unknown device: ${link.deviceId}")
+                            device = Device(link.deviceName, link.deviceId)
+                            device.setLink(link)
+                            devicesMap[link.deviceId] = device
+                            lifecycleScope.launch { repository.setServiceDevices(devicesMap.values.toList()) }
+                        }
+                    }
+                    LinkState.State.DISCONNECTED -> {
+                        val device = devicesMap[link.deviceId]
+                        if (device != null) {
+                            if (!device.isPaired)
+                                devicesMap.remove(link.deviceId)
+                            device.disconnect()
+                            lifecycleScope.launch { repository.setServiceDevices(devicesMap.values.toList()) }
+                            Timber.d("Device disconnected: $device")
+                        }
+                    }
+                }
             }
         }
-
-        override fun onLinkDisconnected(id: String?, link: Link?) {
-            val device = devicesMap[id]
-            if (device != null) {
-                if (!device.isPaired)
-                    devicesMap.remove(id)
-                device.disconnect()
-                lifecycleScope.launch { repository.setServiceDevices(devicesMap.values.toList()) }
-                Timber.d("Device disconnected: $device")
-            }
-        }
-
     }
-
 
     override fun onDestroy() {
         linkProvider.onStop()

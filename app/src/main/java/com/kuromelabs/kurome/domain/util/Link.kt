@@ -1,6 +1,7 @@
 package com.kuromelabs.kurome.domain.util
 
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kurome.Packet
@@ -20,17 +21,12 @@ import javax.net.ssl.X509TrustManager
 
 
 @OptIn(ExperimentalUnsignedTypes::class)
-class Link(var deviceId: String, provider: LinkProvider) {
+class Link(val deviceId: String, val deviceName: String, val ip: String, val port: Int) {
     private lateinit var inputStream: InputStream
     private lateinit var outputStream: OutputStream
     private var clientSocket: Socket? = null
     private lateinit var outputChannel: WritableByteChannel
 
-    interface LinkDisconnectedCallback {
-        fun onLinkDisconnected(link: Link)
-    }
-
-    private var callback: LinkDisconnectedCallback? = provider
 
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
@@ -38,8 +34,13 @@ class Link(var deviceId: String, provider: LinkProvider) {
     private val _packetFlow = MutableSharedFlow<Packet>(0)
     val packetFlow: SharedFlow<Packet> = _packetFlow
 
-    @Suppress("BlockingMethodInNonBlockingContext")
-    fun startConnection(ip: String, port: Int) {
+    private val _stateFlow = MutableSharedFlow<LinkState>(1)
+
+    init {
+        startConnection()
+    }
+
+    private fun startConnection() {
         //Setup SSL
         //TODO: Temporary, we should trust the server's certificate when pairing
         val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
@@ -63,12 +64,12 @@ class Link(var deviceId: String, provider: LinkProvider) {
         inputStream = (clientSocket as SSLSocket).inputStream
         Timber.d("Link connected at $ip:$port")
         startListening()
+        scope.launch { _stateFlow.emit(LinkState(LinkState.State.CONNECTED, this@Link)) }
     }
 
     private fun startListening() {
         scope.launch {
             while (true) {
-//                Timber.d("Reading from socket")
                 try {
                     val sizeBytes = ByteArray(4)
                     var readSoFar = 0
@@ -94,19 +95,20 @@ class Link(var deviceId: String, provider: LinkProvider) {
         try {
             outputChannel.write(buffer)
         } catch (e: Exception) {
-            Timber.e("died at sendByteBuffer: $e")
-            stopConnection()
+            Timber.e("Exception at sendByteBuffer: $e")
+            scope.launch { stopConnection() }
         }
     }
 
     fun isConnected(): Boolean = clientSocket != null && clientSocket!!.isConnected
 
-    fun stopConnection() {
+    private suspend fun stopConnection() {
         Timber.d("Stopping connection: $deviceId")
-        callback?.onLinkDisconnected(this)
-        callback = null
+        _stateFlow.emit(LinkState(LinkState.State.DISCONNECTED, this))
         clientSocket?.close()
         scope.cancel()
     }
+
+    fun observeState(): Flow<LinkState> = _stateFlow
 
 }
