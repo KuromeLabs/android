@@ -80,7 +80,6 @@ class LinkProvider(val context: Context) {
                 return
             }
             val link = Link(id, name, ip, 33587)
-            activeLinks[id] = link
             observeLinkState(link)
             Timber.d("Link connection started from UDP")
             val modelOffset = builder.createString(Build.MODEL)
@@ -103,9 +102,13 @@ class LinkProvider(val context: Context) {
         linkJob = scope.launch {
             link.observeState().collect {
                 when (it.state) {
-                    LinkState.State.CONNECTED -> _linkFlow.emit(LinkState(LinkState.State.CONNECTED, link))
+                    LinkState.State.CONNECTED -> {
+                        _linkFlow.emit(LinkState(LinkState.State.CONNECTED, link))
+                        activeLinks[link.deviceId] = link
+                    }
                     LinkState.State.DISCONNECTED -> {
                         _linkFlow.emit(LinkState(LinkState.State.DISCONNECTED, link))
+                        activeLinks.remove(link.deviceId)
                         linkJob?.cancel()
                         if (!linkJob!!.isActive) Timber.e("linkJob was cancelled in linkDisconnected")
                     }
