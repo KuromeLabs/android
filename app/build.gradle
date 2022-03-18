@@ -125,6 +125,9 @@ dependencies {
     androidTestImplementation "androidx.compose.ui:ui-test-junit4:$rootProject.compose_version"
     debugImplementation "androidx.compose.ui:ui-test-manifest:$rootProject.compose_version"
 
+    //leakcanary
+    debugImplementation 'com.squareup.leakcanary:leakcanary-android:2.8.1'
+
 }
 
 kapt {
