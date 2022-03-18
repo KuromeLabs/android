@@ -83,15 +83,13 @@ class KuromeService : LifecycleService() {
                         var device = devicesMap[link.deviceId]
                         if (device != null) {
                             Timber.d("Known device: $device")
-                            device.setLink(link)
-                            lifecycleScope.launch { repository.setServiceDevices(devicesMap.values.toList()) }
                         } else {
                             Timber.d("Unknown device: ${link.deviceId}")
                             device = Device(link.deviceName, link.deviceId)
-                            device.setLink(link)
                             devicesMap[link.deviceId] = device
-                            lifecycleScope.launch { repository.setServiceDevices(devicesMap.values.toList()) }
                         }
+                        device.setLink(link)
+                        lifecycleScope.launch { repository.setServiceDevices(devicesMap.values.toList()) }
                     }
                     LinkState.State.DISCONNECTED -> {
                         val device = devicesMap[link.deviceId]

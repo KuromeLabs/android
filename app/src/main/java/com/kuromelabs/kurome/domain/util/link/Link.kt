@@ -81,6 +81,7 @@ class Link(val deviceId: String, val deviceName: String, val ip: String, val por
                     while (readSoFar != size)
                         readSoFar += inputStream.read(buffer, readSoFar, size - readSoFar)
                     val packet = Packet.getRootAsPacket(ByteBuffer.wrap(buffer))
+                    Timber.d("Emitting packet of type ${packet.action}")
                     _packetFlow.emit(packet)
                 } catch (e: Exception) {
                     Timber.e("Exception at startConnection: $e")

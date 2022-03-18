@@ -1,5 +1,6 @@
 package com.kuromelabs.kurome.presentation.devices.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -12,6 +13,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.kuromelabs.kurome.UI.theme.topAppBar
 import com.kuromelabs.kurome.presentation.devices.DeviceViewModel
+import com.kuromelabs.kurome.presentation.devices.DevicesEvent
 
 @Composable
 fun DevicesScreen(
@@ -31,8 +33,12 @@ fun DevicesScreen(
         },
     ) { innerPadding ->
         LazyColumn(modifier = modifier.padding(innerPadding)) {
-            items(viewModel.state.value.devices) { device ->
-                DeviceRow(device)
+            items(viewModel.state.value.devices) { deviceState ->
+                DeviceRow(deviceState, Modifier.clickable(
+                    onClick = {
+                        viewModel.onEvent(DevicesEvent.PairDevice(deviceState.device))
+                    }
+                ))
             }
         }
     }

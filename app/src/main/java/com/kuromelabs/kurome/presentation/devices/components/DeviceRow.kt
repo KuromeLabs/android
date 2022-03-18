@@ -19,10 +19,10 @@ import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.presentation.devices.DeviceState
 
 @Composable
-fun DeviceRow(state: DeviceState) {
+fun DeviceRow(state: DeviceState, modifier: Modifier) {
     val resources = LocalContext.current.resources
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
