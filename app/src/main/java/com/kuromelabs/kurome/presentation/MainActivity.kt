@@ -30,6 +30,7 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
+    private var serviceStarted: Boolean = false
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -76,10 +77,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startService() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            baseContext?.startForegroundService(Intent(baseContext, KuromeService::class.java))
-        } else {
-            baseContext?.startService(Intent(baseContext, KuromeService::class.java))
+        if (!serviceStarted) {
+            serviceStarted = true
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                baseContext?.startForegroundService(Intent(baseContext, KuromeService::class.java))
+            } else {
+                baseContext?.startService(Intent(baseContext, KuromeService::class.java))
+            }
         }
     }
 }
