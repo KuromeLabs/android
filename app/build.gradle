@@ -44,7 +44,7 @@ android {
         compose true
     }
     task generateFbsKotlin(type: Exec) {
-        def inputDir = file("$projectDir/src/main/fbs")
+        def inputDir = file("$projectDir/src/main/java/com/kuromelabs/kurome/data/fbs")
         def outputKotlinDir = file("$projectDir/build/generated/source/fsb/")
         def fbsFiles = layout.files { file(inputDir).listFiles() }.filter { File f -> f.name.endsWith(".fbs") }.toList()
         ignoreExitValue(true)
