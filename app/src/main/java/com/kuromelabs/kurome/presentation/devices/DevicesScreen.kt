@@ -1,4 +1,4 @@
-package com.kuromelabs.kurome.presentation.devices.components
+package com.kuromelabs.kurome.presentation.devices
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.padding
@@ -12,8 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.kuromelabs.kurome.UI.theme.topAppBar
-import com.kuromelabs.kurome.presentation.devices.DeviceViewModel
-import com.kuromelabs.kurome.presentation.devices.DevicesEvent
+import com.kuromelabs.kurome.presentation.devices.components.DeviceRow
 
 @Composable
 fun DevicesScreen(

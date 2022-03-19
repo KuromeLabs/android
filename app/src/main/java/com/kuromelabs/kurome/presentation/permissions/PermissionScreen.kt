@@ -1,4 +1,4 @@
-package com.kuromelabs.kurome.presentation.permissions.components
+package com.kuromelabs.kurome.presentation.permissions
 
 import android.Manifest
 import android.content.Intent
@@ -31,7 +31,7 @@ import com.google.accompanist.permissions.shouldShowRationale
 import com.kuromelabs.kurome.BuildConfig
 import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.presentation.getFilePermissionEvent
-import com.kuromelabs.kurome.presentation.permissions.PermissionViewModel
+import com.kuromelabs.kurome.presentation.permissions.components.PermissionRow
 import com.kuromelabs.kurome.presentation.util.Screen
 
 @OptIn(ExperimentalPermissionsApi::class)
