@@ -6,8 +6,11 @@ import androidx.room.Entity
 import androidx.room.Ignore
 import androidx.room.PrimaryKey
 import com.kuromelabs.kurome.domain.util.FileSystemHandler
+import com.kuromelabs.kurome.domain.util.PairingHandler
 import com.kuromelabs.kurome.domain.util.link.Link
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.Flow
+import kurome.Action
 import timber.log.Timber
 import java.nio.ByteBuffer
 
@@ -42,6 +45,9 @@ data class Device(
     @Ignore
     private val fileSystemHandler = FileSystemHandler(root, this)
 
+    @Ignore
+    private val pairingHandler = PairingHandler(this)
+
     fun isConnected(): Boolean = link != null && link!!.isConnected()
 
     fun setLink(link: Link) {
@@ -50,9 +56,17 @@ data class Device(
         this.link = link
         linkJob = scope.launch {
             link.packetFlow.collect {
-                fileSystemHandler.packetReceived(it)
+                if (it.action == Action.actionPair)
+                    pairingHandler.packetReceived(it)
+                else
+                    fileSystemHandler.packetReceived(it)
             }
         }
+    }
+
+    suspend fun requestPairing(): Flow<PairingHandler.PairingType> {
+        pairingHandler.requestPairing()
+        return pairingHandler.pairingHandlerFlow
     }
 
     fun disconnect() {
@@ -64,5 +78,3 @@ data class Device(
         link!!.sendByteBuffer(buffer)
     }
 }
-
-class PairingException(message: String) : Exception(message)
