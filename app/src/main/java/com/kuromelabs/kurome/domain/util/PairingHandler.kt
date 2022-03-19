@@ -4,9 +4,10 @@ import com.google.flatbuffers.FlatBufferBuilder
 import com.kuromelabs.kurome.domain.model.Device
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kurome.Action
 import kurome.DeviceInfo
 import kurome.Packet
-import kurome.Pair
+import kurome.PairEvent
 import timber.log.Timber
 
 @OptIn(ExperimentalUnsignedTypes::class)
@@ -29,17 +30,16 @@ class PairingHandler(val device: Device) {
 
     suspend fun packetReceived(packet: Packet){
         Timber.d("Received pair packet")
-        val wantsPair = packet.pair == Pair.requested
-
-        val hasPaired = packet.pair == Pair.paired
-        val hasNotPaired = packet.pair == Pair.notPaired
-
+        val wantsPair = packet.pair == PairEvent.pair
         val isPaired = status == PairStatus.Paired
-        if (hasNotPaired && !isPaired) {
+
+        if (!wantsPair && !isPaired) {
             Timber.d("Pairing request rejected by remote")
+            status = PairStatus.NotPaired
+            pairRequestTimerJob?.cancel()
         }
 
-        if (hasPaired){
+        if (wantsPair){
             if (status == PairStatus.Requested) {
                 Timber.d("Pairing accepted by remote")
                 device.isPaired = true
@@ -59,7 +59,7 @@ class PairingHandler(val device: Device) {
             val deviceInfo = DeviceInfo.createDeviceInfo(builder, nameOff, idOff, 0, 0, 0)
 
             val packet =
-                Packet.createPacket(builder, 0, 0, 0, deviceInfo, 0, 0, idOff, Pair.requested)
+                Packet.createPacket(builder, 0, Action.actionPair, 0, deviceInfo, 0, 0, idOff, PairEvent.pair)
             builder.finishSizePrefixed(packet)
             device.sendBuffer(builder.dataBuffer())
             pairRequestTimerJob = CoroutineScope(Dispatchers.Default).launch {
