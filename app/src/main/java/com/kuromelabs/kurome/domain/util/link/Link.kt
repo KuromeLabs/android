@@ -8,24 +8,18 @@ import kurome.Packet
 import timber.log.Timber
 import java.io.InputStream
 import java.io.OutputStream
-import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.Channels
 import java.nio.channels.WritableByteChannel
-import java.security.cert.X509Certificate
-import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocket
-import javax.net.ssl.TrustManager
-import javax.net.ssl.X509TrustManager
 
 
 @OptIn(ExperimentalUnsignedTypes::class)
-class Link(val deviceId: String, val deviceName: String, val ip: String, val port: Int) {
-    private lateinit var inputStream: InputStream
-    private lateinit var outputStream: OutputStream
-    private var clientSocket: Socket? = null
-    private lateinit var outputChannel: WritableByteChannel
+class Link(val deviceId: String, val deviceName: String, val socket: SSLSocket) {
+    private var inputStream: InputStream = socket.inputStream
+    private var outputStream: OutputStream = socket.outputStream
+    private var outputChannel: WritableByteChannel = Channels.newChannel(outputStream)
 
 
     private val job = SupervisorJob()
@@ -37,35 +31,10 @@ class Link(val deviceId: String, val deviceName: String, val ip: String, val por
     private val _stateFlow = MutableSharedFlow<LinkState>(1)
 
     init {
-        startConnection()
-    }
-
-    private fun startConnection() {
-        //Setup SSL
-        //TODO: Temporary, we should trust the server's certificate when pairing
-        val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
-            override fun getAcceptedIssuers(): Array<X509Certificate?> {
-                return arrayOfNulls(0)
-            }
-
-            override fun checkClientTrusted(certs: Array<X509Certificate>, authType: String) {}
-            override fun checkServerTrusted(certs: Array<X509Certificate>, authType: String) {}
-        }
-        )
-
-
-        val sslContext = SSLContext.getInstance("TLSv1.2")
-        sslContext.init(null, trustAllCerts, java.security.SecureRandom())
-        val sslSocket: SSLSocket = sslContext.socketFactory.createSocket(ip, port) as SSLSocket
-        sslSocket.startHandshake()
-        clientSocket = sslSocket
-        outputStream = (clientSocket as SSLSocket).outputStream
-        outputChannel = Channels.newChannel(outputStream)
-        inputStream = (clientSocket as SSLSocket).inputStream
-        Timber.d("Link connected at $ip:$port")
         startListening()
         scope.launch { _stateFlow.emit(LinkState(LinkState.State.CONNECTED, this@Link)) }
     }
+
 
     private fun startListening() {
         scope.launch {
@@ -101,12 +70,12 @@ class Link(val deviceId: String, val deviceName: String, val ip: String, val por
         }
     }
 
-    fun isConnected(): Boolean = clientSocket != null && clientSocket!!.isConnected
+    fun isConnected(): Boolean = socket.isConnected
 
     private suspend fun stopConnection() {
         Timber.d("Stopping connection: $deviceId")
         _stateFlow.emit(LinkState(LinkState.State.DISCONNECTED, this))
-        clientSocket?.close()
+        socket.close()
         scope.cancel()
     }
 

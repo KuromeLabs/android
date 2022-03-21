@@ -79,17 +79,44 @@ class LinkProvider(val context: Context) {
                 Timber.d("Link already exists, not connecting")
                 return
             }
-            val link = Link(id, name, ip, 33587)
-            observeLinkState(link)
-            Timber.d("Link connection started from UDP")
+
             val modelOffset = builder.createString(Build.MODEL)
             val guidOffset = builder.createString(getGuid(context))
 
             val info = DeviceInfo.createDeviceInfo(builder, modelOffset, guidOffset, 0, 0, 0)
             val result = Packet.createPacket(builder, 0, Action.actionConnect, 0, info, 0, 0, 0, 0)
             builder.finishSizePrefixed(result)
-            link.sendByteBuffer(builder.dataBuffer())
+            val socket = Socket()
+            socket.reuseAddress = true
+            socket.connect(InetSocketAddress(ip, 33587))
+            val channel = Channels.newChannel(socket.getOutputStream())
+            channel.write(builder.dataBuffer())
             Timber.d("Sent identity packet. Size: ${builder.dataBuffer().capacity()}")
+
+            val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
+                override fun getAcceptedIssuers(): Array<X509Certificate?> {
+                    return arrayOfNulls(0)
+                }
+
+                override fun checkClientTrusted(certs: Array<X509Certificate>, authType: String) {}
+                override fun checkServerTrusted(certs: Array<X509Certificate>, authType: String) {}
+            }
+            )
+
+            val sslContext = SSLContext.getInstance("TLSv1.2")
+            sslContext.init(null, trustAllCerts, java.security.SecureRandom())
+            val sslSocket: SSLSocket =
+                sslContext.socketFactory.createSocket(
+                socket,
+                socket.inetAddress.hostAddress,
+                socket.port,
+                true
+            ) as SSLSocket
+            sslSocket.startHandshake()
+
+            val link = Link(id, name, sslSocket)
+            Timber.d("Link connection started from UDP")
+            observeLinkState(link)
             builder.clear()
         } catch (e: Exception) {
             Timber.e("Exception at datagramPacketReceived: $e")
