@@ -16,7 +16,7 @@ import javax.net.ssl.SSLSocket
 
 
 @OptIn(ExperimentalUnsignedTypes::class)
-class Link(val deviceId: String, val deviceName: String, val socket: SSLSocket) {
+class Link(val deviceId: String, val deviceName: String, private val socket: SSLSocket) {
     private var inputStream: InputStream = socket.inputStream
     private var outputStream: OutputStream = socket.outputStream
     private var outputChannel: WritableByteChannel = Channels.newChannel(outputStream)
