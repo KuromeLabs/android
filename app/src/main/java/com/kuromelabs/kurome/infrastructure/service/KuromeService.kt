@@ -1,4 +1,4 @@
-package com.kuromelabs.kurome.domain.service
+package com.kuromelabs.kurome.infrastructure.service
 
 import android.app.Notification
 import android.app.NotificationChannel

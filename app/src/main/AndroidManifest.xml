@@ -23,7 +23,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Kurome">
 
-        <service android:name="com.kuromelabs.kurome.domain.service.KuromeService" />
+        <service android:name="com.kuromelabs.kurome.infrastructure.service.KuromeService" />
 
         <activity
             android:name="com.kuromelabs.kurome.presentation.MainActivity"
