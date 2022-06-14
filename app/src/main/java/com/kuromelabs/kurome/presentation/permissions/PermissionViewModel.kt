@@ -8,13 +8,13 @@ import javax.inject.Inject
 
 @HiltViewModel
 class PermissionViewModel @Inject constructor(
-): ViewModel() {
+) : ViewModel() {
 
     private val _storagePermissionState = mutableStateOf(false)
     val storagePermissionState: State<Boolean> = _storagePermissionState
 
-    fun onEvent(event: PermissionEvent){
-        when(event){
+    fun onEvent(event: PermissionEvent) {
+        when (event) {
             is PermissionEvent.Granted -> {
                 _storagePermissionState.value = true
             }

@@ -20,7 +20,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.kuromelabs.kurome.UI.theme.KuromeTheme
-import com.kuromelabs.kurome.infrastructure.service.KuromeService
+import com.kuromelabs.kurome.background.KuromeService
 import com.kuromelabs.kurome.presentation.devices.DevicesScreen
 import com.kuromelabs.kurome.presentation.permissions.PermissionEvent
 import com.kuromelabs.kurome.presentation.permissions.PermissionScreen

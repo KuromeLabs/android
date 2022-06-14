@@ -1,6 +1,6 @@
 package com.kuromelabs.kurome.presentation.devices
 
-import com.kuromelabs.kurome.domain.model.Device
+import com.kuromelabs.kurome.domain.Device
 
 data class DevicesState(
     val devices: List<DeviceState> = emptyList(),

@@ -10,11 +10,11 @@
         <item name="colorSecondaryVariant">@color/kurome_orange</item>
         <item name="colorOnSecondary">@color/kurome_black</item>
         <!-- Status bar color. -->
-        <item name="android:statusBarColor" >@color/kurome_primary</item>
+        <item name="android:statusBarColor">@color/kurome_primary</item>
         <!-- Customize your theme here. -->
     </style>
 
-    <style name ="Theme.Kurome.Dialog" parent="Theme.MaterialComponents.DayNight.Dialog">
+    <style name="Theme.Kurome.Dialog" parent="Theme.MaterialComponents.DayNight.Dialog">
         <item name="colorOnPrimary">@color/kurome_primary</item>
     </style>
 </resources>

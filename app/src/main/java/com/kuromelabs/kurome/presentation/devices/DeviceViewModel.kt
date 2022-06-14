@@ -4,7 +4,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.kuromelabs.kurome.domain.use_case.DeviceUseCases
+import com.kuromelabs.kurome.application.use_case.device.DeviceUseCases
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -41,11 +41,7 @@ class DeviceViewModel @Inject constructor(
         getDevicesJob?.cancel()
         getDevicesJob = deviceUseCases.getDevices().onEach { deviceList ->
             _state.value = _state.value.copy(devices = deviceList.map {
-                DeviceState(
-                    it,
-                    it.isConnected(),
-                    it.isPaired
-                )
+                DeviceState(it, true, true) //TODO: get status from device
             })
         }.launchIn(viewModelScope)
     }

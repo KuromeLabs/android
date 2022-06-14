@@ -82,8 +82,10 @@ fun PermissionScreen(
                     onClick = {
                         val uri = Uri.parse("package:${BuildConfig.APPLICATION_ID}")
                         startActivity(
-                            context,Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, uri)
-                        ,null)
+                            context,
+                            Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, uri),
+                            null
+                        )
                     }, storage
                 )
             } else {

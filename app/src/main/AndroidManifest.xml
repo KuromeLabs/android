@@ -23,7 +23,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Kurome">
 
-        <service android:name="com.kuromelabs.kurome.infrastructure.service.KuromeService" />
+        <service android:name="com.kuromelabs.kurome.background.KuromeService" />
 
         <activity
             android:name="com.kuromelabs.kurome.presentation.MainActivity"
@@ -34,7 +34,8 @@
             </intent-filter>
         </activity>
 
-        <receiver android:name=".KuromeBroadcastReceiver"
+        <receiver
+            android:name=".KuromeBroadcastReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

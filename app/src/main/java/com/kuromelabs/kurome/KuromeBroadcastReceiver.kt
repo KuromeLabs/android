@@ -4,10 +4,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import com.kuromelabs.kurome.infrastructure.service.KuromeService
+import com.kuromelabs.kurome.background.KuromeService
 import timber.log.Timber
 
-class KuromeBroadcastReceiver: BroadcastReceiver() {
+class KuromeBroadcastReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
         val action = intent?.action
         if (action == Intent.ACTION_BOOT_COMPLETED) {
