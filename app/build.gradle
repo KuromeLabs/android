@@ -129,7 +129,7 @@ dependencies {
     debugImplementation 'com.squareup.leakcanary:leakcanary-android:2.9.1'
 
     //SSL
-    implementation 'org.bouncycastle:bcpkix-jdk15on:1.70'
+    implementation 'org.bouncycastle:bcpkix-jdk18on:1.71'
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:1.1.5'
 
 }
