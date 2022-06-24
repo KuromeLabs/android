@@ -15,7 +15,7 @@ class Monitor(
     operator fun invoke(link: Link, id: String, name: String): Result<DeviceAccessor> {
         val device = Device(id, name)
         val accessor = deviceAccessorFactory.create(link, device)
-        accessor.start(scope)
+        accessor.start()
         return Result.success(accessor)
     }
 }

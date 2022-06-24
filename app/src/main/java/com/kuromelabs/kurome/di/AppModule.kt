@@ -82,7 +82,7 @@ object AppModule {
 
     @Singleton
     @Provides
-    fun provideDeviceAccessorFactory(identityProvider: IdentityProvider): DeviceAccessorFactory {
-        return DeviceAccessorFactoryImpl(identityProvider)
+    fun provideDeviceAccessorFactory(identityProvider: IdentityProvider, scope: CoroutineScope): DeviceAccessorFactory {
+        return DeviceAccessorFactoryImpl(identityProvider, scope)
     }
 }

@@ -18,6 +18,7 @@ import java.io.File
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.attribute.BasicFileAttributeView
@@ -28,7 +29,8 @@ class DeviceAccessorImpl(
     var link: Link,
     var device: Device,
     var identityProvider: IdentityProvider,
-    var deviceAccessorFactory: DeviceAccessorFactory
+    var deviceAccessorFactory: DeviceAccessorFactory,
+    var scope: CoroutineScope
 ) :
     DeviceAccessor {
 
@@ -38,7 +40,7 @@ class DeviceAccessorImpl(
     )
 
     private val root: String = Environment.getExternalStorageDirectory().path
-    override fun start(scope: CoroutineScope) {
+    override fun start() {
         scope.launch {
             while (scope.coroutineContext.isActive) {
                 val sizeBuffer = ByteArray(4)
@@ -97,17 +99,17 @@ class DeviceAccessorImpl(
     }
 
     private suspend fun sendFileBuffer(path: String, id: Int, length: Int, offset: Long) {
-        val fis = File(path).inputStream()
-        var count = 0
-        var pos = offset
-        val buffer = ByteArray(length)
-        while (count != length) {
-            fis.channel.position(pos)
-            count += fis.read(buffer, count, length - count)
-            pos += count
+        try {
+            val fileChannel = RandomAccessFile(path, "r").channel
+            val byteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, offset, length.toLong())
+            val buffer = ByteBuffer.allocate(length)
+            buffer.put(byteBuffer)
+            sendPacket(buffer = buffer.array(), id = id)
+            fileChannel.close()
+        } catch (e: Exception) {
+            Timber.e(e)
+            sendPacket(id = id)
         }
-        fis.close()
-        sendPacket(buffer = buffer, id = id)
     }
 
     private suspend fun sendFileNode(path: String, id: Int) {
@@ -197,23 +199,26 @@ class DeviceAccessorImpl(
         nodes: Array<Node> = arrayOf(), result: Byte = Result.noResult, id: Int = 0,
         buffer: ByteArray = ByteArray(0)
     ) {
-        val builder = FlatBufferBuilder(1024)
-        val idOff = builder.createString(device.id)
-        val nameOff = builder.createString(deviceName)
-        val deviceInfo = DeviceInfo.createDeviceInfo(builder, nameOff, idOff, total, free, 0)
-        val fileNodes = Array(nodes.size) { i ->
-            val nodeNameOff = builder.createString(nodes[i].name)
-            FileBuffer.createFileBuffer(
-                builder, nodeNameOff, nodes[i].type, nodes[i].size,
-                nodes[i].crTime, nodes[i].lwTime, nodes[i].laTime
-            )
-        }.toIntArray()
-        val byteVector = Raw.createDataVector(builder, buffer)
-        val raw = Raw.createRaw(builder, byteVector, 0, 0)
-        val nodesVector = Packet.createNodesVector(builder, fileNodes)
-        val packet = Packet.createPacket(builder, 0, 0, result, deviceInfo, raw, nodesVector, id, 0)
-        builder.finishSizePrefixed(packet)
-        link.send(builder.dataBuffer())
+        scope.launch {
+            val builder = FlatBufferBuilder(1024)
+            val idOff = builder.createString(device.id)
+            val nameOff = builder.createString(deviceName)
+            val deviceInfo = DeviceInfo.createDeviceInfo(builder, nameOff, idOff, total, free, 0)
+            val fileNodes = Array(nodes.size) { i ->
+                val nodeNameOff = builder.createString(nodes[i].name)
+                FileBuffer.createFileBuffer(
+                    builder, nodeNameOff, nodes[i].type, nodes[i].size,
+                    nodes[i].crTime, nodes[i].lwTime, nodes[i].laTime
+                )
+            }.toIntArray()
+            val byteVector = Raw.createDataVector(builder, buffer)
+            val raw = Raw.createRaw(builder, byteVector, 0, 0)
+            val nodesVector = Packet.createNodesVector(builder, fileNodes)
+            val packet =
+                Packet.createPacket(builder, 0, 0, result, deviceInfo, raw, nodesVector, id, 0)
+            builder.finishSizePrefixed(packet)
+            link.send(builder.dataBuffer())
+        }
     }
 
 }
