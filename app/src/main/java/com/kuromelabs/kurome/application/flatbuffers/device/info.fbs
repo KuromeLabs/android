@@ -1,0 +1,17 @@
+namespace kurome.fbs;
+
+table Details {
+  name:string;
+  id:string;
+  local_ip:string;
+}
+
+struct Space {
+  total_bytes:long;
+  free_bytes:long;
+}
+
+table DeviceInfo {
+  details:Details;
+  space:Space;
+}

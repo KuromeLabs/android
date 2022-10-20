@@ -1,0 +1,10 @@
+namespace kurome.fbs;
+
+enum PairEnum: byte {
+    pair = 0,
+    unpair = 1
+}
+
+table Pair {
+    component: PairEnum;
+}

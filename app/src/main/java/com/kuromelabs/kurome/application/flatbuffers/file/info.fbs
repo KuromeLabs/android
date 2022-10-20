@@ -1,0 +1,27 @@
+namespace kurome.fbs;
+
+enum FileType: byte {
+    File = 0,
+    Directory = 1,
+}
+
+enum FileStatus: byte {
+    Exists = 0,
+    FileNotFound = 1,
+    PathNotFound = 2
+}
+
+table Attributes {
+    name:string;
+    type:FileType;
+    status:FileStatus;
+    length:long;
+    creation_time:long;
+    last_access_time:long;
+    last_write_time:long;
+}
+
+table Node {
+    attributes:Attributes;
+    children:[Node];
+}

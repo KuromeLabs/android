@@ -49,16 +49,16 @@ android {
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_11.toString()
     }
-    
+
     sourceSets.getByName("main") {
-        java.srcDir("build/generated/source/fsb")
+        java.srcDir("build/generated/source/flatbuffers")
     }
     namespace = "com.kuromelabs.kurome"
 
     tasks.register<Exec>("generateFbsKotlin") {
         doFirst {
-            delete("$projectDir/build/generated/source/fsb/")
-            mkdir("$projectDir/build/generated/source/fsb/")
+            delete("$projectDir/build/generated/source/flatbuffers/")
+            mkdir("$projectDir/build/generated/source/flatbuffers/")
             print("Directory created")
         }
         doLast {
@@ -66,19 +66,20 @@ android {
         }
         group = "Generate FBS Kotlin"
         description = "Generate FBS Kotlin"
-        val files =
-            file("$projectDir/src/main/java/com/kuromelabs/kurome/application/fbs").listFiles()
+        val files = arrayListOf<File>()
+        file("$projectDir/src/main/java/com/kuromelabs/kurome/application/flatbuffers").walkTopDown()
+            .filter { it.isFile }
+            .forEach { files.add(it) }
         val args = arrayListOf(
             "flatc",
             "-o",
-            "$projectDir\\build\\generated\\source\\fsb\\",
+            "$projectDir\\build\\generated\\source\\flatbuffers\\",
             "--kotlin"
         )
         files.forEach {
             args.add(it.path)
         }
         commandLine(args)
-
     }
 }
 

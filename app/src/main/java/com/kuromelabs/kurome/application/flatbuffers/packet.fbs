@@ -1,0 +1,13 @@
+include "file/info.fbs";
+include "device/info.fbs";
+include "device/device.fbs";
+include "file/file.fbs";
+
+namespace kurome.fbs;
+
+union Component { DeviceQuery, DeviceResponse, FileQuery, FileCommand, FileResponse }
+
+table Packet {
+    component:Component;
+    id:long;
+}

@@ -1,9 +1,0 @@
-namespace kurome;
-
-table DeviceInfo {
-  name:string;
-  id:string;
-  total_bytes:long;
-  free_bytes:long;
-  local_ip:string;
-}

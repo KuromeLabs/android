@@ -1,4 +1,4 @@
-namespace kurome;
+namespace kurome.fbs;
 
 table Raw {
     data:[byte];
