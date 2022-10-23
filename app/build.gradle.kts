@@ -59,7 +59,6 @@ android {
         doFirst {
             delete("$projectDir/build/generated/source/flatbuffers/")
             mkdir("$projectDir/build/generated/source/flatbuffers/")
-            print("Directory created")
         }
         doLast {
 
@@ -68,7 +67,7 @@ android {
         description = "Generate FBS Kotlin"
         val files = arrayListOf<File>()
         file("$projectDir/src/main/java/com/kuromelabs/kurome/application/flatbuffers").walkTopDown()
-            .filter { it.isFile }
+            .filter { it.isFile && it.name.endsWith(".fbs") }
             .forEach { files.add(it) }
         val args = arrayListOf(
             "flatc",

@@ -3,6 +3,7 @@ package com.kuromelabs.kurome.di
 import android.app.Application
 import android.content.Context
 import androidx.room.Room
+import com.kuromelabs.kurome.application.flatbuffers.FlatBufferHelper
 import com.kuromelabs.kurome.application.data_source.DeviceDatabase
 import com.kuromelabs.kurome.application.interfaces.*
 import com.kuromelabs.kurome.application.use_case.device.*
@@ -82,7 +83,13 @@ object AppModule {
 
     @Singleton
     @Provides
-    fun provideDeviceAccessorFactory(identityProvider: IdentityProvider, scope: CoroutineScope): DeviceAccessorFactory {
-        return DeviceAccessorFactoryImpl(identityProvider, scope)
+    fun provideDeviceAccessorFactory(identityProvider: IdentityProvider, scope: CoroutineScope, flatBufferHelper: FlatBufferHelper): DeviceAccessorFactory {
+        return DeviceAccessorFactoryImpl(identityProvider, scope, flatBufferHelper)
+    }
+
+    @Singleton
+    @Provides
+    fun provideFlatBufferHelper(): FlatBufferHelper {
+        return FlatBufferHelper()
     }
 }
