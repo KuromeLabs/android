@@ -17,6 +17,7 @@ table FileQuery {
 
 table Create {
     path:string;
+    type:FileType;
 }
 
 table Write {

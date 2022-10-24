@@ -50,8 +50,8 @@ class FlatBufferHelper {
             space = Space.createSpace(builder, totalSpace, freeSpace)
         }
         if (name != null && deviceId != null) {
-            val nameOffset = if (name != null) builder.createString(name) else 0
-            val deviceIdOffset = if (deviceId != null) builder.createString(deviceId) else 0
+            val nameOffset = builder.createString(name)
+            val deviceIdOffset = builder.createString(deviceId)
             details = Details.createDetails(
                 builder, nameOffset = nameOffset, idOffset = deviceIdOffset, 0
             )
@@ -110,9 +110,7 @@ class FlatBufferHelper {
         val builder = map[builderId]!!
         val attrs =
             createFileAttributes(builderId, name, type, status, length, cTime, laTime, lwTime)
-        val children =
-            if (children.isNotEmpty()) Node.createChildrenVector(builder, children) else 0
-        return Node.createNode(builder, attrs, children)
+        return Node.createNode(builder, attrs, Node.createChildrenVector(builder, children))
     }
 
     fun createRaw(builderId: Long, buffer: ByteArray, offset: Long, length: Int): Int {
@@ -134,7 +132,7 @@ class FlatBufferHelper {
     fun finishBuilding(builderId: Long, root: Int): ByteBuffer {
         val builder = map[builderId]!!
         map.remove(builderId)
-        builder.finish(root)
+        builder.finishSizePrefixed(root)
         return builder.dataBuffer()
     }
 }

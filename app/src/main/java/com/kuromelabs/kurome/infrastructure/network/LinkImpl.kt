@@ -21,7 +21,7 @@ class LinkImpl(var socket: SSLSocket) : Link {
     }
 
     override suspend fun send(buffer: ByteBuffer) {
-        outputChannel.write(buffer)
+        synchronized(this) { outputChannel.write(buffer) }
     }
 
     override suspend fun close() {

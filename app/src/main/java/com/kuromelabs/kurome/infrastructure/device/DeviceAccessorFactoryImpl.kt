@@ -1,5 +1,6 @@
 package com.kuromelabs.kurome.infrastructure.device
 
+import com.kuromelabs.kurome.application.flatbuffers.FlatBufferHelper
 import com.kuromelabs.kurome.application.interfaces.DeviceAccessor
 import com.kuromelabs.kurome.application.interfaces.DeviceAccessorFactory
 import com.kuromelabs.kurome.application.interfaces.IdentityProvider
@@ -10,7 +11,11 @@ import timber.log.Timber
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
-class DeviceAccessorFactoryImpl @Inject constructor(var identityProvider: IdentityProvider, var scope:CoroutineScope) :
+class DeviceAccessorFactoryImpl @Inject constructor(
+    var identityProvider: IdentityProvider,
+    var scope: CoroutineScope,
+    var flatBufferHelper: FlatBufferHelper
+) :
     DeviceAccessorFactory {
     private val accessors = ConcurrentHashMap<String, DeviceAccessor>()
     override fun register(id: String, accessor: DeviceAccessor) {
@@ -29,7 +34,7 @@ class DeviceAccessorFactoryImpl @Inject constructor(var identityProvider: Identi
 
     override fun create(link: Link, device: Device): DeviceAccessor {
         val accessor: DeviceAccessor =
-            DeviceAccessorImpl(link, device, identityProvider, this, scope)
+            DeviceAccessorImpl(link, device, identityProvider, this, scope, flatBufferHelper)
         register(device.id, accessor)
         return accessor
     }
