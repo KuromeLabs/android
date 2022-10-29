@@ -3,8 +3,8 @@ package com.kuromelabs.kurome.di
 import android.app.Application
 import android.content.Context
 import androidx.room.Room
-import com.kuromelabs.kurome.application.flatbuffers.FlatBufferHelper
 import com.kuromelabs.kurome.application.data_source.DeviceDatabase
+import com.kuromelabs.kurome.application.flatbuffers.FlatBufferHelper
 import com.kuromelabs.kurome.application.interfaces.*
 import com.kuromelabs.kurome.application.use_case.device.*
 import com.kuromelabs.kurome.infrastructure.device.DeviceAccessorFactoryImpl
@@ -64,9 +64,10 @@ object AppModule {
     @Singleton
     fun provideLinkProvider(
         identityProvider: IdentityProvider,
-        securityService: SecurityService<X509Certificate, KeyPair>
+        securityService: SecurityService<X509Certificate, KeyPair>,
+        flatBufferHelper: FlatBufferHelper
     ): LinkProvider<Socket> {
-        return LinkProviderImpl(identityProvider, securityService)
+        return LinkProviderImpl(identityProvider, securityService, flatBufferHelper)
     }
 
     @Provides

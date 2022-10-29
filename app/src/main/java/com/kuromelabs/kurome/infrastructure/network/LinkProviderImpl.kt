@@ -1,23 +1,29 @@
 package com.kuromelabs.kurome.infrastructure.network
 
+import com.kuromelabs.kurome.application.flatbuffers.FlatBufferHelper
 import com.kuromelabs.kurome.application.interfaces.IdentityProvider
 import com.kuromelabs.kurome.application.interfaces.Link
 import com.kuromelabs.kurome.application.interfaces.LinkProvider
 import com.kuromelabs.kurome.application.interfaces.SecurityService
+import kurome.fbs.Component
 import timber.log.Timber
 import java.net.InetSocketAddress
 import java.net.Socket
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
+import java.nio.channels.Channels
 import java.security.KeyPair
 import java.security.KeyStore
 import java.security.cert.X509Certificate
 import javax.inject.Inject
-import javax.net.ssl.*
+import javax.net.ssl.KeyManagerFactory
+import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLSocket
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 class LinkProviderImpl @Inject constructor(
     var identityProvider: IdentityProvider,
-    var securityService: SecurityService<X509Certificate, KeyPair>
+    var securityService: SecurityService<X509Certificate, KeyPair>,
+    var flatBufferHelper: FlatBufferHelper
 ) : LinkProvider<Socket> {
     override suspend fun createClientLink(connectionInfo: String): Link {
         val split = connectionInfo.split(':')
@@ -82,16 +88,12 @@ class LinkProviderImpl @Inject constructor(
     }
 
     private fun sendIdentity(socket: Socket, ip: String, port: Int) {
-
+        val builder = flatBufferHelper.startBuilding()
+        val identity = flatBufferHelper.createDeviceInfoResponse(builder, identityProvider.getEnvironmentId(), identityProvider.getEnvironmentName())
+        val packet = flatBufferHelper.createPacket(builder, identity, Component.DeviceResponse, -1)
+        val buffer = flatBufferHelper.finishBuilding(builder, packet)
         socket.connect(InetSocketAddress(ip, port))
-        val channel = socket.getOutputStream()
-        val identity =
-            "${identityProvider.getEnvironmentId()}:${identityProvider.getEnvironmentName()}"
-        val identityBytes = identity.toByteArray()
-        val buffer = ByteBuffer.allocate(identityBytes.size + 4)
-        buffer.order(ByteOrder.LITTLE_ENDIAN)
-        buffer.putInt(identityBytes.size)
-        buffer.put(identityBytes)
-        channel.write(buffer.array())
+        val channel = Channels.newChannel(socket.getOutputStream())
+        channel.write(buffer)
     }
 }
