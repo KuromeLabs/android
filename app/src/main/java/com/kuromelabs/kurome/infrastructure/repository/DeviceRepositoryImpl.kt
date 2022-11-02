@@ -2,32 +2,24 @@ package com.kuromelabs.kurome.infrastructure.repository
 
 import androidx.annotation.WorkerThread
 import com.kuromelabs.kurome.application.data_source.DeviceDao
+import com.kuromelabs.kurome.application.interfaces.DeviceAccessor
 import com.kuromelabs.kurome.application.interfaces.DeviceRepository
 import com.kuromelabs.kurome.domain.Device
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.transform
+import kotlinx.coroutines.flow.update
 
 
 class DeviceRepositoryImpl(private val deviceDao: DeviceDao) : DeviceRepository {
-    //    val savedDevices: Flow<List<Device>> = deviceDao.getAllDevices()
-    private val _serviceDevices: MutableSharedFlow<List<Device>> = MutableSharedFlow(1)
-
-    init {
-        CoroutineScope(Dispatchers.Default).launch { _serviceDevices.emit(emptyList()) }
-    }
+    private val accessors: MutableStateFlow<HashMap<String, DeviceAccessor>> = MutableStateFlow(HashMap())
 
     override fun getSavedDevices(): Flow<List<Device>> {
         return deviceDao.getAllDevices()
     }
 
-    override fun getCombinedDevices(): Flow<List<Device>> {
-        return deviceDao.getAllDevices().combine(_serviceDevices) { savedDevices, serviceDevices ->
-            (serviceDevices + savedDevices).distinctBy(Device::id)
-        }
+    override suspend fun getSavedDevice(id: String): Device? {
+        return deviceDao.getDevice(id)
     }
 
     @WorkerThread
@@ -35,11 +27,19 @@ class DeviceRepositoryImpl(private val deviceDao: DeviceDao) : DeviceRepository 
         deviceDao.insert(device)
     }
 
-    override suspend fun getDevice(id: String): Device? {
-        return deviceDao.getDevice(id)
+    override fun getDeviceAccessors(): Flow<List<DeviceAccessor>> {
+        return accessors.transform{ emit(it.values.toList()) }
     }
 
-    override suspend fun setServiceDevices(devices: List<Device>) {
-        _serviceDevices.emit(devices)
+    override fun addDeviceAccessor(id: String, accessor: DeviceAccessor) {
+        accessors.update { x ->
+            HashMap<String, DeviceAccessor>(x).also { it[id] = accessor }
+        }
+    }
+
+    override suspend fun removeDeviceAccessor(id: String) {
+        accessors.update { x ->
+            HashMap<String, DeviceAccessor>(x).also { it.remove(id) }
+        }
     }
 }

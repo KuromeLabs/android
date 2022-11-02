@@ -1,10 +1,15 @@
 package com.kuromelabs.kurome.application.interfaces
 
 import com.kuromelabs.kurome.domain.Device
+import com.kuromelabs.kurome.infrastructure.device.DeviceAccessorImpl
+import dagger.assisted.AssistedFactory
+
 
 interface DeviceAccessorFactory {
-    fun register(id: String, accessor: DeviceAccessor)
-    fun unregister(id: String)
-    fun get(id: String): DeviceAccessor?
     fun create(link: Link, device: Device): DeviceAccessor
+}
+
+@AssistedFactory
+interface DeviceAccessorImplFactory : DeviceAccessorFactory {
+    override fun create(link: Link, device: Device): DeviceAccessorImpl
 }

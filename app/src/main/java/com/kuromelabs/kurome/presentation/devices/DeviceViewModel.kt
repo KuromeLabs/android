@@ -17,15 +17,13 @@ import javax.inject.Inject
 class DeviceViewModel @Inject constructor(
     private val deviceUseCases: DeviceUseCases
 ) : ViewModel() {
+    private var _state = mutableStateOf(DevicesState())
+    var state: State<DevicesState> = _state
+    private var getDevicesJob: Job? = null
+
     init {
         getDevices()
     }
-
-    private val _state = mutableStateOf(DevicesState())
-    val state: State<DevicesState> = _state
-
-    private var getDevicesJob: Job? = null
-
 
     fun onEvent(event: DevicesEvent) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -39,10 +37,8 @@ class DeviceViewModel @Inject constructor(
 
     private fun getDevices() {
         getDevicesJob?.cancel()
-        getDevicesJob = deviceUseCases.getDevices().onEach { deviceList ->
-            _state.value = _state.value.copy(devices = deviceList.map {
-                DeviceState(it, true, true) //TODO: get status from device
-            })
+        getDevicesJob = deviceUseCases.getConnectedDevices().onEach {
+            _state.value = _state.value.copy(devices = it.map { DeviceState(it.get(), true, true) })
         }.launchIn(viewModelScope)
     }
 }

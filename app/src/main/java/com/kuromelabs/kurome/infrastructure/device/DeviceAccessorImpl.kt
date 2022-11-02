@@ -38,11 +38,11 @@ import java.nio.file.Paths
 import java.nio.file.attribute.BasicFileAttributeView
 
 
-class DeviceAccessorImpl(
-    var link: Link,
-    var device: Device,
+class DeviceAccessorImpl @AssistedInject constructor(
+    @Assisted var link: Link,
+    @Assisted var device: Device,
     var identityProvider: IdentityProvider,
-    var deviceAccessorFactory: DeviceAccessorFactory,
+    var deviceRepository: DeviceRepository,
     var scope: CoroutineScope,
     var flatBufferHelper: FlatBufferHelper
 ) : DeviceAccessor {
@@ -61,8 +61,12 @@ class DeviceAccessorImpl(
                 launch { processPacket(packet) }
             }
             link.close()
-            deviceAccessorFactory.unregister(device.id)
+            deviceRepository.removeDeviceAccessor(get().id)
         }
+    }
+
+    override fun get(): Device {
+        return device
     }
 
     private suspend fun processPacket(packet: Packet) {

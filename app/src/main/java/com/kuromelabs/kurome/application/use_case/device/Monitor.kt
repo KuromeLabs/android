@@ -8,13 +8,14 @@ import com.kuromelabs.kurome.domain.Device
 import kotlinx.coroutines.CoroutineScope
 
 class Monitor(
-    private val deviceAccessorFactory: DeviceAccessorFactory,
+    var deviceAccessorFactory: DeviceAccessorFactory,
     val repository: DeviceRepository,
     var scope: CoroutineScope
 ) {
     operator fun invoke(link: Link, id: String, name: String): Result<DeviceAccessor> {
         val device = Device(id, name)
         val accessor = deviceAccessorFactory.create(link, device)
+        repository.addDeviceAccessor(id, accessor)
         accessor.start()
         return Result.success(accessor)
     }

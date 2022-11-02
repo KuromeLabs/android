@@ -7,7 +7,6 @@ import com.kuromelabs.kurome.application.data_source.DeviceDatabase
 import com.kuromelabs.kurome.application.flatbuffers.FlatBufferHelper
 import com.kuromelabs.kurome.application.interfaces.*
 import com.kuromelabs.kurome.application.use_case.device.*
-import com.kuromelabs.kurome.infrastructure.device.DeviceAccessorFactoryImpl
 import com.kuromelabs.kurome.infrastructure.device.IdentityProviderImpl
 import com.kuromelabs.kurome.infrastructure.network.LinkProviderImpl
 import com.kuromelabs.kurome.infrastructure.network.SslService
@@ -47,16 +46,17 @@ object AppModule {
     fun provideDeviceUseCases(
         repository: DeviceRepository,
         linkProvider: LinkProvider<Socket>,
-        deviceAccessorFactory: DeviceAccessorFactory,
-        scope: CoroutineScope
+        scope: CoroutineScope,
+        deviceAccessorFactory: DeviceAccessorFactory
     ): DeviceUseCases {
         return DeviceUseCases(
-            getDevices = GetDevices(repository),
+            getSavedDevices = GetSavedDevices(repository),
             pairDevice = PairDevice(repository),
             unpairDevice = UnpairDevice(repository),
-            getDevice = GetDevice(repository),
+            getSavedDevice = GetSavedDevice(repository),
             connect = Connect(linkProvider),
-            monitor = Monitor(deviceAccessorFactory, repository, scope)
+            monitor = Monitor(deviceAccessorFactory, repository, scope),
+            getConnectedDevices = GetConnectedDevices(repository)
         )
     }
 
@@ -80,12 +80,6 @@ object AppModule {
     @Provides
     fun provideSecurityService(identityProvider: IdentityProvider): SecurityService<X509Certificate, KeyPair> {
         return SslService(identityProvider)
-    }
-
-    @Singleton
-    @Provides
-    fun provideDeviceAccessorFactory(identityProvider: IdentityProvider, scope: CoroutineScope, flatBufferHelper: FlatBufferHelper): DeviceAccessorFactory {
-        return DeviceAccessorFactoryImpl(identityProvider, scope, flatBufferHelper)
     }
 
     @Singleton

@@ -7,11 +7,13 @@ interface DeviceRepository {
 
     fun getSavedDevices(): Flow<List<Device>>
 
-    fun getCombinedDevices(): Flow<List<Device>>
-
-    suspend fun getDevice(id: String): Device?
+    suspend fun getSavedDevice(id: String): Device?
 
     suspend fun insert(device: Device)
 
-    suspend fun setServiceDevices(devices: List<Device>)
+    fun getDeviceAccessors(): Flow<List<DeviceAccessor>>
+
+    fun addDeviceAccessor(id: String, accessor: DeviceAccessor)
+
+    suspend fun removeDeviceAccessor(id: String)
 }
