@@ -5,10 +5,12 @@ import android.os.Environment
 import android.os.StatFs
 import com.kuromelabs.kurome.application.flatbuffers.FlatBufferHelper
 import com.kuromelabs.kurome.application.interfaces.DeviceAccessor
-import com.kuromelabs.kurome.application.interfaces.DeviceAccessorFactory
+import com.kuromelabs.kurome.application.interfaces.DeviceRepository
 import com.kuromelabs.kurome.application.interfaces.IdentityProvider
 import com.kuromelabs.kurome.application.interfaces.Link
 import com.kuromelabs.kurome.domain.Device
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -57,8 +59,7 @@ class DeviceAccessorImpl @AssistedInject constructor(
                 val data = ByteArray(size)
                 if (link.receive(data, size) <= 0) break
                 val packet = flatBufferHelper.deserializePacket(data)
-                Timber.d("Received packet with ID: ${packet.id}")
-                launch { processPacket(packet) }
+                processPacket(packet)
             }
             link.close()
             deviceRepository.removeDeviceAccessor(get().id)
@@ -72,10 +73,12 @@ class DeviceAccessorImpl @AssistedInject constructor(
     private suspend fun processPacket(packet: Packet) {
         when (packet.componentType) {
             Component.DeviceQuery -> {
-                val builderId = flatBufferHelper.startBuilding()
-                val deviceQuery = flatBufferHelper.getDeviceQuery(packet)
-                val response = processDeviceQuery(builderId, deviceQuery)
-                sendPacket(builderId, response, Component.DeviceResponse, packet.id)
+                scope.launch {
+                    val builderId = flatBufferHelper.startBuilding()
+                    val deviceQuery = flatBufferHelper.getDeviceQuery(packet)
+                    val response = processDeviceQuery(builderId, deviceQuery)
+                    sendPacket(builderId, response, Component.DeviceResponse, packet.id)
+                }
             }
 
             Component.FileQuery -> {
@@ -93,7 +96,6 @@ class DeviceAccessorImpl @AssistedInject constructor(
     }
 
     private suspend fun sendPacket(id: Long, response: Int, type: UByte, responseId: Long) {
-        Timber.d("$responseId")
         val packet = flatBufferHelper.createPacket(id, response, type, responseId)
         val buffer = flatBufferHelper.finishBuilding(id, packet)
         link.send(buffer)
@@ -176,7 +178,6 @@ class DeviceAccessorImpl @AssistedInject constructor(
     }
 
     private fun directoryToFbs(builderId: Long, path: String): Int {
-        Timber.d("Getting directory at $path")
         val directory = File(path)
         val files = directory.listFiles()
         var children = IntArray(0)
@@ -256,5 +257,6 @@ class DeviceAccessorImpl @AssistedInject constructor(
         val actualOffset = if (offset == (-1).toLong()) raf.length() else offset
         raf.seek(actualOffset) //offset = -1 means append
         raf.write(raw.array(), raw.position(), length)
+        raf.close()
     }
 }
