@@ -14,6 +14,7 @@ import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kurome.fbs.Attributes
 import kurome.fbs.Component
 import kurome.fbs.Create
 import kurome.fbs.Delete
@@ -28,6 +29,7 @@ import kurome.fbs.FileStatus
 import kurome.fbs.FileType
 import kurome.fbs.Packet
 import kurome.fbs.Rename
+import kurome.fbs.SetAttributes
 import kurome.fbs.Write
 import timber.log.Timber
 import java.io.File
@@ -38,6 +40,7 @@ import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.attribute.BasicFileAttributeView
+import java.nio.file.attribute.FileTime
 
 
 class DeviceAccessorImpl @AssistedInject constructor(
@@ -249,6 +252,32 @@ class DeviceAccessorImpl @AssistedInject constructor(
                 if (create.type == FileType.File) File(root + create.path!!).createNewFile()
                 else File(root + create.path!!).mkdir()
             }
+
+            FileCommandType.SetAttributes -> {
+                val setAttributes = (command.command(SetAttributes()) as SetAttributes)
+                setAttributes(root + setAttributes.path, setAttributes.attributes!!)
+            }
+        }
+    }
+
+    private fun setAttributes(path: String, attributes: Attributes) {
+        if (attributes.length != 0L) {
+            val raf = RandomAccessFile(path, "rw")
+            raf.setLength(attributes.length)
+            raf.close()
+        }
+        if (attributes.lastWriteTime != 0L) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val attrs = Files.getFileAttributeView(
+                    Paths.get(path),
+                    BasicFileAttributeView::class.java
+                )
+                attrs.setTimes(
+                    FileTime.fromMillis(attributes.creationTime),
+                    FileTime.fromMillis(attributes.lastAccessTime),
+                    FileTime.fromMillis(attributes.lastWriteTime)
+                )
+            } else File(path).setLastModified(attributes.lastWriteTime)
         }
     }
 
