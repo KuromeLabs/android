@@ -51,7 +51,8 @@ class KuromeService : LifecycleService() {
 
     private fun createForegroundNotification(): Notification {
         val notificationIntent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, 0)
+        val pendingIntent =
+            PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Kurome is running in the background")
             .setContentText("Tap to hide notification (no effect on functionality)")
