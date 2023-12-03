@@ -10,10 +10,10 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface DeviceDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(device: Device)
+    fun insert(device: Device)
 
     @Query("SELECT * FROM device_table WHERE id = :id")
-    suspend fun getDevice(id: String): Device?
+    fun getDevice(id: String): Device?
 
     @Query("SELECT * FROM device_table ORDER BY name ASC")
     fun getAllDevices(): Flow<List<Device>>
