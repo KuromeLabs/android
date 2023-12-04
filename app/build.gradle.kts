@@ -91,12 +91,12 @@ dependencies {
 
     implementation("androidx.lifecycle:lifecycle-service:2.6.2")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0-rc01")
 
     ksp("androidx.room:room-compiler:2.6.1")
-    implementation("com.google.accompanist:accompanist-permissions:0.26.5-rc")
 
     implementation("com.google.dagger:hilt-android:2.48")
-    kapt("com.google.dagger:hilt-android-compiler:2.48")
+    ksp("com.google.dagger:hilt-android-compiler:2.48")
     kapt("androidx.hilt:hilt-compiler:1.1.0")
 
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2")

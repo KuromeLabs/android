@@ -1,7 +1,7 @@
 package com.kuromelabs.kurome.presentation
 
 import android.Manifest
-import android.content.Context
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -10,22 +10,28 @@ import android.os.Environment
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.preference.PreferenceManager
 import com.kuromelabs.kurome.UI.theme.KuromeTheme
 import com.kuromelabs.kurome.background.KuromeService
 import com.kuromelabs.kurome.presentation.devices.DevicesScreen
-import com.kuromelabs.kurome.presentation.permissions.PermissionEvent
 import com.kuromelabs.kurome.presentation.permissions.PermissionScreen
+import com.kuromelabs.kurome.presentation.permissions.PermissionStatus
 import com.kuromelabs.kurome.presentation.util.Screen
 import dagger.hilt.android.AndroidEntryPoint
+import timber.log.Timber
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -33,19 +39,21 @@ class MainActivity : ComponentActivity() {
     private var serviceStarted: Boolean = false
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
+        val permissionsMap = mutableStateMapOf<String, PermissionStatus>()
+        updatePermissions(permissionsMap)
         setContent {
             KuromeTheme {
-                val lifecycleOwner = LocalLifecycleOwner.current
+                Timber.d("Entering MainActivity Composition")
+
                 val navController = rememberNavController()
                 NavHost(
                     navController = navController,
-                    startDestination = if (!hasFilePermissions())
+                    startDestination = if (permissionsMap.any { it.value != PermissionStatus.Granted })
                         Screen.PermissionsScreen.route
                     else Screen.DevicesScreen.route
                 ) {
                     composable(route = Screen.PermissionsScreen.route) {
-                        PermissionScreen(navController)
+                        PermissionScreen(permissionsMap)
                     }
                     composable(route = Screen.DevicesScreen.route) {
                         BackHandler(true) { finish() }
@@ -53,26 +61,61 @@ class MainActivity : ComponentActivity() {
                         DevicesScreen(navController = navController, modifier = Modifier)
                     }
                 }
-                DisposableEffect(key1 = lifecycleOwner, effect = {
-                    val observer = LifecycleEventObserver { _, event ->
-                        if (event == Lifecycle.Event.ON_RESUME)
-                            if (!hasFilePermissions())
+                val lifecycleOwner = LocalLifecycleOwner.current
+                val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsState()
+
+                LaunchedEffect(lifecycleState) {
+                    when (lifecycleState) {
+                        Lifecycle.State.RESUMED -> {
+                            Timber.d("MainActivity Composition Resumed")
+                            updatePermissions(permissionsMap)
+                            if (navController.currentBackStackEntry?.destination?.route != Screen.PermissionsScreen.route && permissionsMap.any { it.value != PermissionStatus.Granted }) {
                                 navController.navigate(Screen.PermissionsScreen.route)
+                            }
+                        }
+
+                        else -> {}
                     }
-                    lifecycleOwner.lifecycle.addObserver(observer)
-                    onDispose {
-                        lifecycleOwner.lifecycle.removeObserver(observer)
-                    }
-                })
+                }
             }
+
+
         }
+
+
     }
 
+    @SuppressLint("InlinedApi")
+    private fun updatePermissions(permissionMap: SnapshotStateMap<String, PermissionStatus>) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            permissionMap[Manifest.permission.MANAGE_EXTERNAL_STORAGE] =
+                if (Environment.isExternalStorageManager()) PermissionStatus.Granted else PermissionStatus.Denied
+        } else {
+            permissionMap[Manifest.permission.WRITE_EXTERNAL_STORAGE] = checkPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissionMap[Manifest.permission.POST_NOTIFICATIONS] = checkPermission(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            permissionMap[Manifest.permission.POST_NOTIFICATIONS] = PermissionStatus.Granted
+        }
+        Timber.d("Checking Permissions")
+        permissionMap.forEach { Timber.d("Permission: ${it.key} is ${it.value}") }
+    }
 
-    private fun hasFilePermissions(): Boolean {
-        return when (getFilePermissionEvent(baseContext)) {
-            is PermissionEvent.Granted -> true
-            is PermissionEvent.Revoked -> false
+    private fun checkPermission(permission: String): PermissionStatus {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        val isFirstTimeAsked = prefs.getBoolean(permission, true)
+        val rationale = ActivityCompat.shouldShowRequestPermissionRationale(this, permission)
+        val hasPermission = ContextCompat.checkSelfPermission(
+            this,
+            permission
+        ) == PackageManager.PERMISSION_GRANTED
+
+        return when {
+            !hasPermission && !isFirstTimeAsked && !rationale -> PermissionStatus.DeniedForever
+            !hasPermission -> PermissionStatus.Denied
+            hasPermission -> PermissionStatus.Granted
+            else -> PermissionStatus.Unset
         }
     }
 
@@ -88,16 +131,3 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-fun getFilePermissionEvent(context: Context): PermissionEvent {
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
-        if (Environment.isExternalStorageManager())
-            PermissionEvent.Granted(Manifest.permission.MANAGE_EXTERNAL_STORAGE)
-        else
-            PermissionEvent.Revoked(Manifest.permission.MANAGE_EXTERNAL_STORAGE)
-    else if (ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE
-        ) == PackageManager.PERMISSION_GRANTED
-    ) PermissionEvent.Granted(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-    else PermissionEvent.Revoked(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-}

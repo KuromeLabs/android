@@ -13,4 +13,7 @@
     <string name="permissions_title">Hello.</string>
     <string name="permissions_body">Grant the following permissions to continue</string>
     <string name="done">Done</string>
+    <string name="notification_permission_title">Notifications</string>
+    <string name="notification_permission_body">Kurome needs to show a notification to run a foreground service, which is used for discovering and connecting to other devices</string>
+    <string name="notification_permission_denied_permanently">You have permanently denied this permission, enable it in Settings</string>
 </resources>
