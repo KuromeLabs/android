@@ -1,25 +1,13 @@
-package com.kuromelabs.kurome.infrastructure.device
+package com.kuromelabs.kurome.application
 
 import android.os.Build
 import android.os.Environment
-import android.os.StatFs
-import com.kuromelabs.kurome.application.flatbuffers.FlatBufferHelper
-import com.kuromelabs.kurome.application.interfaces.DeviceAccessor
-import com.kuromelabs.kurome.application.interfaces.DeviceRepository
-import com.kuromelabs.kurome.application.interfaces.IdentityProvider
-import com.kuromelabs.kurome.application.interfaces.Link
+import com.google.flatbuffers.FlatBufferBuilder
 import com.kuromelabs.kurome.domain.Device
-import dagger.assisted.Assisted
-import dagger.assisted.AssistedInject
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import kurome.fbs.Attributes
 import kurome.fbs.Component
 import kurome.fbs.Create
 import kurome.fbs.Delete
-import kurome.fbs.DeviceQuery
-import kurome.fbs.DeviceQueryType
 import kurome.fbs.FileCommand
 import kurome.fbs.FileCommandType
 import kurome.fbs.FileQuery
@@ -35,127 +23,57 @@ import timber.log.Timber
 import java.io.File
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.attribute.BasicFileAttributeView
 import java.nio.file.attribute.FileTime
 
-
-class DeviceAccessorImpl @AssistedInject constructor(
-    @Assisted var link: Link,
-    @Assisted var device: Device,
-    var identityProvider: IdentityProvider,
-    var deviceRepository: DeviceRepository,
-    var scope: CoroutineScope,
-    var flatBufferHelper: FlatBufferHelper
-) : DeviceAccessor {
+class FilesystemAccessor constructor(
+    val device: Device
+) {
 
     private val root: String = Environment.getExternalStorageDirectory().path
-    override fun start() {
-        scope.launch {
-            while (scope.coroutineContext.isActive) {
-                val sizeBuffer = ByteArray(4)
-                if (link.receive(sizeBuffer, 4) <= 0) break
-                val size = ByteBuffer.wrap(sizeBuffer).order(ByteOrder.LITTLE_ENDIAN).int
-                val data = ByteArray(size)
-                if (link.receive(data, size) <= 0) break
-                val packet = flatBufferHelper.deserializePacket(data)
-                processPacket(packet)
-            }
-            link.close()
-            deviceRepository.removeDeviceAccessor(get().id)
-        }
-    }
 
-    override fun get(): Device {
-        return device
-    }
-
-    private suspend fun processPacket(packet: Packet) {
+    fun processFileAction(packet: Packet) {
         when (packet.componentType) {
-            Component.DeviceQuery -> {
-                scope.launch {
-                    val builderId = flatBufferHelper.startBuilding()
-                    val deviceQuery = flatBufferHelper.getDeviceQuery(packet)
-                    val response = processDeviceQuery(builderId, deviceQuery)
-                    sendPacket(builderId, response, Component.DeviceResponse, packet.id)
-                }
-            }
 
             Component.FileQuery -> {
-                val builderId = flatBufferHelper.startBuilding()
+                val builder = FlatBufferBuilder(256)
                 val fileQuery = packet.component(FileQuery()) as FileQuery
-                val response = processFileQuery(builderId, fileQuery)
-                sendPacket(builderId, response, Component.FileResponse, packet.id)
+                val response = processFileQuery(builder, fileQuery)
+                sendPacket(builder, response, Component.FileResponse, packet.id)
             }
 
             Component.FileCommand -> {
                 val fileCommand = packet.component(FileCommand()) as FileCommand
                 processFileCommand(fileCommand)
+                val builder = FlatBufferBuilder(256)
+                sendPacket(builder, 0, Component.FileResponse, packet.id)
             }
         }
     }
 
-    private suspend fun sendPacket(id: Long, response: Int, type: UByte, responseId: Long) {
-        val packet = flatBufferHelper.createPacket(id, response, type, responseId)
-        val buffer = flatBufferHelper.finishBuilding(id, packet)
-        link.send(buffer)
+    private fun sendPacket(builder: FlatBufferBuilder, response: Int, type: UByte, responseId: Long) {
+        val packet = flatBufferHelper.createPacket(builder, response, type, responseId)
+        val buffer = flatBufferHelper.finishBuilding(builder, packet)
+        device.sendPacket(buffer)
     }
 
-    private fun processDeviceQuery(builderId: Long, q: DeviceQuery): Int {
-        var response = 0
-        when (q.type) {
-            DeviceQueryType.GetInfo -> response = deviceIdentityToFbs(builderId)
-            DeviceQueryType.GetSpace -> response = deviceSpaceToFbs(builderId)
-            DeviceQueryType.GetAll -> response = deviceInfoToFbs(builderId)
-        }
-        return response
-    }
-
-    private fun deviceIdentityToFbs(builderId: Long): Int {
-        val id = identityProvider.getEnvironmentId()
-        val name = identityProvider.getEnvironmentName()
-        return flatBufferHelper.createDeviceInfoResponse(builderId, id, name)
-    }
-
-    private fun deviceSpaceToFbs(builderId: Long): Int {
-        val statFs = StatFs(Environment.getDataDirectory().path)
-        return flatBufferHelper.createDeviceInfoResponse(
-            builderId,
-            totalSpace = statFs.totalBytes,
-            freeSpace = statFs.freeBytes
-        )
-    }
-
-    private fun deviceInfoToFbs(builderId: Long): Int {
-        val id = identityProvider.getEnvironmentId()
-        val name = identityProvider.getEnvironmentName()
-        val statFs = StatFs(Environment.getDataDirectory().path)
-        return flatBufferHelper.createDeviceInfoResponse(
-            builderId,
-            id,
-            name,
-            statFs.totalBytes,
-            statFs.freeBytes
-        )
-    }
-
-    private fun processFileQuery(builderId: Long, q: FileQuery): Int {
+    private fun processFileQuery(builder: FlatBufferBuilder, q: FileQuery): Int {
         var response = 0
         var type = FileResponeType.Node
         when (q.type) {
-            FileQueryType.GetDirectory -> response = directoryToFbs(builderId, root + q.path!!)
+            FileQueryType.GetDirectory -> response = directoryToFbs(builder, root + q.path!!)
             FileQueryType.ReadFile -> {
                 type = FileResponeType.Raw
-                response = fileBufferToFbs(builderId, root + q.path!!, q.offset, q.length)
+                response = fileBufferToFbs(builder, root + q.path!!, q.offset, q.length)
             }
         }
-        return flatBufferHelper.createFileResponse(builderId, response, type)
+        return flatBufferHelper.createFileResponse(builder, response, type)
     }
 
-    private fun fileToFbs(builderId: Long, path: String): Int {
+    private fun fileToFbs(builder: FlatBufferBuilder, path: String): Int {
         val file = File(path)
         val status =
             if (file.exists())
@@ -169,7 +87,7 @@ class DeviceAccessorImpl @AssistedInject constructor(
         val (crTime, laTime, lwTime) = getFileTimes(file)
 
         return flatBufferHelper.createNode(
-            builderId,
+            builder,
             file.name,
             type,
             status,
@@ -180,12 +98,12 @@ class DeviceAccessorImpl @AssistedInject constructor(
         )
     }
 
-    private fun directoryToFbs(builderId: Long, path: String): Int {
+    private fun directoryToFbs(builder: FlatBufferBuilder, path: String): Int {
         val directory = File(path)
         val files = directory.listFiles()
         var children = IntArray(0)
         try {
-            children = Array(files!!.size) { i -> fileToFbs(builderId, files[i].path) }
+            children = Array(files!!.size) { i -> fileToFbs(builder, files[i].path) }
                 .toIntArray()
         } catch (e: Exception) {
             Timber.e("Exception at $path: $e")
@@ -193,7 +111,7 @@ class DeviceAccessorImpl @AssistedInject constructor(
         val (crTime, laTime, lwTime) = getFileTimes(directory)
 
         return flatBufferHelper.createNode(
-            builderId,
+            builder,
             directory.name,
             FileType.Directory,
             FileStatus.Exists,
@@ -219,13 +137,13 @@ class DeviceAccessorImpl @AssistedInject constructor(
         return Triple(crTime, laTime, lwTime)
     }
 
-    private fun fileBufferToFbs(builderId: Long, path: String, offset: Long, length: Int): Int {
+    private fun fileBufferToFbs(builder: FlatBufferBuilder, path: String, offset: Long, length: Int): Int {
         val fileChannel = RandomAccessFile(path, "r").channel
         val byteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, offset, length.toLong())
         val buffer = ByteBuffer.allocate(length)
         buffer.put(byteBuffer)
         fileChannel.close()
-        return flatBufferHelper.createRaw(builderId, buffer.array(), offset, length)
+        return flatBufferHelper.createRaw(builder, buffer.array(), offset, length)
     }
 
     private fun processFileCommand(command: FileCommand) {

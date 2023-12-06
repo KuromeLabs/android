@@ -11,9 +11,9 @@ interface DeviceRepository {
 
     suspend fun insert(device: Device)
 
-    fun getDeviceAccessors(): Flow<List<DeviceAccessor>>
+    fun getActiveDevices(): Flow<List<Device>>
 
-    fun addDeviceAccessor(id: String, accessor: DeviceAccessor)
+    fun addActiveDevice(device: Device)
 
-    suspend fun removeDeviceAccessor(id: String)
+    fun removeActiveDevice(device: Device)
 }

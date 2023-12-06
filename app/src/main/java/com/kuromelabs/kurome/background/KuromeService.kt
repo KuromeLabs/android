@@ -5,39 +5,45 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
-import android.os.Binder
 import android.os.Build
-import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.application.interfaces.DeviceRepository
+import com.kuromelabs.kurome.application.interfaces.SecurityService
+import com.kuromelabs.kurome.infrastructure.device.IdentityProvider
+import com.kuromelabs.kurome.infrastructure.network.LinkProvider
 import com.kuromelabs.kurome.presentation.MainActivity
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import java.security.KeyPair
+import java.security.cert.X509Certificate
 import javax.inject.Inject
 
 @AndroidEntryPoint
 class KuromeService : LifecycleService() {
     private val CHANNEL_ID = "ForegroundServiceChannel"
+    private val job = SupervisorJob()
+    private val scope = CoroutineScope(Dispatchers.IO + job)
 
-    //    @Inject
-//    lateinit var linkProvider: LinkProvider
+
+    var identityProvider = IdentityProvider(this)
+    @Inject
+    lateinit var securityService: SecurityService<X509Certificate, KeyPair>
+
+
     @Inject
     lateinit var repository: DeviceRepository
     private var isServiceStarted = false
-    private val binder: IBinder = LocalBinder()
-
-    @Inject
-    lateinit var tcpListenerService: TcpListenerService
-
-    @Inject
-    lateinit var udpListenerService: UdpListenerService
 
 
     override fun onCreate() {
         super.onCreate()
-        tcpListenerService.start()
-        udpListenerService.start()
+        var linkProvider = LinkProvider(securityService, scope, identityProvider, this, repository)
+        linkProvider.start()
         createNotificationChannel()
     }
 
@@ -63,6 +69,7 @@ class KuromeService : LifecycleService() {
 
 
     override fun onDestroy() {
+        scope.cancel()
         super.onDestroy()
     }
 
@@ -76,20 +83,5 @@ class KuromeService : LifecycleService() {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(serviceChannel)
         }
-    }
-
-    inner class LocalBinder : Binder() {
-        fun getService(): KuromeService = this@KuromeService
-    }
-
-    override fun onBind(intent: Intent): IBinder {
-        super.onBind(intent)
-        if (!isServiceStarted)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(intent)
-            } else {
-                startService(intent)
-            }
-        return binder
     }
 }

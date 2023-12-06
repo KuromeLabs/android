@@ -2,17 +2,18 @@ package com.kuromelabs.kurome.infrastructure.repository
 
 import androidx.annotation.WorkerThread
 import com.kuromelabs.kurome.application.data_source.DeviceDao
-import com.kuromelabs.kurome.application.interfaces.DeviceAccessor
 import com.kuromelabs.kurome.application.interfaces.DeviceRepository
 import com.kuromelabs.kurome.domain.Device
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.flow.update
 
 
 class DeviceRepositoryImpl(private val deviceDao: DeviceDao) : DeviceRepository {
-    private val accessors: MutableStateFlow<HashMap<String, DeviceAccessor>> = MutableStateFlow(HashMap())
+
+    val activeDevices = MutableStateFlow(HashMap<String, Device>())
 
     override fun getSavedDevices(): Flow<List<Device>> {
         return deviceDao.getAllDevices()
@@ -27,19 +28,15 @@ class DeviceRepositoryImpl(private val deviceDao: DeviceDao) : DeviceRepository 
         deviceDao.insert(device)
     }
 
-    override fun getDeviceAccessors(): Flow<List<DeviceAccessor>> {
-        return accessors.transform{ emit(it.values.toList()) }
+    override fun getActiveDevices(): Flow<List<Device>> {
+        return activeDevices.transform{ emit(it.values.toList()) }
     }
 
-    override fun addDeviceAccessor(id: String, accessor: DeviceAccessor) {
-        accessors.update { x ->
-            HashMap<String, DeviceAccessor>(x).also { it[id] = accessor }
-        }
+    override fun addActiveDevice(device: Device) {
+        activeDevices.update { it -> HashMap(it).also { it[device.id] = device } }
     }
 
-    override suspend fun removeDeviceAccessor(id: String) {
-        accessors.update { x ->
-            HashMap<String, DeviceAccessor>(x).also { it.remove(id) }
-        }
+    override fun removeActiveDevice(device: Device) {
+        activeDevices.update { it -> HashMap(it).also { it.remove(device.id) } }
     }
 }

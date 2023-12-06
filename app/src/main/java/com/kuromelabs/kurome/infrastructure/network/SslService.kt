@@ -1,7 +1,8 @@
 package com.kuromelabs.kurome.infrastructure.network
 
-import com.kuromelabs.kurome.application.interfaces.IdentityProvider
+import android.content.Context
 import com.kuromelabs.kurome.application.interfaces.SecurityService
+import com.kuromelabs.kurome.infrastructure.device.IdentityProvider
 import org.bouncycastle.asn1.x500.X500NameBuilder
 import org.bouncycastle.asn1.x500.style.BCStyle
 import org.bouncycastle.cert.X509v3CertificateBuilder
@@ -15,11 +16,11 @@ import java.security.KeyPairGenerator
 import java.security.cert.X509Certificate
 import java.time.LocalDate
 import java.time.ZoneId
-import java.util.*
+import java.util.Date
 import javax.inject.Inject
 
 class SslService @Inject constructor(
-    var identityProvider: IdentityProvider
+    var context: Context
 ) : SecurityService<X509Certificate, KeyPair> {
 
     private var certificate: X509Certificate? = null
@@ -29,7 +30,7 @@ class SslService @Inject constructor(
     init {
         initializeKeys()
         val nameBuilder = X500NameBuilder(BCStyle.INSTANCE)
-        nameBuilder.addRDN(BCStyle.CN, identityProvider.getEnvironmentId())
+        nameBuilder.addRDN(BCStyle.CN, IdentityProvider(context).getEnvironmentId())
         nameBuilder.addRDN(BCStyle.OU, "Kurome")
         nameBuilder.addRDN(BCStyle.O, "Kurome Labs")
         val certificateBuilder: X509v3CertificateBuilder = JcaX509v3CertificateBuilder(
