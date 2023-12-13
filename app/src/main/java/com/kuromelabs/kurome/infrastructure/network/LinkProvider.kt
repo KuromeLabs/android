@@ -35,6 +35,7 @@ class LinkProvider(
     var deviceRepository: DeviceRepository
 ) {
     private val udpListenPort = 33586
+    private val devicesConnectedOrConnectingSet = HashSet<String>()
 
     private fun createClientLink(name: String, id: String, ip: String, port: Int): Link {
 
@@ -133,14 +134,20 @@ class LinkProvider(
                         udpSocket.receive(packet)
                         val message = String(packet.data, packet.offset, packet.length)
                         Timber.d("received UDP: $message")
-                        launch {
-                            handleClientConnection(
-                                message.split(':')[2],
-                                message.split(':')[3],
-                                message.split(':')[1],
-                                33587
-                            )
-                        }
+                        val strs = message.split(':')
+                        val id = strs[3]
+                        val ip = strs[1]
+                        val name = strs[2]
+                        Timber.d("Current connected IDs: $devicesConnectedOrConnectingSet")
+                        if (devicesConnectedOrConnectingSet.contains(id)) continue
+                        devicesConnectedOrConnectingSet.add(id)
+                        handleClientConnection(
+                            name,
+                            id,
+                            ip,
+                            33587
+                        )
+
                     }
                 } catch (e: Exception) {
                     Timber.d("Exception at UdpListenerService: $e")
@@ -172,6 +179,7 @@ class LinkProvider(
                     Timber.d("Link connected status: $it")
                     if (!it) {
                         deviceRepository.removeActiveDevice(device)
+                        devicesConnectedOrConnectingSet.remove(id)
                         currentCoroutineContext().job.cancel()
                     } else {
                         deviceRepository.addActiveDevice(device)
