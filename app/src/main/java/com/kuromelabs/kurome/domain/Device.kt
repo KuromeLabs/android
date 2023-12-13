@@ -11,6 +11,10 @@ import com.google.flatbuffers.FlatBufferBuilder
 import com.kuromelabs.kurome.application.FilesystemAccessor
 import com.kuromelabs.kurome.infrastructure.device.IdentityProvider
 import com.kuromelabs.kurome.infrastructure.network.Link
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.job
+import kotlinx.coroutines.launch
 import kurome.fbs.Component
 import kurome.fbs.DeviceQuery
 import kurome.fbs.DeviceQueryType
@@ -23,8 +27,8 @@ import javax.inject.Inject
 class Device(
     @PrimaryKey @ColumnInfo(name = "id") val id: String,
     @ColumnInfo(name = "name") val name: String
-) : Link.PacketReceiver {
-    override fun processPacket(packet: Packet) {
+) {
+    private fun processPacket(packet: Packet) {
 
         if (packet.componentType == Component.DeviceQuery) {
             val builder = FlatBufferBuilder(256)
@@ -92,11 +96,23 @@ class Device(
 
     @Ignore @Inject lateinit var identityProvider: IdentityProvider
 
-    fun connect(link: Link) {
-        link.setDevice(this)
+    fun connect(link: Link, scope: CoroutineScope) {
         this.link = link
+        val packetJob = scope.launch {
+            link.receivedPackets.collect {
+                processPacket(it)
+            }
+        }
+        scope.launch {
+            link.isConnected.collect {
+                isOnline = it
+                if (!it) {
+                    packetJob.cancel()
+                    currentCoroutineContext().job.cancel()
+                }
+            }
+        }
     }
-
 
     fun sendPacket(packet: ByteBuffer) {
         link?.send(packet)

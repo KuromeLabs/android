@@ -2,8 +2,10 @@ package com.kuromelabs.kurome.infrastructure.network
 
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kurome.fbs.Packet
@@ -15,12 +17,11 @@ import javax.net.ssl.SSLSocket
 
 
 class Link(var socket: SSLSocket, var scope: CoroutineScope) {
-    interface PacketReceiver {
-        fun processPacket(packet: Packet)
-    }
+
 
     private val outputChannel = Channels.newChannel(socket.outputStream)
-    private var device: PacketReceiver? = null
+    private val _receivedPackets = MutableSharedFlow<Packet>()
+    val receivedPackets = _receivedPackets.asSharedFlow()
     private val _isConnected = MutableStateFlow(false)
     val isConnected: StateFlow<Boolean> get() = _isConnected
     suspend fun receive(buffer: ByteArray, size: Int): Int {
@@ -33,10 +34,6 @@ class Link(var socket: SSLSocket, var scope: CoroutineScope) {
             Timber.e(e, "Error receiving data")
             0
         }
-    }
-
-    fun setDevice(device: PacketReceiver) {
-        this.device = device
     }
 
     fun send(buffer: ByteBuffer) {
@@ -66,7 +63,7 @@ class Link(var socket: SSLSocket, var scope: CoroutineScope) {
                 val data = ByteArray(size)
                 if (receive(data, size) <= 0) break
                 val packet = flatBufferHelper.deserializePacket(data)
-                device!!.processPacket(packet)
+                _receivedPackets.emit(packet)
             }
             Timber.d("Closing socket")
             close()

@@ -171,8 +171,7 @@ class LinkProvider(
             val link = result.getOrNull()!!
             var device = deviceRepository.getSavedDevice(id)
             if (device == null) device = Device(id, name)
-            link.setDevice(device)
-            device.connect(link)
+            device.connect(link, scope)
             link.start()
             scope.launch {
                 link.isConnected.collect {
