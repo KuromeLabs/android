@@ -33,6 +33,27 @@ class FilesystemAccessor constructor(
     val device: Device
 ) {
 
+    class ExtraAttribute {
+        companion object {
+            const val None = 0u
+            const val Archive = 32u
+            const val Compressed = 2048u
+            const val Device = 64u
+            const val Directory = 16u
+            const val Encrypted = 16384u
+            const val Hidden = 2u
+            const val IntegrityStream = 32768u
+            const val Normal = 128u
+            const val NoScrubData = 131072u
+            const val NotContentIndexed = 8192u
+            const val Offline = 4096u
+            const val ReadOnly = 1u
+            const val ReparsePoint = 1024u
+            const val SparseFile = 512u
+            const val System = 4u
+            const val Temporary = 256u
+        }
+    }
     private val root: String = Environment.getExternalStorageDirectory().path
 
     fun processFileAction(packet: Packet) {
@@ -82,19 +103,17 @@ class FilesystemAccessor constructor(
                 FileStatus.PathNotFound
             else FileStatus.FileNotFound
 
-        val type =
-            if (status == FileStatus.Exists && file.isFile) FileType.File else FileType.Directory
-        val (crTime, laTime, lwTime) = getFileTimes(file)
+        val (crTime, laTime, lwTime, extraAttributes) = getFileAttributes(file)
 
         return flatBufferHelper.createNode(
             builder,
             file.name,
-            type,
             status,
             file.length(),
-            crTime,
-            lwTime,
-            laTime
+            crTime as Long,
+            lwTime as Long,
+            laTime as Long,
+            extraAttributes as UInt
         )
     }
 
@@ -108,25 +127,29 @@ class FilesystemAccessor constructor(
         } catch (e: Exception) {
             Timber.e("Exception at $path: $e")
         }
-        val (crTime, laTime, lwTime) = getFileTimes(directory)
+        val (crTime, laTime, lwTime, extraAttributes) = getFileAttributes(directory)
 
         return flatBufferHelper.createNode(
             builder,
             directory.name,
-            FileType.Directory,
             FileStatus.Exists,
             directory.length(),
-            crTime,
-            lwTime,
-            laTime,
+            crTime as Long,
+            lwTime as Long,
+            laTime as Long,
+            extraAttributes as UInt,
             children
         )
     }
 
-    private fun getFileTimes(file: File): Triple<Long, Long, Long> {
+    private fun getFileAttributes(file: File): Array<Any> {
         val lwTime = file.lastModified()
         var crTime: Long = 0
         var laTime: Long = 0
+
+        val readOnly: Boolean = !file.canWrite()
+        val isHidden: Boolean = file.isHidden
+        var extraAttributes: UInt = ExtraAttribute.Normal
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val pathObj = Paths.get(file.path)
             val attributes =
@@ -134,11 +157,21 @@ class FilesystemAccessor constructor(
             crTime = attributes.readAttributes().creationTime().toMillis()
             laTime = attributes.readAttributes().lastAccessTime().toMillis()
         }
-        return Triple(crTime, laTime, lwTime)
+        if (readOnly)
+            extraAttributes = extraAttributes or ExtraAttribute.ReadOnly
+        if (isHidden)
+            extraAttributes = extraAttributes or ExtraAttribute.Hidden
+        if (file.isDirectory)
+            extraAttributes = extraAttributes or ExtraAttribute.Directory
+        if (file.name.startsWith("."))
+            extraAttributes = extraAttributes or ExtraAttribute.Hidden
+
+        return arrayOf(crTime, laTime, lwTime, extraAttributes)
     }
 
     private fun fileBufferToFbs(builder: FlatBufferBuilder, path: String, offset: Long, length: Int): Int {
         val fileChannel = RandomAccessFile(path, "r").channel
+        Timber.d("Attempting to read $length bytes from $path at offset $offset")
         val byteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, offset, length.toLong())
         val buffer = ByteBuffer.allocate(length)
         buffer.put(byteBuffer)

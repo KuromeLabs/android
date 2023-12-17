@@ -35,7 +35,12 @@ class Device(
             val deviceQuery = flatBufferHelper.getDeviceQuery(packet)
             val response = processDeviceQuery(builder, deviceQuery)
 
-            val p = flatBufferHelper.createPacket(builder, response, Component.DeviceResponse, packet.id)
+            val p = flatBufferHelper.createPacket(
+                builder,
+                response,
+                Component.DeviceResponse,
+                packet.id
+            )
             val buffer = flatBufferHelper.finishBuilding(builder, p)
             sendPacket(buffer)
         } else {

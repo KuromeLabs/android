@@ -66,30 +66,30 @@ fun createDeviceInfoResponse(
 fun createFileAttributes(
     builder: FlatBufferBuilder,
     name: String,
-    type: Byte,
-    status: Byte,
-    length: Long,
-    cTime: Long,
-    lwTime: Long,
-    laTime: Long
-): Int {
-    val of = builder.createString(name)
-    return Attributes.createAttributes(builder, of, type, status, length, cTime, laTime, lwTime)
-}
-
-fun createNode(
-    builder: FlatBufferBuilder,
-    name: String,
-    type: Byte,
     status: Byte,
     length: Long,
     cTime: Long,
     lwTime: Long,
     laTime: Long,
+    extraAttributes: UInt
+): Int {
+    val of = builder.createString(name)
+    return Attributes.createAttributes(builder, of, status, length, cTime, laTime, lwTime, extraAttributes)
+}
+
+fun createNode(
+    builder: FlatBufferBuilder,
+    name: String,
+    status: Byte,
+    length: Long,
+    cTime: Long,
+    lwTime: Long,
+    laTime: Long,
+    extraAttributes: UInt,
     children: IntArray = IntArray(0)
 ): Int {
     val attrs =
-        createFileAttributes(builder, name, type, status, length, cTime, laTime, lwTime)
+        createFileAttributes(builder, name, status, length, cTime, laTime, lwTime, extraAttributes)
     return Node.createNode(builder, attrs, Node.createChildrenVector(builder, children))
 }
 
