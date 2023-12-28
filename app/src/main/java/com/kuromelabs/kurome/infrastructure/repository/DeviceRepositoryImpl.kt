@@ -6,14 +6,13 @@ import com.kuromelabs.kurome.application.interfaces.DeviceRepository
 import com.kuromelabs.kurome.domain.Device
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.transform
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 
 
 class DeviceRepositoryImpl(private val deviceDao: DeviceDao) : DeviceRepository {
 
-    val activeDevices = MutableStateFlow(HashMap<String, Device>())
+    private val activeDevices = MutableStateFlow(HashMap<String, Device>())
 
     override fun getSavedDevices(): Flow<List<Device>> {
         return deviceDao.getAllDevices()
@@ -28,8 +27,8 @@ class DeviceRepositoryImpl(private val deviceDao: DeviceDao) : DeviceRepository 
         deviceDao.insert(device)
     }
 
-    override fun getActiveDevices(): Flow<List<Device>> {
-        return activeDevices.transform{ emit(it.values.toList()) }
+    override fun getActiveDevices(): StateFlow<HashMap<String, Device>> {
+        return activeDevices
     }
 
     override fun addActiveDevice(device: Device) {

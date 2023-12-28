@@ -138,14 +138,17 @@ class LinkProvider(
                         val id = strs[3]
                         val ip = strs[1]
                         val name = strs[2]
-                        Timber.d("Current connected IDs: $devicesConnectedOrConnectingSet")
-                        if (devicesConnectedOrConnectingSet.contains(id)) continue
-                        devicesConnectedOrConnectingSet.add(id)
+                        if (deviceRepository.getActiveDevices().value.contains(id)) continue
+                        var device = deviceRepository.getSavedDevice(id)
+                        if (device == null) device = Device(id, name)
+                        deviceRepository.addActiveDevice(device)
+
                         handleClientConnection(
                             name,
                             id,
                             ip,
-                            33587
+                            33587,
+                            device
                         )
 
                     }
@@ -158,27 +161,36 @@ class LinkProvider(
         }
     }
 
-    private suspend fun handleClientConnection(name: String, id: String, ip: String, port: Int) {
+    private suspend fun handleClientConnection(name: String, id: String, ip: String, port: Int, device: Device) {
+        val socket = Socket()
         val result = try {
-            val link = createClientLink(name, id, ip, port)
+            socket.reuseAddress = true
+            sendIdentity(socket, ip, port)
+            Timber.d("Sent identity")
+
+            val sslSocket = upgradeToSslSocket(socket, true)
+
+            val link = Link(sslSocket, scope)
             Result.success(link)
         } catch (e: Exception) {
+            socket.close()
+            Timber.e("Exception at handleClientConnection: $e")
             Result.failure(e)
         }
 
         if (result.isSuccess) {
             Timber.d("Connected to $ip:$port, name: $name, id: $id")
             val link = result.getOrNull()!!
-            var device = deviceRepository.getSavedDevice(id)
-            if (device == null) device = Device(id, name)
+
             device.connect(link, scope)
-            link.start()
+            val linkJob = scope.launch { link.start() }
+            deviceRepository.addActiveDevice(device)
             scope.launch {
                 link.isConnected.collect {
                     Timber.d("Link connected status: $it")
                     if (!it) {
                         deviceRepository.removeActiveDevice(device)
-                        devicesConnectedOrConnectingSet.remove(id)
+                        linkJob.cancel()
                         currentCoroutineContext().job.cancel()
                     } else {
                         deviceRepository.addActiveDevice(device)
@@ -186,6 +198,7 @@ class LinkProvider(
                 }
             }
         } else {
+            deviceRepository.removeActiveDevice(device)
             Timber.e("Failed to connect to $ip:$port")
         }
     }
