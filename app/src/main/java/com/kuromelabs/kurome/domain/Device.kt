@@ -119,6 +119,10 @@ class Device(
         }
     }
 
+    fun disconnect() {
+        link?.close()
+    }
+
     fun sendPacket(packet: ByteBuffer) {
         link?.send(packet)
     }

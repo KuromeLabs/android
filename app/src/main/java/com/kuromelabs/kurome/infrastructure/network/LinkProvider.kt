@@ -1,6 +1,10 @@
 package com.kuromelabs.kurome.infrastructure.network
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import com.google.flatbuffers.FlatBufferBuilder
 import com.kuromelabs.kurome.application.interfaces.DeviceRepository
 import com.kuromelabs.kurome.application.interfaces.SecurityService
@@ -35,22 +39,45 @@ class LinkProvider(
     var deviceRepository: DeviceRepository
 ) {
     private val udpListenPort = 33586
-    private val devicesConnectedOrConnectingSet = HashSet<String>()
 
-    private fun createClientLink(name: String, id: String, ip: String, port: Int): Link {
+    private val connectivityManager =
+        context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
-        val socket = Socket()
-        socket.reuseAddress = true
-        sendIdentity(socket, ip, port)
-        Timber.d("Sent identity")
 
-        val sslSocket = upgradeToSslSocket(socket, true)
+    fun registerNetworkCallback(networkCallback: ConnectivityManager.NetworkCallback) {
+        val networkRequest = NetworkRequest.Builder()
+            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+            .addTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
+            .addTransportType(NetworkCapabilities.TRANSPORT_VPN)
+            .build()
 
-        return Link(sslSocket, scope)
+
+        connectivityManager.registerNetworkCallback(networkRequest, networkCallback)
 
     }
 
+    fun unregisterNetworkCallback(networkCallback: ConnectivityManager.NetworkCallback) {
+        connectivityManager.unregisterNetworkCallback(networkCallback)
+    }
+
+    val networkCallback = object : ConnectivityManager.NetworkCallback() {
+
+        override fun onAvailable(network: Network) {
+            // Called when a network is available
+
+        }
+
+        override fun onLost(network: Network) {
+            // Called when a network is lost
+            val devices = deviceRepository.getActiveDevices().value
+            for (device in devices) {
+                device.value.disconnect()
+            }
+        }
+    }
+
     fun start() {
+        registerNetworkCallback(networkCallback)
         startUdpListener()
     }
 
@@ -130,7 +157,7 @@ class LinkProvider(
                     if (!udpSocket.isClosed) {
                         val buffer = ByteArray(1024)
                         val packet = DatagramPacket(buffer, buffer.size)
-                        Timber.d("Waiting for incoming UDP")
+//                        Timber.d("Waiting for incoming UDP")
                         udpSocket.receive(packet)
                         val message = String(packet.data, packet.offset, packet.length)
                         Timber.d("received UDP: $message")

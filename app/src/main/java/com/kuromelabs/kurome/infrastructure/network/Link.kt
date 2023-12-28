@@ -22,8 +22,9 @@ class Link(var socket: SSLSocket, var scope: CoroutineScope) {
     private val outputChannel = Channels.newChannel(socket.outputStream)
     private val _receivedPackets = MutableSharedFlow<Packet>()
     val receivedPackets = _receivedPackets.asSharedFlow()
-    private val _isConnected = MutableStateFlow(false)
-    val isConnected: StateFlow<Boolean> get() = _isConnected
+    private val _isConnected = MutableSharedFlow<Boolean>(1)
+
+    val isConnected = _isConnected.asSharedFlow()
     suspend fun receive(buffer: ByteArray, size: Int): Int {
         return try {
             var bytesRead = 0
@@ -47,26 +48,25 @@ class Link(var socket: SSLSocket, var scope: CoroutineScope) {
         }
     }
 
-    private fun close() {
-        _isConnected.value = false
+    fun close() {
+        _isConnected.tryEmit(false)
         outputChannel.close()
         socket.close()
     }
 
-    fun start() {
-        _isConnected.value = true
-        scope.launch {
-            while (scope.coroutineContext.isActive) {
-                val sizeBuffer = ByteArray(4)
-                if (receive(sizeBuffer, 4) <= 0) break
-                val size = ByteBuffer.wrap(sizeBuffer).order(ByteOrder.LITTLE_ENDIAN).int
-                val data = ByteArray(size)
-                if (receive(data, size) <= 0) break
-                val packet = flatBufferHelper.deserializePacket(data)
-                _receivedPackets.emit(packet)
-            }
-            Timber.d("Closing socket")
-            close()
+    suspend fun start() {
+        _isConnected.emit(true)
+        while (scope.coroutineContext.isActive) {
+            val sizeBuffer = ByteArray(4)
+            if (receive(sizeBuffer, 4) <= 0) break
+            val size = ByteBuffer.wrap(sizeBuffer).order(ByteOrder.LITTLE_ENDIAN).int
+            val data = ByteArray(size)
+            if (receive(data, size) <= 0) break
+            val packet = flatBufferHelper.deserializePacket(data)
+            _receivedPackets.emit(packet)
         }
+        Timber.d("Closing socket")
+        close()
+
     }
 }
