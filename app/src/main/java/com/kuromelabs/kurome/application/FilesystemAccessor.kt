@@ -69,13 +69,16 @@ class FilesystemAccessor constructor(
             Component.FileCommand -> {
                 val fileCommand = packet.component(FileCommand()) as FileCommand
                 processFileCommand(fileCommand)
-                val builder = FlatBufferBuilder(256)
-                sendPacket(builder, 0, Component.FileResponse, packet.id)
             }
         }
     }
 
-    private fun sendPacket(builder: FlatBufferBuilder, response: Int, type: UByte, responseId: Long) {
+    private fun sendPacket(
+        builder: FlatBufferBuilder,
+        response: Int,
+        type: UByte,
+        responseId: Long
+    ) {
         val packet = flatBufferHelper.createPacket(builder, response, type, responseId)
         val buffer = flatBufferHelper.finishBuilding(builder, packet)
         device.sendPacket(buffer)
