@@ -1,24 +1,22 @@
 package com.kuromelabs.kurome.application
 
+import Kurome.Fbs.Component
+import Kurome.Fbs.CreateDirectoryCommand
+import Kurome.Fbs.CreateFileCommand
+import Kurome.Fbs.DeleteFileCommand
+import Kurome.Fbs.GetDirectoryResponse
+import Kurome.Fbs.GetFileInfoResponse
+import Kurome.Fbs.Node
+import Kurome.Fbs.Packet
+import Kurome.Fbs.ReadFileQuery
+import Kurome.Fbs.ReadFileResponse
+import Kurome.Fbs.RenameFileCommand
+import Kurome.Fbs.SetFileInfoCommand
+import Kurome.Fbs.WriteFileCommand
 import android.os.Build
 import android.os.Environment
 import com.google.flatbuffers.FlatBufferBuilder
 import com.kuromelabs.kurome.domain.Device
-import kurome.fbs.Attributes
-import kurome.fbs.Component
-import kurome.fbs.Create
-import kurome.fbs.Delete
-import kurome.fbs.FileCommand
-import kurome.fbs.FileCommandType
-import kurome.fbs.FileQuery
-import kurome.fbs.FileQueryType
-import kurome.fbs.FileResponeType
-import kurome.fbs.FileStatus
-import kurome.fbs.FileType
-import kurome.fbs.Packet
-import kurome.fbs.Rename
-import kurome.fbs.SetAttributes
-import kurome.fbs.Write
 import timber.log.Timber
 import java.io.File
 import java.io.RandomAccessFile
@@ -54,21 +52,81 @@ class FilesystemAccessor constructor(
             const val Temporary = 256u
         }
     }
+
     private val root: String = Environment.getExternalStorageDirectory().path
 
     fun processFileAction(packet: Packet) {
         when (packet.componentType) {
 
-            Component.FileQuery -> {
-                val builder = FlatBufferBuilder(256)
-                val fileQuery = packet.component(FileQuery()) as FileQuery
-                val response = processFileQuery(builder, fileQuery)
-                sendPacket(builder, response, Component.FileResponse, packet.id)
+            Component.CreateFileCommand -> {
+                val command = packet.component(CreateFileCommand()) as CreateFileCommand
+                Timber.d("Creating file at ${root + command.path!!}")
+                File(root + command.path!!).createNewFile()
             }
 
-            Component.FileCommand -> {
-                val fileCommand = packet.component(FileCommand()) as FileCommand
-                processFileCommand(fileCommand)
+            Component.CreateDirectoryCommand -> {
+                val command = packet.component(CreateDirectoryCommand()) as CreateDirectoryCommand
+                Timber.d("Creating directory at ${root + command.path!!}")
+                File(root + command.path!!).mkdir()
+            }
+
+            Component.DeleteFileCommand -> {
+                val command = packet.component(DeleteFileCommand()) as DeleteFileCommand
+                Timber.d("Deleting file at ${root + command.path!!}")
+                File(root + command.path!!).delete()
+            }
+
+            Component.RenameFileCommand -> {
+                val command = packet.component(RenameFileCommand()) as RenameFileCommand
+                Timber.d("Renaming file at ${root + command.oldPath!!} to ${root + command.newPath!!}")
+                File(root + command.oldPath!!).renameTo(File(root + command.newPath!!))
+            }
+
+            Component.WriteFileCommand -> {
+                val command = packet.component(WriteFileCommand()) as WriteFileCommand
+                Timber.d("Writing ${command.dataLength} bytes to ${root + command.path!!} at offset ${command.offset}")
+                writeFile(
+                    root + command.path!!,
+                    command.dataAsByteBuffer,
+                    command.offset,
+                    command.dataLength
+                )
+            }
+
+            Component.SetFileInfoCommand -> {
+                val command = packet.component(SetFileInfoCommand()) as SetFileInfoCommand
+                setAttributes(
+                    root + command.path!!,
+                    command.creationTime,
+                    command.lastAccessTime,
+                    command.lastWriteTime,
+                    command.length
+                )
+            }
+
+            else -> {
+                val builder = FlatBufferBuilder(256)
+                when (packet.componentType) {
+                    Component.ReadFileQuery -> {
+                        val q = packet.component(ReadFileQuery()) as ReadFileQuery
+                        val response = fileBufferToFbs(builder, root + q.path!!, q.offset, q.length)
+                        sendPacket(builder, response, Component.ReadFileResponse, packet.id)
+                    }
+
+                    Component.GetFileInfoQuery -> {
+                        val q = packet.component(ReadFileQuery()) as ReadFileQuery
+                        val node = fileToFbs(builder, root + q.path!!)
+                        val response = GetFileInfoResponse.createGetFileInfoResponse(builder, builder.createString(root + q.path!!), node)
+                        sendPacket(builder, response, Component.GetFileInfoResponse, packet.id)
+                    }
+
+                    Component.GetDirectoryQuery -> {
+                        val q = packet.component(ReadFileQuery()) as ReadFileQuery
+                        val node = directoryToFbs(builder, root + q.path!!)
+                        val response = GetDirectoryResponse.createGetDirectoryResponse(builder, builder.createString(root + q.path!!), node)
+                        sendPacket(builder, response, Component.GetDirectoryResponse, packet.id)
+                    }
+                }
             }
         }
     }
@@ -79,44 +137,28 @@ class FilesystemAccessor constructor(
         type: UByte,
         responseId: Long
     ) {
-        val packet = flatBufferHelper.createPacket(builder, response, type, responseId)
-        val buffer = flatBufferHelper.finishBuilding(builder, packet)
+        val packet = Packet.createPacket(builder, type, response, responseId)
+        builder.finishSizePrefixed(packet)
+        val buffer = builder.dataBuffer()
         device.sendPacket(buffer)
-    }
-
-    private fun processFileQuery(builder: FlatBufferBuilder, q: FileQuery): Int {
-        var response = 0
-        var type = FileResponeType.Node
-        when (q.type) {
-            FileQueryType.GetDirectory -> response = directoryToFbs(builder, root + q.path!!)
-            FileQueryType.ReadFile -> {
-                type = FileResponeType.Raw
-                response = fileBufferToFbs(builder, root + q.path!!, q.offset, q.length)
-            }
-        }
-        return flatBufferHelper.createFileResponse(builder, response, type)
     }
 
     private fun fileToFbs(builder: FlatBufferBuilder, path: String): Int {
         val file = File(path)
-        val status =
-            if (file.exists())
-                FileStatus.Exists
-            else if (!File(path.substring(0, path.lastIndexOf("/"))).exists())
-                FileStatus.PathNotFound
-            else FileStatus.FileNotFound
 
         val (crTime, laTime, lwTime, extraAttributes) = getFileAttributes(file)
 
-        return flatBufferHelper.createNode(
+        val name = builder.createString(file.name)
+        return Node.createNode(
             builder,
-            file.name,
-            status,
+            name,
             file.length(),
             crTime as Long,
             lwTime as Long,
             laTime as Long,
-            extraAttributes as UInt
+            extraAttributes as UInt,
+            file.exists(),
+            Node.createChildrenVector(builder, IntArray(0))
         )
     }
 
@@ -132,16 +174,17 @@ class FilesystemAccessor constructor(
         }
         val (crTime, laTime, lwTime, extraAttributes) = getFileAttributes(directory)
 
-        return flatBufferHelper.createNode(
+        val name = builder.createString(directory.name)
+        return Node.createNode(
             builder,
-            directory.name,
-            FileStatus.Exists,
+            name,
             directory.length(),
             crTime as Long,
             lwTime as Long,
             laTime as Long,
             extraAttributes as UInt,
-            children
+            directory.exists(),
+            Node.createChildrenVector(builder, children)
         )
     }
 
@@ -172,66 +215,47 @@ class FilesystemAccessor constructor(
         return arrayOf(crTime, laTime, lwTime, extraAttributes)
     }
 
-    private fun fileBufferToFbs(builder: FlatBufferBuilder, path: String, offset: Long, length: Int): Int {
+    private fun fileBufferToFbs(
+        builder: FlatBufferBuilder,
+        path: String,
+        offset: Long,
+        length: Int
+    ): Int {
         val fileChannel = RandomAccessFile(path, "r").channel
         Timber.d("Attempting to read $length bytes from $path at offset $offset")
         val byteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, offset, length.toLong())
         val buffer = ByteBuffer.allocate(length)
         buffer.put(byteBuffer)
         fileChannel.close()
-        return flatBufferHelper.createRaw(builder, buffer.array(), offset, length)
+        val vector = ReadFileResponse.createDataVector(builder, buffer.array())
+        val pathString = builder.createString(path)
+        return ReadFileResponse.createReadFileResponse(builder, pathString, vector, offset, length)
     }
 
-    private fun processFileCommand(command: FileCommand) {
-        when (command.commandType) {
-            FileCommandType.Delete -> {
-                val delete = command.command(Delete()) as Delete
-                File(root + delete.path!!).deleteRecursively()
-            }
-
-            FileCommandType.Rename -> {
-                val rename = command.command(Rename()) as Rename
-                File(root + rename.oldPath!!).renameTo(File(root + rename.newPath!!))
-            }
-
-            FileCommandType.Write -> {
-                val write = command.command(Write()) as Write
-                val raw = write.buffer!!
-                writeFile(root + write.path!!, raw.dataAsByteBuffer, raw.offset, raw.dataLength)
-            }
-
-            FileCommandType.Create -> {
-                val create = command.command(Create()) as Create
-                Timber.d("Create called on ${root + create.path!!}")
-                if (create.type == FileType.File) File(root + create.path!!).createNewFile()
-                else File(root + create.path!!).mkdir()
-            }
-
-            FileCommandType.SetAttributes -> {
-                val setAttributes = (command.command(SetAttributes()) as SetAttributes)
-                setAttributes(root + setAttributes.path, setAttributes.attributes!!)
-            }
-        }
-    }
-
-    private fun setAttributes(path: String, attributes: Attributes) {
-        if (attributes.length != 0L) {
+    private fun setAttributes(
+        path: String,
+        creationTime: Long,
+        lastAccessTime: Long,
+        lastWriteTime: Long,
+        length: Long
+    ) {
+        if (length != 0L) {
             val raf = RandomAccessFile(path, "rw")
-            raf.setLength(attributes.length)
+            raf.setLength(length)
             raf.close()
         }
-        if (attributes.lastWriteTime != 0L) {
+        if (lastWriteTime != 0L) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val attrs = Files.getFileAttributeView(
                     Paths.get(path),
                     BasicFileAttributeView::class.java
                 )
                 attrs.setTimes(
-                    FileTime.fromMillis(attributes.creationTime),
-                    FileTime.fromMillis(attributes.lastAccessTime),
-                    FileTime.fromMillis(attributes.lastWriteTime)
+                    FileTime.fromMillis(creationTime),
+                    FileTime.fromMillis(lastAccessTime),
+                    FileTime.fromMillis(lastWriteTime)
                 )
-            } else File(path).setLastModified(attributes.lastWriteTime)
+            } else File(path).setLastModified(lastWriteTime)
         }
     }
 

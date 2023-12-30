@@ -1,8 +1,14 @@
 package com.kuromelabs.kurome.domain
 
+import Kurome.Fbs.Component
+import Kurome.Fbs.DeviceQuery
+import Kurome.Fbs.DeviceQueryResponse
+import Kurome.Fbs.Packet
 import android.content.Context
+import android.os.Build
 import android.os.Environment
 import android.os.StatFs
+import androidx.preference.PreferenceManager
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Ignore
@@ -15,11 +21,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
-import kurome.fbs.Component
-import kurome.fbs.DeviceQuery
-import kurome.fbs.DeviceQueryType
-import kurome.fbs.Packet
 import java.nio.ByteBuffer
+import java.util.UUID
 import javax.inject.Inject
 
 
@@ -32,16 +35,17 @@ class Device(
 
         if (packet.componentType == Component.DeviceQuery) {
             val builder = FlatBufferBuilder(256)
-            val deviceQuery = flatBufferHelper.getDeviceQuery(packet)
+            val deviceQuery = packet.component(DeviceQuery()) as DeviceQuery
             val response = processDeviceQuery(builder, deviceQuery)
 
-            val p = flatBufferHelper.createPacket(
+            val p = Packet.createPacket(
                 builder,
+                Component.DeviceQueryResponse,
                 response,
-                Component.DeviceResponse,
                 packet.id
             )
-            val buffer = flatBufferHelper.finishBuilding(builder, p)
+            builder.finishSizePrefixed(p)
+            val buffer = builder.dataBuffer()
             sendPacket(buffer)
         } else {
             fsAccessor.processFileAction(packet)
@@ -49,41 +53,18 @@ class Device(
     }
 
     private fun processDeviceQuery(builder: FlatBufferBuilder, q: DeviceQuery): Int {
-        var response = 0
-        when (q.type) {
-            DeviceQueryType.GetInfo -> response = deviceIdentityToFbs(builder)
-            DeviceQueryType.GetSpace -> response = deviceSpaceToFbs(builder)
-            DeviceQueryType.GetAll -> response = deviceInfoToFbs(builder)
-        }
-        return response
-    }
-
-    private fun deviceIdentityToFbs(builder: FlatBufferBuilder): Int {
-        val id = identityProvider.getEnvironmentId()
-        val name = identityProvider.getEnvironmentName()
-        return flatBufferHelper.createDeviceInfoResponse(builder, id, name)
-    }
-
-    private fun deviceInfoToFbs(builder: FlatBufferBuilder): Int {
-        val id = identityProvider.getEnvironmentId()
-        val name = identityProvider.getEnvironmentName()
+        val name = Build.MODEL
         val statFs = StatFs(Environment.getDataDirectory().path)
-        return flatBufferHelper.createDeviceInfoResponse(
+        val response = DeviceQueryResponse.createDeviceQueryResponse(
             builder,
-            id,
-            name,
             statFs.totalBytes,
-            statFs.freeBytes
+            statFs.freeBytes,
+            builder.createString(name),
+            builder.createString(""),
+            builder.createString("")
         )
-    }
+        return response
 
-    private fun deviceSpaceToFbs(builder: FlatBufferBuilder): Int {
-        val statFs = StatFs(Environment.getDataDirectory().path)
-        return flatBufferHelper.createDeviceInfoResponse(
-            builder,
-            totalSpace = statFs.totalBytes,
-            freeSpace = statFs.freeBytes
-        )
     }
 
     @Ignore
@@ -95,11 +76,10 @@ class Device(
     @Ignore
     var context: Context? = null
 
-
     @Ignore
     var fsAccessor = FilesystemAccessor(this)
 
-    @Ignore @Inject lateinit var identityProvider: IdentityProvider
+
 
     fun connect(link: Link, scope: CoroutineScope) {
         this.link = link

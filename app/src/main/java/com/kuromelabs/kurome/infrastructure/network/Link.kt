@@ -1,14 +1,11 @@
 package com.kuromelabs.kurome.infrastructure.network
 
 
+import Kurome.Fbs.Packet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import kurome.fbs.Packet
 import timber.log.Timber
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -62,7 +59,7 @@ class Link(var socket: SSLSocket, var scope: CoroutineScope) {
             val size = ByteBuffer.wrap(sizeBuffer).order(ByteOrder.LITTLE_ENDIAN).int
             val data = ByteArray(size)
             if (receive(data, size) <= 0) break
-            val packet = flatBufferHelper.deserializePacket(data)
+            val packet = Packet.getRootAsPacket(ByteBuffer.wrap(data))
             _receivedPackets.emit(packet)
         }
         Timber.d("Closing socket")

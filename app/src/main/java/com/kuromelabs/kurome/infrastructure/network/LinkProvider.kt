@@ -1,10 +1,16 @@
 package com.kuromelabs.kurome.infrastructure.network
 
+import Kurome.Fbs.Component
+import Kurome.Fbs.DeviceQuery
+import Kurome.Fbs.DeviceQueryResponse
+import Kurome.Fbs.Packet
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.os.Environment
+import android.os.StatFs
 import com.google.flatbuffers.FlatBufferBuilder
 import com.kuromelabs.kurome.application.interfaces.DeviceRepository
 import com.kuromelabs.kurome.application.interfaces.SecurityService
@@ -15,7 +21,6 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
-import kurome.fbs.Component
 import timber.log.Timber
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -129,13 +134,24 @@ class LinkProvider(
 
     private fun sendIdentity(socket: Socket, ip: String, port: Int) {
         val builder = FlatBufferBuilder(256)
-        val identity = flatBufferHelper.createDeviceInfoResponse(
+
+        val id = identityProvider.getEnvironmentId()
+        val name = identityProvider.getEnvironmentName()
+        val statFs = StatFs(Environment.getDataDirectory().path)
+
+        val response = DeviceQueryResponse.createDeviceQueryResponse(
             builder,
-            identityProvider.getEnvironmentId(),
-            identityProvider.getEnvironmentName()
+            statFs.totalBytes,
+            statFs.freeBytes,
+            builder.createString(name),
+            builder.createString(id),
+            builder.createString("")
         )
-        val packet = flatBufferHelper.createPacket(builder, identity, Component.DeviceResponse, -1)
-        val buffer = flatBufferHelper.finishBuilding(builder, packet)
+
+        val p = Packet.createPacket(builder, Component.DeviceQueryResponse, response, -1)
+        builder.finishSizePrefixed(p)
+        val buffer = builder.dataBuffer()
+
         socket.connect(InetSocketAddress(ip, port))
         val channel = Channels.newChannel(socket.getOutputStream())
         channel.write(buffer)

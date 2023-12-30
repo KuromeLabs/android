@@ -1,7 +1,0 @@
-namespace kurome.fbs;
-
-table Raw {
-    data:[byte];
-    offset:long;
-    length:int;
-}
