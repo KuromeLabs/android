@@ -51,12 +51,6 @@ object AppModule {
         )
     }
 
-    @Provides
-    @Singleton
-    fun provideIdentityProvider(@ApplicationContext context: Context): IdentityProvider {
-        return IdentityProvider(context)
-    }
-
     @Singleton
     @Provides
     fun provideSecurityService(@ApplicationContext context: Context): SecurityService<X509Certificate, KeyPair> {

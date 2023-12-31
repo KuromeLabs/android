@@ -8,7 +8,6 @@ import android.content.Context
 import android.os.Build
 import android.os.Environment
 import android.os.StatFs
-import androidx.preference.PreferenceManager
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Ignore
@@ -22,8 +21,6 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import java.nio.ByteBuffer
-import java.util.UUID
-import javax.inject.Inject
 
 
 @Entity(tableName = "device_table")
@@ -60,7 +57,7 @@ class Device(
             statFs.totalBytes,
             statFs.freeBytes,
             builder.createString(name),
-            builder.createString(""),
+            builder.createString(identityProvider.getEnvironmentId()),
             builder.createString("")
         )
         return response
@@ -69,12 +66,6 @@ class Device(
 
     @Ignore
     var link: Link? = null
-
-    @Ignore
-    var isOnline: Boolean = false
-
-    @Ignore
-    var context: Context? = null
 
     @Ignore
     var fsAccessor = FilesystemAccessor(this)

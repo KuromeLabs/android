@@ -42,7 +42,7 @@ class KuromeService : LifecycleService() {
 
     override fun onCreate() {
         super.onCreate()
-        var linkProvider = LinkProvider(securityService, scope, identityProvider, this, repository)
+        var linkProvider = LinkProvider(securityService, scope, this, repository)
         linkProvider.start()
         createNotificationChannel()
     }

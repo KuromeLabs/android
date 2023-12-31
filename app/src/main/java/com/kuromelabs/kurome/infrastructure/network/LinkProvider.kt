@@ -39,7 +39,6 @@ import javax.net.ssl.X509TrustManager
 class LinkProvider(
     var securityService: SecurityService<X509Certificate, KeyPair>,
     var scope: CoroutineScope,
-    var identityProvider: IdentityProvider,
     var context: Context,
     var deviceRepository: DeviceRepository
 ) {
@@ -47,6 +46,7 @@ class LinkProvider(
 
     private val connectivityManager =
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    private val identityProvider = IdentityProvider(context)
 
 
     fun registerNetworkCallback(networkCallback: ConnectivityManager.NetworkCallback) {
@@ -225,7 +225,7 @@ class LinkProvider(
             Timber.d("Connected to $ip:$port, name: $name, id: $id")
             val link = result.getOrNull()!!
 
-            device.connect(link, scope)
+            device.connect(link, scope, context)
             val linkJob = scope.launch { link.start() }
             deviceRepository.addActiveDevice(device)
             scope.launch {
