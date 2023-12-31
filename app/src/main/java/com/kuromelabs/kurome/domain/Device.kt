@@ -17,8 +17,7 @@ import com.kuromelabs.kurome.application.FilesystemAccessor
 import com.kuromelabs.kurome.infrastructure.device.IdentityProvider
 import com.kuromelabs.kurome.infrastructure.network.Link
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.job
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.nio.ByteBuffer
 
@@ -28,6 +27,7 @@ class Device(
     @PrimaryKey @ColumnInfo(name = "id") val id: String,
     @ColumnInfo(name = "name") val name: String
 ) {
+
     private fun processPacket(packet: Packet) {
 
         if (packet.componentType == Component.DeviceQuery) {
@@ -68,30 +68,31 @@ class Device(
     var link: Link? = null
 
     @Ignore
-    var fsAccessor = FilesystemAccessor(this)
+    private var fsAccessor = FilesystemAccessor(this)
 
+    @Ignore
+    private var packetJob: Job? = null
 
+    @Ignore
+    lateinit var context: Context
 
-    fun connect(link: Link, scope: CoroutineScope) {
+    @Ignore
+    lateinit var identityProvider: IdentityProvider
+
+    fun connect(link: Link, scope: CoroutineScope, context: Context) {
         this.link = link
-        val packetJob = scope.launch {
+        this.context = context
+        this.identityProvider = IdentityProvider(context)
+        packetJob = scope.launch {
             link.receivedPackets.collect {
                 processPacket(it)
-            }
-        }
-        scope.launch {
-            link.isConnected.collect {
-                isOnline = it
-                if (!it) {
-                    packetJob.cancel()
-                    currentCoroutineContext().job.cancel()
-                }
             }
         }
     }
 
     fun disconnect() {
         link?.close()
+        packetJob?.cancel()
     }
 
     fun sendPacket(packet: ByteBuffer) {

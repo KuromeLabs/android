@@ -49,7 +49,7 @@ class LinkProvider(
     private val identityProvider = IdentityProvider(context)
 
 
-    fun registerNetworkCallback(networkCallback: ConnectivityManager.NetworkCallback) {
+    private fun registerNetworkCallback(networkCallback: ConnectivityManager.NetworkCallback) {
         val networkRequest = NetworkRequest.Builder()
             .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
             .addTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
@@ -65,7 +65,7 @@ class LinkProvider(
         connectivityManager.unregisterNetworkCallback(networkCallback)
     }
 
-    val networkCallback = object : ConnectivityManager.NetworkCallback() {
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
 
         override fun onAvailable(network: Network) {
             // Called when a network is available
@@ -233,6 +233,7 @@ class LinkProvider(
                     Timber.d("Link connected status: $it")
                     if (!it) {
                         deviceRepository.removeActiveDevice(device)
+                        device.disconnect()
                         linkJob.cancel()
                         currentCoroutineContext().job.cancel()
                     } else {

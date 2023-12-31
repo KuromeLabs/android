@@ -39,14 +39,14 @@ class Link(var socket: SSLSocket, var scope: CoroutineScope) {
             try {
                 outputChannel.write(buffer)
             } catch (e: Exception) {
-                close()
+                _isConnected.tryEmit(false)
                 Timber.e(e, "Error sending data")
             }
         }
     }
 
     fun close() {
-        _isConnected.tryEmit(false)
+        Timber.d("Closing link")
         outputChannel.close()
         socket.close()
     }
@@ -62,8 +62,7 @@ class Link(var socket: SSLSocket, var scope: CoroutineScope) {
             val packet = Packet.getRootAsPacket(ByteBuffer.wrap(data))
             _receivedPackets.emit(packet)
         }
-        Timber.d("Closing socket")
-        close()
+        _isConnected.tryEmit(false)
 
     }
 }
