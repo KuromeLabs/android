@@ -5,10 +5,10 @@ import android.content.Context
 import androidx.room.Room
 import com.kuromelabs.kurome.application.data_source.DeviceDatabase
 import com.kuromelabs.kurome.application.interfaces.*
+import com.kuromelabs.kurome.application.repository.DeviceRepository
 import com.kuromelabs.kurome.application.use_case.device.*
-import com.kuromelabs.kurome.infrastructure.device.IdentityProvider
 import com.kuromelabs.kurome.infrastructure.network.SslService
-import com.kuromelabs.kurome.infrastructure.repository.DeviceRepositoryImpl
+import com.kuromelabs.kurome.application.repository.DeviceRepositoryImpl
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

@@ -5,5 +5,5 @@ import com.kuromelabs.kurome.domain.Device
 sealed class DevicesEvent {
     data class PairDevice(val device: Device) : DevicesEvent()
     data class UnpairDevice(val device: Device) : DevicesEvent()
-    object GetDevices : DevicesEvent()
+    data object GetDevices : DevicesEvent()
 }

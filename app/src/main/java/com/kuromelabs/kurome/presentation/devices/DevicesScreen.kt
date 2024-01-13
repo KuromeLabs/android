@@ -37,10 +37,10 @@ fun DevicesScreen(
         },
     ) { innerPadding ->
         LazyColumn(modifier = modifier.padding(innerPadding)) {
-            items(viewModel.state.value.devices) { deviceState ->
-                DeviceRow(deviceState, Modifier.clickable(
+            items(viewModel.state.value) { deviceContext ->
+                DeviceRow(deviceContext, Modifier.clickable(
                     onClick = {
-                        viewModel.onEvent(DevicesEvent.PairDevice(deviceState.device))
+                        viewModel.onEvent(DevicesEvent.PairDevice(deviceContext.device))
                     }
                 ))
             }

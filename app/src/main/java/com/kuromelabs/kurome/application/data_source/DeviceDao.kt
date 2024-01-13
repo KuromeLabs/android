@@ -16,5 +16,8 @@ interface DeviceDao {
     fun getDevice(id: String): Device?
 
     @Query("SELECT * FROM device_table ORDER BY name ASC")
-    fun getAllDevices(): Flow<List<Device>>
+    fun getAllDevicesAsFlow(): Flow<List<Device>>
+
+    @Query("SELECT * from device_table ORDER BY name ASC")
+    fun getAllDevices(): List<Device>
 }

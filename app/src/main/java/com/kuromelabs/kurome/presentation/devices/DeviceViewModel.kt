@@ -4,6 +4,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kuromelabs.kurome.application.repository.DeviceContext
 import com.kuromelabs.kurome.application.use_case.device.DeviceUseCases
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -17,8 +18,8 @@ import javax.inject.Inject
 class DeviceViewModel @Inject constructor(
     private val deviceUseCases: DeviceUseCases
 ) : ViewModel() {
-    private var _state = mutableStateOf(DevicesState())
-    var state: State<DevicesState> = _state
+    private var _state = mutableStateOf(emptyList<DeviceContext>())
+    var state: State<List<DeviceContext>> = _state
     private var getDevicesJob: Job? = null
 
     init {
@@ -37,8 +38,8 @@ class DeviceViewModel @Inject constructor(
 
     private fun getDevices() {
         getDevicesJob?.cancel()
-        getDevicesJob = deviceUseCases.getConnectedDevices().onEach {
-            _state.value = _state.value.copy(devices = it.map { DeviceState(it, true, true) })
-        }.launchIn(viewModelScope)
+        getDevicesJob = deviceUseCases.getConnectedDevices()
+            .onEach { _state.value = it }
+            .launchIn(viewModelScope)
     }
 }

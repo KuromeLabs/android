@@ -1,7 +1,6 @@
 package com.kuromelabs.kurome.infrastructure.network
 
 import Kurome.Fbs.Component
-import Kurome.Fbs.DeviceQuery
 import Kurome.Fbs.DeviceQueryResponse
 import Kurome.Fbs.Packet
 import android.content.Context
@@ -12,8 +11,9 @@ import android.net.NetworkRequest
 import android.os.Environment
 import android.os.StatFs
 import com.google.flatbuffers.FlatBufferBuilder
-import com.kuromelabs.kurome.application.interfaces.DeviceRepository
+import com.kuromelabs.kurome.application.repository.DeviceRepository
 import com.kuromelabs.kurome.application.interfaces.SecurityService
+import com.kuromelabs.kurome.application.repository.DeviceContext
 import com.kuromelabs.kurome.domain.Device
 import com.kuromelabs.kurome.infrastructure.device.IdentityProvider
 import kotlinx.coroutines.CoroutineScope
@@ -74,9 +74,9 @@ class LinkProvider(
 
         override fun onLost(network: Network) {
             // Called when a network is lost
-            val devices = deviceRepository.getActiveDevices().value
-            for (device in devices) {
-                device.value.disconnect()
+            val deviceContexts = deviceRepository.getDeviceContexts().value
+            for (deviceContext in deviceContexts) {
+                deviceContext.value.device.disconnect()
             }
         }
     }
@@ -181,10 +181,11 @@ class LinkProvider(
                         val id = strs[3]
                         val ip = strs[1]
                         val name = strs[2]
-                        if (deviceRepository.getActiveDevices().value.contains(id)) continue
+                        val deviceContexts = deviceRepository.getDeviceContexts().value
+                        if (deviceContexts.contains(id) && deviceContexts[id]!!.isConnectedOrConnecting()) continue
                         var device = deviceRepository.getSavedDevice(id)
                         if (device == null) device = Device(id, name)
-                        deviceRepository.addActiveDevice(device)
+                        deviceRepository.setDeviceState(device, DeviceContext.State.CONNECTING)
 
                         handleClientConnection(
                             name,
@@ -227,22 +228,22 @@ class LinkProvider(
 
             device.connect(link, scope, context)
             val linkJob = scope.launch { link.start() }
-            deviceRepository.addActiveDevice(device)
+            deviceRepository.setDeviceState(device, DeviceContext.State.CONNECTED_TRUSTED)
             scope.launch {
                 link.isConnected.collect {
                     Timber.d("Link connected status: $it")
                     if (!it) {
-                        deviceRepository.removeActiveDevice(device)
+                        deviceRepository.setDeviceState(device, DeviceContext.State.DISCONNECTED)
                         device.disconnect()
                         linkJob.cancel()
                         currentCoroutineContext().job.cancel()
                     } else {
-                        deviceRepository.addActiveDevice(device)
+                        deviceRepository.setDeviceState(device, DeviceContext.State.CONNECTED_TRUSTED)
                     }
                 }
             }
         } else {
-            deviceRepository.removeActiveDevice(device)
+            deviceRepository.setDeviceState(device, DeviceContext.State.DISCONNECTED)
             Timber.e("Failed to connect to $ip:$port")
         }
     }

@@ -3,6 +3,7 @@
     <string name="status_disconnected">Offline (Paired)</string>
     <string name="status_connected">Connected</string>
     <string name="status_available">Available (Tap to pair)</string>
+    <string name="status_connecting">Connecting…</string>
     <string name="manage_external_storage_title">Manage External Storage</string>
     <string name="manage_external_storage_body">Required on Android 11+. Kurome needs this permission to expose the filesystem to connected computers.</string>
     <string name="write_external_storage_title">Write External Storage</string>
@@ -16,4 +17,5 @@
     <string name="notification_permission_title">Notifications</string>
     <string name="notification_permission_body">Kurome needs to show a notification to run a foreground service, which is used for discovering and connecting to other devices</string>
     <string name="notification_permission_denied_permanently">You have permanently denied this permission, enable it in Settings</string>
+
 </resources>

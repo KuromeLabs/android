@@ -9,7 +9,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 import com.kuromelabs.kurome.R
-import com.kuromelabs.kurome.application.interfaces.DeviceRepository
+import com.kuromelabs.kurome.application.repository.DeviceRepository
 import com.kuromelabs.kurome.application.interfaces.SecurityService
 import com.kuromelabs.kurome.infrastructure.device.IdentityProvider
 import com.kuromelabs.kurome.infrastructure.network.LinkProvider

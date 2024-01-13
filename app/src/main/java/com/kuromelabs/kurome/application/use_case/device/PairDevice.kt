@@ -1,6 +1,6 @@
 package com.kuromelabs.kurome.application.use_case.device
 
-import com.kuromelabs.kurome.application.interfaces.DeviceRepository
+import com.kuromelabs.kurome.application.repository.DeviceRepository
 import com.kuromelabs.kurome.domain.Device
 
 

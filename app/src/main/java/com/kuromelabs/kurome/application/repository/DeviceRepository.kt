@@ -1,4 +1,4 @@
-package com.kuromelabs.kurome.application.interfaces
+package com.kuromelabs.kurome.application.repository
 
 import com.kuromelabs.kurome.domain.Device
 import kotlinx.coroutines.flow.Flow
@@ -12,9 +12,7 @@ interface DeviceRepository {
 
     suspend fun insert(device: Device)
 
-    fun getActiveDevices(): StateFlow<HashMap<String, Device>>
+    fun getDeviceContexts(): StateFlow<HashMap<String, DeviceContext>>
 
-    fun addActiveDevice(device: Device)
-
-    fun removeActiveDevice(device: Device)
+    fun setDeviceState(device: Device, state: DeviceContext.State)
 }
