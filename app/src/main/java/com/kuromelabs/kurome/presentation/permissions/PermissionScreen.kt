@@ -20,10 +20,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Surface
-import androidx.compose.material.Text
-import androidx.compose.material.TextButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
@@ -56,11 +56,11 @@ fun PermissionScreen(
         ) {
             Text(
                 text = resources.getString(R.string.permissions_title),
-                style = MaterialTheme.typography.h3
+                style = MaterialTheme.typography.displaySmall
             )
             Text(
                 text = resources.getString(R.string.permissions_body),
-                style = MaterialTheme.typography.subtitle1
+                style = MaterialTheme.typography.titleMedium
             )
 
             //if android is R or higher, show MANAGE_EXTERNAL_STORAGE card, otherwise show
@@ -184,7 +184,7 @@ fun PermissionRow(
     Surface(
         modifier = Modifier
             .padding(top = 20.dp)
-            .border(BorderStroke(2.dp, MaterialTheme.colors.primary), RoundedCornerShape(5.dp))
+            .border(BorderStroke(2.dp, MaterialTheme.colorScheme.primary), RoundedCornerShape(5.dp))
             .fillMaxWidth()
     ) {
         Row(
@@ -194,11 +194,11 @@ fun PermissionRow(
             Column(modifier = Modifier.weight(0.7f)) {
                 Text(
                     text = permissionTitle,
-                    style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.ExtraBold)
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold)
                 )
                 Text(
                     text = permissionBody,
-                    style = MaterialTheme.typography.body2,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
             TextButton(
@@ -209,7 +209,7 @@ fun PermissionRow(
                 Text(
                     text = if (permissionStatus == PermissionStatus.Granted) resources.getString(R.string.granted_permission)
                     else resources.getString(R.string.grant_permission),
-                    style = MaterialTheme.typography.button
+                    style = MaterialTheme.typography.labelLarge
                 )
             }
         }

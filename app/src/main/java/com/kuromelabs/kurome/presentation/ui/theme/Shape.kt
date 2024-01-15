@@ -1,7 +1,7 @@
-package com.kuromelabs.kurome.UI.theme
+package com.kuromelabs.kurome.presentation.ui.theme
 
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.Shapes
+import androidx.compose.material3.Shapes
 import androidx.compose.ui.unit.dp
 
 val Shapes = Shapes(

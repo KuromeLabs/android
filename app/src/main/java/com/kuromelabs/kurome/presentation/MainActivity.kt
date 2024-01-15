@@ -10,6 +10,10 @@ import android.os.Environment
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -24,7 +28,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.preference.PreferenceManager
-import com.kuromelabs.kurome.UI.theme.KuromeTheme
+import com.kuromelabs.kurome.presentation.ui.theme.KuromeTheme
 import com.kuromelabs.kurome.background.KuromeService
 import com.kuromelabs.kurome.presentation.devices.DevicesScreen
 import com.kuromelabs.kurome.presentation.permissions.PermissionScreen
@@ -46,19 +50,25 @@ class MainActivity : ComponentActivity() {
                 Timber.d("Entering MainActivity Composition")
 
                 val navController = rememberNavController()
-                NavHost(
-                    navController = navController,
-                    startDestination = if (permissionsMap.any { it.value != PermissionStatus.Granted })
-                        Screen.PermissionsScreen.route
-                    else Screen.DevicesScreen.route
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.inverseOnSurface)
                 ) {
-                    composable(route = Screen.PermissionsScreen.route) {
-                        PermissionScreen(permissionsMap)
-                    }
-                    composable(route = Screen.DevicesScreen.route) {
-                        BackHandler(true) { finish() }
-                        startService()
-                        DevicesScreen(navController = navController, modifier = Modifier)
+                    NavHost(
+                        navController = navController,
+                        startDestination = if (permissionsMap.any { it.value != PermissionStatus.Granted })
+                            Screen.PermissionsScreen.route
+                        else Screen.DevicesScreen.route,
+                    ) {
+                        composable(route = Screen.PermissionsScreen.route) {
+                            PermissionScreen(permissionsMap)
+                        }
+                        composable(route = Screen.DevicesScreen.route) {
+                            BackHandler(true) { finish() }
+                            startService()
+                            DevicesScreen(navController = navController, modifier = Modifier)
+                        }
                     }
                 }
                 val lifecycleOwner = LocalLifecycleOwner.current
@@ -91,10 +101,12 @@ class MainActivity : ComponentActivity() {
             permissionMap[Manifest.permission.MANAGE_EXTERNAL_STORAGE] =
                 if (Environment.isExternalStorageManager()) PermissionStatus.Granted else PermissionStatus.Denied
         } else {
-            permissionMap[Manifest.permission.WRITE_EXTERNAL_STORAGE] = checkPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            permissionMap[Manifest.permission.WRITE_EXTERNAL_STORAGE] =
+                checkPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissionMap[Manifest.permission.POST_NOTIFICATIONS] = checkPermission(Manifest.permission.POST_NOTIFICATIONS)
+            permissionMap[Manifest.permission.POST_NOTIFICATIONS] =
+                checkPermission(Manifest.permission.POST_NOTIFICATIONS)
         } else {
             permissionMap[Manifest.permission.POST_NOTIFICATIONS] = PermissionStatus.Granted
         }
