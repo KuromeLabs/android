@@ -6,21 +6,26 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kuromelabs.kurome.application.repository.DeviceContext
 import com.kuromelabs.kurome.application.use_case.device.DeviceUseCases
+import com.kuromelabs.kurome.domain.Device
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import javax.inject.Inject
 
 @HiltViewModel
 class DeviceViewModel @Inject constructor(
     private val deviceUseCases: DeviceUseCases
 ) : ViewModel() {
-    private var _state = mutableStateOf(emptyList<DeviceContext>())
-    var state: State<List<DeviceContext>> = _state
+    private var _connectedDevices = mutableStateOf(emptyList<DeviceContext>())
+    var connectedDevices: State<List<DeviceContext>> = _connectedDevices
     private var getDevicesJob: Job? = null
+
+    private var _selectedDevice = mutableStateOf(DeviceContext(Device("", "v"), DeviceContext.State.DISCONNECTED))
+    var selectedDevice: State<DeviceContext> = _selectedDevice
 
     init {
         getDevices()
@@ -39,7 +44,16 @@ class DeviceViewModel @Inject constructor(
     private fun getDevices() {
         getDevicesJob?.cancel()
         getDevicesJob = deviceUseCases.getConnectedDevices()
-            .onEach { _state.value = it }
+            .onEach { _connectedDevices.value = it }
             .launchIn(viewModelScope)
+    }
+
+    fun setSelectedDevice(deviceContext: DeviceContext) {
+        Timber.d("Selected device: ${deviceContext.device.name}")
+        _selectedDevice.value = deviceContext
+    }
+
+    fun clearSelectedDevice() {
+        _selectedDevice.value = DeviceContext(Device("", "v"), DeviceContext.State.DISCONNECTED)
     }
 }

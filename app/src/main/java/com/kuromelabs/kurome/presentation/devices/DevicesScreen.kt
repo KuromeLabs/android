@@ -14,7 +14,6 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.kuromelabs.kurome.presentation.devices.components.DeviceRow
 import com.kuromelabs.kurome.presentation.util.Screen
@@ -22,7 +21,7 @@ import com.kuromelabs.kurome.presentation.util.Screen
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DevicesScreen(
-    viewModel: DeviceViewModel = hiltViewModel(),
+    viewModel: DeviceViewModel,
     modifier: Modifier,
     navController: NavController
 ) {
@@ -37,12 +36,11 @@ fun DevicesScreen(
         },
     ) { innerPadding ->
         LazyColumn(modifier = modifier.padding(innerPadding)) {
-            items(viewModel.state.value) { deviceContext ->
-                DeviceRow(deviceContext, Modifier.clickable(
-                    onClick = {
-                        viewModel.onEvent(DevicesEvent.PairDevice(deviceContext.device))
-                    }
-                ))
+            items(viewModel.connectedDevices.value) { deviceContext ->
+                DeviceRow(deviceContext, Modifier.clickable {
+                    viewModel.setSelectedDevice(deviceContext)
+                    navController.navigate(Screen.DeviceDetailScreen.route)
+                })
             }
         }
     }

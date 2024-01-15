@@ -1,5 +1,6 @@
 package com.kuromelabs.kurome.presentation.devices
 
+import com.kuromelabs.kurome.application.repository.DeviceContext
 import com.kuromelabs.kurome.domain.Device
 
 sealed class DevicesEvent {

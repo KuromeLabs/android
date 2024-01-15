@@ -14,22 +14,31 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModel
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.preference.PreferenceManager
 import com.kuromelabs.kurome.presentation.ui.theme.KuromeTheme
 import com.kuromelabs.kurome.background.KuromeService
+import com.kuromelabs.kurome.presentation.devices.DeviceViewModel
+import com.kuromelabs.kurome.presentation.devices.DevicesDetailScreen
 import com.kuromelabs.kurome.presentation.devices.DevicesScreen
 import com.kuromelabs.kurome.presentation.permissions.PermissionScreen
 import com.kuromelabs.kurome.presentation.permissions.PermissionStatus
@@ -67,7 +76,18 @@ class MainActivity : ComponentActivity() {
                         composable(route = Screen.DevicesScreen.route) {
                             BackHandler(true) { finish() }
                             startService()
-                            DevicesScreen(navController = navController, modifier = Modifier)
+                            val backstackEntry = remember(it) { navController.getBackStackEntry(Screen.DevicesScreen.route) }
+                            val viewModel = hiltViewModel<DeviceViewModel>(backstackEntry)
+                            DevicesScreen(
+                                navController = navController,
+                                modifier = Modifier,
+                                viewModel = viewModel
+                            )
+                        }
+                        composable(route = Screen.DeviceDetailScreen.route) {
+                            val backstackEntry = remember(it) { navController.getBackStackEntry(Screen.DevicesScreen.route) }
+                            val viewModel = hiltViewModel<DeviceViewModel>(backstackEntry)
+                            DevicesDetailScreen(modifier = Modifier, viewModel = viewModel)
                         }
                     }
                 }
@@ -142,4 +162,3 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-
