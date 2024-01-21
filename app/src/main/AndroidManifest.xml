@@ -26,7 +26,7 @@
         android:theme="@style/Theme.Material3.DynamicColors.DayNight.NoActionBar">
 
         <service
-            android:name="com.kuromelabs.kurome.background.KuromeService"
+            android:name="com.kuromelabs.kurome.presentation.service.KuromeService"
             android:foregroundServiceType="specialUse"
             android:exported="false"
             />

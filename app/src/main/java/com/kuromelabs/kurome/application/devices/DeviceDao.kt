@@ -1,10 +1,9 @@
-package com.kuromelabs.kurome.application.data_source
+package com.kuromelabs.kurome.application.devices
 
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import com.kuromelabs.kurome.domain.Device
 import kotlinx.coroutines.flow.Flow
 
 @Dao

@@ -1,4 +1,4 @@
-package com.kuromelabs.kurome.presentation.permissions
+package com.kuromelabs.kurome.presentation.ui.permissions
 
 
 enum class PermissionStatus(val value: Int) {

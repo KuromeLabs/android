@@ -20,7 +20,8 @@ import java.util.Date
 import javax.inject.Inject
 
 class SslService @Inject constructor(
-    var context: Context
+    var context: Context,
+    var identityProvider: IdentityProvider
 ) : SecurityService<X509Certificate, KeyPair> {
 
     private var certificate: X509Certificate? = null

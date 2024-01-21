@@ -1,7 +1,6 @@
-package com.kuromelabs.kurome.presentation.devices
+package com.kuromelabs.kurome.presentation.ui.devices
 
-import com.kuromelabs.kurome.application.repository.DeviceContext
-import com.kuromelabs.kurome.domain.Device
+import com.kuromelabs.kurome.application.devices.Device
 
 sealed class DevicesEvent {
     data class PairDevice(val device: Device) : DevicesEvent()

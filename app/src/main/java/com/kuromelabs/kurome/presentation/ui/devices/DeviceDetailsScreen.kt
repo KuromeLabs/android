@@ -1,4 +1,4 @@
-package com.kuromelabs.kurome.presentation.devices
+package com.kuromelabs.kurome.presentation.ui.devices
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -38,7 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.kuromelabs.kurome.R
-import com.kuromelabs.kurome.application.repository.DeviceContext
+import com.kuromelabs.kurome.infrastructure.device.DeviceState
 
 
 @Composable
@@ -46,9 +46,9 @@ fun DeviceDetailsScreen(
     viewModel: DeviceDetailsViewModel = hiltViewModel(),
     navController: NavController
 ) {
-    val deviceContext = viewModel.deviceContext.collectAsState().value
+    val deviceState = viewModel.deviceContext.collectAsState().value
 
-    DeviceDetails(deviceContext.device.name, deviceContext.device.id, deviceContext.state, onBackButtonClicked = {
+    DeviceDetails(deviceState.device.name, deviceState.device.id, deviceState.status, onBackButtonClicked = {
         navController.popBackStack()
     })
 }
@@ -58,17 +58,17 @@ fun DeviceDetailsScreen(
 fun DeviceDetails(
     name: String,
     id: String,
-    state: DeviceContext.State,
+    state: DeviceState.Status,
     onBackButtonClicked: () -> Unit = { }
 ) {
     val scrollBehavior =
         TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
     val resources = LocalContext.current.resources
     val stateString = when (state) {
-        DeviceContext.State.CONNECTED_TRUSTED -> resources.getString(R.string.status_connected)
-        DeviceContext.State.DISCONNECTED -> resources.getString(R.string.status_disconnected)
-        DeviceContext.State.CONNECTED_UNTRUSTED -> resources.getString(R.string.status_available)
-        DeviceContext.State.CONNECTING -> resources.getString(R.string.status_connecting)
+        DeviceState.Status.CONNECTED_TRUSTED -> resources.getString(R.string.status_connected)
+        DeviceState.Status.DISCONNECTED -> resources.getString(R.string.status_disconnected)
+        DeviceState.Status.CONNECTED_UNTRUSTED -> resources.getString(R.string.status_available)
+        DeviceState.Status.CONNECTING -> resources.getString(R.string.status_connecting)
         else -> "Unknown"
     }
 
@@ -151,13 +151,13 @@ fun DeviceDetails(
 }
 
 @Composable
-fun ActionRow(state: DeviceContext.State) {
+fun ActionRow(state: DeviceState.Status) {
     Row(
         horizontalArrangement = Arrangement.Center,
         modifier = Modifier
             .fillMaxWidth()
     ) {
-        if (state == DeviceContext.State.CONNECTED_TRUSTED) {
+        if (state == DeviceState.Status.CONNECTED_TRUSTED) {
             Button(onClick = { /*TODO*/ },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.surface,
@@ -173,7 +173,7 @@ fun ActionRow(state: DeviceContext.State) {
                     Text(text = "Pair")
                 }
             }
-        } else if (state == DeviceContext.State.CONNECTED_UNTRUSTED) {
+        } else if (state == DeviceState.Status.CONNECTED_UNTRUSTED) {
             IconButton(onClick = { /*TODO*/ }) {
                 Column {
                     Icon(
@@ -195,7 +195,7 @@ fun DevicesDetailScreenPreview() {
     DeviceDetails(
         name = "Device Name",
         id = "Device ID",
-        state = DeviceContext.State.CONNECTED_TRUSTED
+        state = DeviceState.Status.CONNECTED_TRUSTED
     )
 }
 

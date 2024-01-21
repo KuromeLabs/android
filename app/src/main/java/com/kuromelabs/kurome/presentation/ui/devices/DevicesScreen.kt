@@ -1,4 +1,4 @@
-package com.kuromelabs.kurome.presentation.devices
+package com.kuromelabs.kurome.presentation.ui.devices
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.kuromelabs.kurome.R
-import com.kuromelabs.kurome.application.repository.DeviceContext
+import com.kuromelabs.kurome.infrastructure.device.DeviceState
 import com.kuromelabs.kurome.presentation.util.Screen
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,7 +59,7 @@ fun DevicesScreen(
 }
 
 @Composable
-fun DeviceRow(context: DeviceContext, modifier: Modifier) {
+fun DeviceRow(context: DeviceState, modifier: Modifier) {
     val resources = LocalContext.current.resources
     Row(
         modifier = modifier
@@ -80,11 +80,11 @@ fun DeviceRow(context: DeviceContext, modifier: Modifier) {
                 style = MaterialTheme.typography.titleMedium,
             )
             Text(
-                text = when (context.state) {
-                    DeviceContext.State.CONNECTED_TRUSTED -> resources.getString(R.string.status_connected)
-                    DeviceContext.State.DISCONNECTED -> resources.getString(R.string.status_disconnected)
-                    DeviceContext.State.CONNECTED_UNTRUSTED -> resources.getString(R.string.status_available)
-                    DeviceContext.State.CONNECTING -> resources.getString(R.string.status_connecting)
+                text = when (context.status) {
+                    DeviceState.Status.CONNECTED_TRUSTED -> resources.getString(R.string.status_connected)
+                    DeviceState.Status.DISCONNECTED -> resources.getString(R.string.status_disconnected)
+                    DeviceState.Status.CONNECTED_UNTRUSTED -> resources.getString(R.string.status_available)
+                    DeviceState.Status.CONNECTING -> resources.getString(R.string.status_connecting)
                     else -> "Unknown"
                 },
                 style = MaterialTheme.typography.bodyMedium,

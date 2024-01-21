@@ -1,4 +1,4 @@
-package com.kuromelabs.kurome.application
+package com.kuromelabs.kurome.infrastructure.device
 
 import Kurome.Fbs.Component
 import Kurome.Fbs.CreateDirectoryCommand
@@ -16,7 +16,7 @@ import Kurome.Fbs.WriteFileCommand
 import android.os.Build
 import android.os.Environment
 import com.google.flatbuffers.FlatBufferBuilder
-import com.kuromelabs.kurome.domain.Device
+import com.kuromelabs.kurome.infrastructure.network.Link
 import timber.log.Timber
 import java.io.File
 import java.io.RandomAccessFile
@@ -27,9 +27,7 @@ import java.nio.file.Paths
 import java.nio.file.attribute.BasicFileAttributeView
 import java.nio.file.attribute.FileTime
 
-class FilesystemAccessor constructor(
-    val device: Device
-) {
+class FilesystemPacketHandler(val link: Link) {
 
     class ExtraAttribute {
         companion object {
@@ -140,7 +138,7 @@ class FilesystemAccessor constructor(
         val packet = Packet.createPacket(builder, type, response, responseId)
         builder.finishSizePrefixed(packet)
         val buffer = builder.dataBuffer()
-        device.sendPacket(buffer)
+        link.send(buffer)
     }
 
     private fun fileToFbs(builder: FlatBufferBuilder, path: String): Int {

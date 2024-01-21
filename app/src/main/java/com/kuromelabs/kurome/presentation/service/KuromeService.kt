@@ -1,4 +1,4 @@
-package com.kuromelabs.kurome.background
+package com.kuromelabs.kurome.presentation.service
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -9,10 +9,10 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 import com.kuromelabs.kurome.R
-import com.kuromelabs.kurome.application.repository.DeviceRepository
+import com.kuromelabs.kurome.application.devices.DeviceRepository
 import com.kuromelabs.kurome.application.interfaces.SecurityService
-import com.kuromelabs.kurome.infrastructure.device.IdentityProvider
-import com.kuromelabs.kurome.infrastructure.network.LinkProvider
+import com.kuromelabs.kurome.infrastructure.device.DeviceService
+import com.kuromelabs.kurome.infrastructure.network.NetworkService
 import com.kuromelabs.kurome.presentation.MainActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -30,7 +30,6 @@ class KuromeService : LifecycleService() {
     private val scope = CoroutineScope(Dispatchers.IO + job)
 
 
-    var identityProvider = IdentityProvider(this)
     @Inject
     lateinit var securityService: SecurityService<X509Certificate, KeyPair>
 
@@ -39,10 +38,13 @@ class KuromeService : LifecycleService() {
     lateinit var repository: DeviceRepository
     private var isServiceStarted = false
 
+    @Inject
+    lateinit var linkProvider: NetworkService
 
+    @Inject
+    lateinit var deviceService: DeviceService
     override fun onCreate() {
         super.onCreate()
-        var linkProvider = LinkProvider(securityService, scope, this, repository)
         linkProvider.start()
         createNotificationChannel()
     }

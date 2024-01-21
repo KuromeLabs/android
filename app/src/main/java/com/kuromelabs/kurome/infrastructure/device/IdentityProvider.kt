@@ -4,8 +4,9 @@ import android.content.Context
 import android.os.Build
 import androidx.preference.PreferenceManager
 import java.util.UUID
+import javax.inject.Inject
 
-class IdentityProvider(var context: Context)  {
+class IdentityProvider @Inject constructor(var context: Context)  {
     private var id: String? = null
     fun getEnvironmentName(): String {
         return Build.MODEL

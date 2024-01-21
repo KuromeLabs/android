@@ -1,32 +1,37 @@
-package com.kuromelabs.kurome.domain
+package com.kuromelabs.kurome.infrastructure.device
 
 import Kurome.Fbs.Component
 import Kurome.Fbs.DeviceQuery
 import Kurome.Fbs.DeviceQueryResponse
 import Kurome.Fbs.Packet
-import android.content.Context
 import android.os.Build
 import android.os.Environment
 import android.os.StatFs
-import androidx.room.ColumnInfo
-import androidx.room.Entity
-import androidx.room.Ignore
-import androidx.room.PrimaryKey
 import com.google.flatbuffers.FlatBufferBuilder
-import com.kuromelabs.kurome.application.FilesystemAccessor
-import com.kuromelabs.kurome.infrastructure.device.IdentityProvider
 import com.kuromelabs.kurome.infrastructure.network.Link
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.nio.ByteBuffer
 
-
-@Entity(tableName = "device_table")
-class Device(
-    @PrimaryKey @ColumnInfo(name = "id") val id: String,
-    @ColumnInfo(name = "name") val name: String
+class DevicePacketHandler(
+    private val link: Link,
+    private val scope: CoroutineScope,
+    private val identityProvider: IdentityProvider
 ) {
+    private var handleJob: Job? = null
+    private var fsAccessor = FilesystemPacketHandler(link)
+    fun startHandling() {
+        handleJob = scope.launch {
+            link.receivedPackets.collect {
+                processPacket(it)
+            }
+        }
+    }
+
+    fun stopHandling() {
+        handleJob?.cancel()
+    }
 
     private fun processPacket(packet: Packet) {
 
@@ -64,39 +69,7 @@ class Device(
 
     }
 
-    @Ignore
-    var link: Link? = null
-
-    @Ignore
-    private var fsAccessor = FilesystemAccessor(this)
-
-    @Ignore
-    private var packetJob: Job? = null
-
-    @Ignore
-    lateinit var context: Context
-
-    @Ignore
-    lateinit var identityProvider: IdentityProvider
-
-    fun connect(link: Link, scope: CoroutineScope, context: Context) {
-        this.link = link
-        this.context = context
-        this.identityProvider = IdentityProvider(context)
-        packetJob = scope.launch {
-            link.receivedPackets.collect {
-                processPacket(it)
-            }
-        }
+    private fun sendPacket(packet: ByteBuffer) {
+        link.send(packet)
     }
-
-    fun disconnect() {
-        link?.close()
-        packetJob?.cancel()
-    }
-
-    fun sendPacket(packet: ByteBuffer) {
-        link?.send(packet)
-    }
-
 }

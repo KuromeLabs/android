@@ -6,6 +6,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -22,6 +23,8 @@ class Link(var socket: SSLSocket, var scope: CoroutineScope) {
     private val _isConnected = MutableSharedFlow<Boolean>(1)
 
     val isConnected = _isConnected.asSharedFlow()
+
+    private var isClosed = false
     suspend fun receive(buffer: ByteArray, size: Int): Int {
         return try {
             var bytesRead = 0
@@ -46,12 +49,18 @@ class Link(var socket: SSLSocket, var scope: CoroutineScope) {
     }
 
     fun close() {
+        if (isClosed) return
+        isClosed = true
         Timber.d("Closing link")
-        outputChannel.close()
-        socket.close()
+        try {
+            outputChannel.close()
+            socket.close()
+        } catch (e: Exception) {
+            Timber.e(e, "Error closing socket")
+        }
     }
 
-    suspend fun start() {
+    fun start() = scope.launch {
         _isConnected.emit(true)
         while (scope.coroutineContext.isActive) {
             val sizeBuffer = ByteArray(4)

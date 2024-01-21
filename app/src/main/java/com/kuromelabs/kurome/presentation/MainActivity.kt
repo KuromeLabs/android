@@ -28,11 +28,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.preference.PreferenceManager
-import com.kuromelabs.kurome.background.KuromeService
-import com.kuromelabs.kurome.presentation.devices.DeviceDetailsScreen
-import com.kuromelabs.kurome.presentation.devices.DevicesScreen
-import com.kuromelabs.kurome.presentation.permissions.PermissionScreen
-import com.kuromelabs.kurome.presentation.permissions.PermissionStatus
+import com.kuromelabs.kurome.presentation.service.KuromeService
+import com.kuromelabs.kurome.presentation.ui.devices.DeviceDetailsScreen
+import com.kuromelabs.kurome.presentation.ui.devices.DevicesScreen
+import com.kuromelabs.kurome.presentation.ui.permissions.PermissionScreen
+import com.kuromelabs.kurome.presentation.ui.permissions.PermissionStatus
 import com.kuromelabs.kurome.presentation.ui.theme.KuromeTheme
 import com.kuromelabs.kurome.presentation.util.Screen
 import dagger.hilt.android.AndroidEntryPoint
