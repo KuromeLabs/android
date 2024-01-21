@@ -7,6 +7,7 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import com.kuromelabs.kurome.infrastructure.device.DeviceService
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -21,19 +22,23 @@ class NetworkService(
     var deviceService: DeviceService
 ) {
     private val udpListenPort = 33586
+    private var udpListenJob: Job? = null
 
     private val connectivityManager =
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
 
     private fun registerNetworkCallback(networkCallback: ConnectivityManager.NetworkCallback) {
-        val networkRequest = NetworkRequest.Builder()
+        val networkRequestBuilder = NetworkRequest.Builder()
             .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
             .addTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
             .addTransportType(NetworkCapabilities.TRANSPORT_VPN)
-            .build()
 
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            networkRequestBuilder.addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        }
 
+        val networkRequest = networkRequestBuilder.build()
         connectivityManager.registerNetworkCallback(networkRequest, networkCallback)
 
     }
@@ -45,20 +50,19 @@ class NetworkService(
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
 
         override fun onAvailable(network: Network) {
-            // Called when a network is available
-
+            if (udpListenJob == null || !udpListenJob!!.isActive)
+                udpListenJob = startUdpListener()
         }
 
         override fun onLost(network: Network) {
-            // Called when a network is lost
-//
+            udpListenJob?.cancel()
             deviceService.onNetworkLost()
         }
     }
 
     fun start() {
         registerNetworkCallback(networkCallback)
-        startUdpListener()
+        udpListenJob = startUdpListener()
     }
 
     suspend fun createServerLink(client: Socket): Link {
@@ -78,7 +82,7 @@ class NetworkService(
                 if (!udpSocket.isClosed) {
                     val buffer = ByteArray(1024)
                     val packet = DatagramPacket(buffer, buffer.size)
-//                        Timber.d("Waiting for incoming UDP")
+                        Timber.d("Waiting for incoming UDP")
                     udpSocket.receive(packet)
                     val message = String(packet.data, packet.offset, packet.length)
                     Timber.d("received UDP: $message")
