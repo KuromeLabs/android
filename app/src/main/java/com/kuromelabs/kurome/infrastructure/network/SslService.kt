@@ -1,6 +1,5 @@
 package com.kuromelabs.kurome.infrastructure.network
 
-import android.content.Context
 import com.kuromelabs.kurome.application.interfaces.SecurityService
 import com.kuromelabs.kurome.infrastructure.device.IdentityProvider
 import org.bouncycastle.asn1.x500.X500NameBuilder
@@ -20,18 +19,17 @@ import java.util.Date
 import javax.inject.Inject
 
 class SslService @Inject constructor(
-    var context: Context,
-    var identityProvider: IdentityProvider
+    identityProvider: IdentityProvider
 ) : SecurityService<X509Certificate, KeyPair> {
 
     private var certificate: X509Certificate? = null
     private var keyPair: KeyPair? = null
-    private val BC = BouncyCastleProvider()
+    private val bc = BouncyCastleProvider()
 
     init {
         initializeKeys()
         val nameBuilder = X500NameBuilder(BCStyle.INSTANCE)
-        nameBuilder.addRDN(BCStyle.CN, IdentityProvider(context).getEnvironmentId())
+        nameBuilder.addRDN(BCStyle.CN, identityProvider.getEnvironmentId())
         nameBuilder.addRDN(BCStyle.OU, "Kurome")
         nameBuilder.addRDN(BCStyle.O, "Kurome Labs")
         val certificateBuilder: X509v3CertificateBuilder = JcaX509v3CertificateBuilder(
@@ -49,9 +47,9 @@ class SslService @Inject constructor(
             keyPair!!.public
         )
         val contentSigner = JcaContentSignerBuilder("SHA256WithRSAEncryption")
-            .setProvider(BC)
+            .setProvider(bc)
             .build(keyPair!!.private)
-        certificate = JcaX509CertificateConverter().setProvider(BC)
+        certificate = JcaX509CertificateConverter().setProvider(bc)
             .getCertificate(certificateBuilder.build(contentSigner))
     }
 

@@ -95,9 +95,8 @@ object AppModule {
     @Singleton
     @Provides
     fun provideSecurityService(
-        @ApplicationContext context: Context,
         identityProvider: IdentityProvider
     ): SecurityService<X509Certificate, KeyPair> {
-        return SslService(context, identityProvider)
+        return SslService(identityProvider)
     }
 }

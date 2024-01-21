@@ -1,6 +1,5 @@
 package com.kuromelabs.kurome.presentation.ui.devices
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kuromelabs.kurome.application.use_case.device.DeviceUseCases
@@ -14,8 +13,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class DeviceViewModel @Inject constructor(
-    private val deviceUseCases: DeviceUseCases,
-    savedStateHandle: SavedStateHandle
+    deviceUseCases: DeviceUseCases
 ) : ViewModel() {
 
     var connectedDevices: StateFlow<List<DeviceState>> = deviceUseCases.getConnectedDevices()

@@ -25,7 +25,7 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class KuromeService : LifecycleService() {
-    private val CHANNEL_ID = "ForegroundServiceChannel"
+    private val channelId = "ForegroundServiceChannel"
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
 
@@ -61,7 +61,7 @@ class KuromeService : LifecycleService() {
         val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent =
             PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        return NotificationCompat.Builder(this, channelId)
             .setContentTitle("Kurome is running in the background")
             .setContentText("Tap to hide notification (no effect on functionality)")
             .setSmallIcon(R.drawable.ic_launcher_background)
@@ -78,7 +78,7 @@ class KuromeService : LifecycleService() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val serviceChannel = NotificationChannel(
-                CHANNEL_ID,
+                channelId,
                 "Foreground Service Channel",
                 NotificationManager.IMPORTANCE_DEFAULT
             )

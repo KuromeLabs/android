@@ -38,7 +38,7 @@ class DevicePacketHandler(
         if (packet.componentType == Component.DeviceQuery) {
             val builder = FlatBufferBuilder(256)
             val deviceQuery = packet.component(DeviceQuery()) as DeviceQuery
-            val response = processDeviceQuery(builder, deviceQuery)
+            val response = processDeviceQuery(builder)
 
             val p = Packet.createPacket(
                 builder,
@@ -54,10 +54,10 @@ class DevicePacketHandler(
         }
     }
 
-    private fun processDeviceQuery(builder: FlatBufferBuilder, q: DeviceQuery): Int {
+    private fun processDeviceQuery(builder: FlatBufferBuilder): Int {
         val name = Build.MODEL
         val statFs = StatFs(Environment.getDataDirectory().path)
-        val response = DeviceQueryResponse.createDeviceQueryResponse(
+        return DeviceQueryResponse.createDeviceQueryResponse(
             builder,
             statFs.totalBytes,
             statFs.freeBytes,
@@ -65,7 +65,6 @@ class DevicePacketHandler(
             builder.createString(identityProvider.getEnvironmentId()),
             builder.createString("")
         )
-        return response
 
     }
 

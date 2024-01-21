@@ -14,7 +14,7 @@ import java.nio.channels.Channels
 import javax.net.ssl.SSLSocket
 
 
-class Link(var socket: SSLSocket, var scope: CoroutineScope) {
+class Link(private var socket: SSLSocket, private var scope: CoroutineScope) {
 
 
     private val outputChannel = Channels.newChannel(socket.outputStream)
@@ -25,7 +25,7 @@ class Link(var socket: SSLSocket, var scope: CoroutineScope) {
     val isConnected = _isConnected.asSharedFlow()
 
     private var isClosed = false
-    suspend fun receive(buffer: ByteArray, size: Int): Int {
+    private fun receive(buffer: ByteArray, size: Int): Int {
         return try {
             var bytesRead = 0
             while (bytesRead != size && bytesRead >= 0)

@@ -27,7 +27,7 @@ import java.nio.file.Paths
 import java.nio.file.attribute.BasicFileAttributeView
 import java.nio.file.attribute.FileTime
 
-class FilesystemPacketHandler(val link: Link) {
+class FilesystemPacketHandler(private val link: Link) {
 
     class ExtraAttribute {
         companion object {

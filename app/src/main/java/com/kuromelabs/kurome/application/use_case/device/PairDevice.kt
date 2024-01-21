@@ -6,7 +6,7 @@ import com.kuromelabs.kurome.application.devices.DeviceRepository
 
 class PairDevice(private val repository: DeviceRepository) {
 
-    suspend operator fun invoke(device: Device) {
+    operator fun invoke(device: Device) {
         //TODO: Implement
     }
 }

@@ -17,7 +17,7 @@ import java.net.InetSocketAddress
 import java.net.Socket
 
 class NetworkService(
-    var scope: CoroutineScope,
+    private var scope: CoroutineScope,
     var context: Context,
     var deviceService: DeviceService
 ) {
@@ -65,7 +65,7 @@ class NetworkService(
         udpListenJob = startUdpListener()
     }
 
-    suspend fun createServerLink(client: Socket): Link {
+    fun createServerLink(client: Socket): Link {
         TODO("Not yet implemented")
     }
 
@@ -82,7 +82,7 @@ class NetworkService(
                 if (!udpSocket.isClosed) {
                     val buffer = ByteArray(1024)
                     val packet = DatagramPacket(buffer, buffer.size)
-                        Timber.d("Waiting for incoming UDP")
+                    Timber.d("Waiting for incoming UDP")
                     udpSocket.receive(packet)
                     val message = String(packet.data, packet.offset, packet.length)
                     Timber.d("received UDP: $message")

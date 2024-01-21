@@ -31,9 +31,9 @@ import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 
 class DeviceService(
-    var scope: CoroutineScope,
-    var identityProvider: IdentityProvider,
-    var securityService: SecurityService<X509Certificate, KeyPair>,
+    private var scope: CoroutineScope,
+    private var identityProvider: IdentityProvider,
+    private var securityService: SecurityService<X509Certificate, KeyPair>,
     var deviceRepository: DeviceRepository,
 ) {
     // flow of device states
@@ -60,7 +60,7 @@ class DeviceService(
                 Timber.d("Connecting to socket $ip:$port")
                 socket.connect(InetSocketAddress(ip, port))
                 Timber.d("Sending identity to device $name:$id at $ip:$port")
-                sendIdentity(socket, ip, port)
+                sendIdentity(socket)
 
                 Timber.d("Upgrading $ip:$port to SSL")
                 val sslSocket = upgradeToSslSocket(socket, true)
@@ -150,7 +150,7 @@ class DeviceService(
         return sslSocket
     }
 
-    private fun sendIdentity(socket: Socket, ip: String, port: Int) {
+    private fun sendIdentity(socket: Socket) {
         val builder = FlatBufferBuilder(256)
 
         val id = identityProvider.getEnvironmentId()
