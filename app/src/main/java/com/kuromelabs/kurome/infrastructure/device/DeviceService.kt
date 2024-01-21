@@ -42,67 +42,69 @@ class DeviceService(
 
     private val _deviceContexts: MutableMap<String, DeviceContext> = mutableMapOf()
 
-    fun handleUdp(name: String, id: String, ip: String, port: Int) = scope.launch {
-
+    fun handleUdp(name: String, id: String, ip: String, port: Int) {
         if (_deviceStates.value.containsKey(id)) {
-            Timber.d("Device $id is already connected or connecting")
-            return@launch
+            Timber.d("Device $id is already connected or connecting, ignoring")
+            return
         }
         val device = Device(id, name)
-
         _deviceStates.update { states ->
             states.toMutableMap().also {
                 it[id] = DeviceState(device, DeviceState.Status.CONNECTING)
             }
         }
+        scope.launch {
+            val socket = Socket()
+            val result = try {
+                socket.reuseAddress = true
+                Timber.d("Connecting to socket $ip:$port")
+                socket.connect(InetSocketAddress(ip, port))
+                Timber.d("Sending identity to device $name:$id at $ip:$port")
+                sendIdentity(socket, ip, port)
 
-        val socket = Socket()
-        val result = try {
-            socket.reuseAddress = true
-            Timber.d("Connecting to socket $ip:$port")
-            socket.connect(InetSocketAddress(ip, port))
-            Timber.d("Sending identity to device $name:$id at $ip:$port")
-            sendIdentity(socket, ip, port)
+                Timber.d("Upgrading $ip:$port to SSL")
+                val sslSocket = upgradeToSslSocket(socket, true)
 
-            Timber.d("Upgrading $ip:$port to SSL")
-            val sslSocket = upgradeToSslSocket(socket, true)
+                val link = Link(sslSocket, scope)
+                Result.success(link)
+            } catch (e: Exception) {
+                socket.close()
+                Timber.e("Exception at handleUdp: $e")
+                Result.failure(e)
+            }
 
-            val link = Link(sslSocket, scope)
-            Result.success(link)
-        } catch (e: Exception) {
-            socket.close()
-            Timber.e("Exception at handleUdp: $e")
-            Result.failure(e)
-        }
+            if (result.isSuccess) {
+                Timber.d("Connected to $ip:$port, name: $name, id: $id")
+                val link = result.getOrNull()!!
+                _deviceContexts[id] =
+                    DeviceContext(DevicePacketHandler(link, scope, identityProvider), link)
+                _deviceContexts[id]!!.start()
 
-        if (result.isSuccess) {
-            Timber.d("Connected to $ip:$port, name: $name, id: $id")
-            val link = result.getOrNull()!!
-            _deviceContexts[id] = DeviceContext(DevicePacketHandler(link, scope, identityProvider), link)
-            _deviceContexts[id]!!.start()
-
-            launch {
-                link.isConnected.collect { connected ->
-                    Timber.d("Link connected status: $connected")
-                    if (!connected) {
-                        _deviceContexts[id]?.stop()
-                        _deviceContexts.remove(id)
-                        _deviceStates.update { states -> states.toMutableMap().apply { remove(id) } }
-                        currentCoroutineContext().job.cancel()
-                    } else {
-                        _deviceStates.update { states ->
-                            states.toMutableMap().apply {
-                                put(id, DeviceState(device, DeviceState.Status.CONNECTED_TRUSTED))
+                launch {
+                    link.isConnected.collect { connected ->
+                        Timber.d("Link connected status: $connected")
+                        if (!connected) {
+                            _deviceContexts[id]?.stop()
+                            _deviceContexts.remove(id)
+                            _deviceStates.update { states ->
+                                states.toMutableMap().apply { remove(id) }
+                            }
+                            currentCoroutineContext().job.cancel()
+                        } else {
+                            _deviceStates.update { states ->
+                                states.toMutableMap().apply {
+                                    put(id, DeviceState(device, DeviceState.Status.CONNECTED_TRUSTED))
+                                }
                             }
                         }
                     }
                 }
+            } else {
+                _deviceContexts[id]?.stop()
+                _deviceContexts.remove(id)
+                _deviceStates.update { states -> states.toMutableMap().apply { remove(id) } }
+                Timber.e("Failed to connect to $ip:$port")
             }
-        } else {
-            _deviceContexts[id]?.stop()
-            _deviceContexts.remove(id)
-            _deviceStates.update { states -> states.toMutableMap().apply { remove(id) } }
-            Timber.e("Failed to connect to $ip:$port")
         }
     }
 
