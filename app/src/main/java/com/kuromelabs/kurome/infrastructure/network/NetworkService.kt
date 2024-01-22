@@ -7,7 +7,6 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import com.kuromelabs.kurome.infrastructure.device.DeviceService
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -22,23 +21,19 @@ class NetworkService(
     var deviceService: DeviceService
 ) {
     private val udpListenPort = 33586
-    private var udpListenJob: Job? = null
 
     private val connectivityManager =
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
 
     private fun registerNetworkCallback(networkCallback: ConnectivityManager.NetworkCallback) {
-        val networkRequestBuilder = NetworkRequest.Builder()
+        val networkRequest = NetworkRequest.Builder()
             .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
             .addTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
             .addTransportType(NetworkCapabilities.TRANSPORT_VPN)
+            .build()
 
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            networkRequestBuilder.addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-        }
 
-        val networkRequest = networkRequestBuilder.build()
         connectivityManager.registerNetworkCallback(networkRequest, networkCallback)
 
     }
@@ -50,19 +45,20 @@ class NetworkService(
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
 
         override fun onAvailable(network: Network) {
-            if (udpListenJob == null || !udpListenJob!!.isActive)
-                udpListenJob = startUdpListener()
+            // Called when a network is available
+
         }
 
         override fun onLost(network: Network) {
-            udpListenJob?.cancel()
+            // Called when a network is lost
+//
             deviceService.onNetworkLost()
         }
     }
 
     fun start() {
         registerNetworkCallback(networkCallback)
-        udpListenJob = startUdpListener()
+        startUdpListener()
     }
 
     fun createServerLink(client: Socket): Link {
