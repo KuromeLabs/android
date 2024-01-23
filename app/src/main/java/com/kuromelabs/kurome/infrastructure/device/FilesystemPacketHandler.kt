@@ -4,6 +4,7 @@ import Kurome.Fbs.Component
 import Kurome.Fbs.CreateDirectoryCommand
 import Kurome.Fbs.CreateFileCommand
 import Kurome.Fbs.DeleteFileCommand
+import Kurome.Fbs.FailResponse
 import Kurome.Fbs.GetDirectoryResponse
 import Kurome.Fbs.GetFileInfoResponse
 import Kurome.Fbs.Node
@@ -54,52 +55,81 @@ class FilesystemPacketHandler(private val link: Link) {
     private val root: String = Environment.getExternalStorageDirectory().path
 
     fun processFileAction(packet: Packet) {
+        // we don't return anything for commands, so exceptions log and fail silently
         when (packet.componentType) {
 
             Component.CreateFileCommand -> {
                 val command = packet.component(CreateFileCommand()) as CreateFileCommand
-                Timber.d("Creating file at ${root + command.path!!}")
-                File(root + command.path!!).createNewFile()
+                try {
+                    Timber.d("Creating file at ${root + command.path!!}")
+                    File(root + command.path!!).createNewFile()
+                } catch (e: Exception) {
+                    Timber.e(e, "Error creating file at ${root + command.path!!}")
+                }
             }
 
             Component.CreateDirectoryCommand -> {
                 val command = packet.component(CreateDirectoryCommand()) as CreateDirectoryCommand
-                Timber.d("Creating directory at ${root + command.path!!}")
-                File(root + command.path!!).mkdir()
+                try {
+                    Timber.d("Creating directory at ${root + command.path!!}")
+                    File(root + command.path!!).mkdir()
+                } catch (e: Exception) {
+                    Timber.e(e, "Error creating directory at ${root + command.path!!}")
+                }
             }
 
             Component.DeleteFileCommand -> {
                 val command = packet.component(DeleteFileCommand()) as DeleteFileCommand
-                Timber.d("Deleting file at ${root + command.path!!}")
-                File(root + command.path!!).delete()
+                try {
+                    Timber.d("Deleting file at ${root + command.path!!}")
+                    File(root + command.path!!).delete()
+                } catch (e: Exception) {
+                    Timber.e(e, "Error deleting file at ${root + command.path!!}")
+                }
             }
 
             Component.RenameFileCommand -> {
                 val command = packet.component(RenameFileCommand()) as RenameFileCommand
-                Timber.d("Renaming file at ${root + command.oldPath!!} to ${root + command.newPath!!}")
-                File(root + command.oldPath!!).renameTo(File(root + command.newPath!!))
+                try {
+                    Timber.d("Renaming file at ${root + command.oldPath!!} to ${root + command.newPath!!}")
+                    File(root + command.oldPath!!).renameTo(File(root + command.newPath!!))
+                } catch (e: Exception) {
+                    Timber.e(
+                        e,
+                        "Error renaming file at ${root + command.oldPath!!} to ${root + command.newPath!!}"
+                    )
+                }
             }
 
             Component.WriteFileCommand -> {
                 val command = packet.component(WriteFileCommand()) as WriteFileCommand
-                Timber.d("Writing ${command.dataLength} bytes to ${root + command.path!!} at offset ${command.offset}")
-                writeFile(
-                    root + command.path!!,
-                    command.dataAsByteBuffer,
-                    command.offset,
-                    command.dataLength
-                )
+                try {
+                    Timber.d("Writing ${command.dataLength} bytes to ${root + command.path!!} at offset ${command.offset}")
+                    writeFile(
+                        root + command.path!!,
+                        command.dataAsByteBuffer,
+                        command.offset,
+                        command.dataLength
+                    )
+                } catch (e: Exception) {
+                    Timber.e(e, "Error writing ${command.dataLength} bytes to ${root + command.path!!} at offset ${command.offset}")
+                }
+
             }
 
             Component.SetFileInfoCommand -> {
                 val command = packet.component(SetFileInfoCommand()) as SetFileInfoCommand
-                setAttributes(
-                    root + command.path!!,
-                    command.creationTime,
-                    command.lastAccessTime,
-                    command.lastWriteTime,
-                    command.length
-                )
+                try {
+                    setAttributes(
+                        root + command.path!!,
+                        command.creationTime,
+                        command.lastAccessTime,
+                        command.lastWriteTime,
+                        command.length
+                    )
+                } catch (e: Exception) {
+                    Timber.e(e, "Error setting attributes for ${root + command.path!!}")
+                }
             }
 
             else -> {
@@ -107,22 +137,48 @@ class FilesystemPacketHandler(private val link: Link) {
                 when (packet.componentType) {
                     Component.ReadFileQuery -> {
                         val q = packet.component(ReadFileQuery()) as ReadFileQuery
-                        val response = fileBufferToFbs(builder, root + q.path!!, q.offset, q.length)
-                        sendPacket(builder, response, Component.ReadFileResponse, packet.id)
+                        try {
+                            val response = fileBufferToFbs(builder, root + q.path!!, q.offset, q.length)
+                            sendPacket(builder, response, Component.ReadFileResponse, packet.id)
+                        } catch (e: Exception) {
+                            Timber.e(e, "Error reading file at ${root + q.path!!}")
+                            sendPacket(builder, FailResponse.createFailResponse(builder, 0), Component.FailResponse, packet.id)
+                        }
+
                     }
 
                     Component.GetFileInfoQuery -> {
                         val q = packet.component(ReadFileQuery()) as ReadFileQuery
-                        val node = fileToFbs(builder, root + q.path!!)
-                        val response = GetFileInfoResponse.createGetFileInfoResponse(builder, builder.createString(root + q.path!!), node)
-                        sendPacket(builder, response, Component.GetFileInfoResponse, packet.id)
+                        try {
+                            val node = fileToFbs(builder, root + q.path!!)
+                            val response = GetFileInfoResponse.createGetFileInfoResponse(
+                                builder,
+                                builder.createString(root + q.path!!),
+                                node
+                            )
+                            sendPacket(builder, response, Component.GetFileInfoResponse, packet.id)
+                        } catch (e: Exception) {
+                            Timber.e(e, "Error getting file info for ${root + q.path!!}")
+                            sendPacket(builder, FailResponse.createFailResponse(builder, 0), Component.FailResponse, packet.id)
+                        }
+
                     }
 
                     Component.GetDirectoryQuery -> {
                         val q = packet.component(ReadFileQuery()) as ReadFileQuery
-                        val node = directoryToFbs(builder, root + q.path!!)
-                        val response = GetDirectoryResponse.createGetDirectoryResponse(builder, builder.createString(root + q.path!!), node)
-                        sendPacket(builder, response, Component.GetDirectoryResponse, packet.id)
+                        try {
+                            val node = directoryToFbs(builder, root + q.path!!)
+                            val response = GetDirectoryResponse.createGetDirectoryResponse(
+                                builder,
+                                builder.createString(root + q.path!!),
+                                node
+                            )
+                            sendPacket(builder, response, Component.GetDirectoryResponse, packet.id)
+                        } catch (e: Exception) {
+                            Timber.e(e, "Error getting directory info for ${root + q.path!!}")
+                            sendPacket(builder, FailResponse.createFailResponse(builder, 0), Component.FailResponse, packet.id)
+                        }
+
                     }
                 }
             }
