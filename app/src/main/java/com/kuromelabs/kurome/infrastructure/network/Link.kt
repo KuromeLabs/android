@@ -24,7 +24,6 @@ class Link(private var socket: SSLSocket, private var scope: CoroutineScope) {
 
     val isConnected = _isConnected.asSharedFlow()
 
-    private var isClosed = false
     private fun receive(buffer: ByteArray, size: Int): Int {
         return try {
             var bytesRead = 0
@@ -49,8 +48,7 @@ class Link(private var socket: SSLSocket, private var scope: CoroutineScope) {
     }
 
     fun close() {
-        if (isClosed) return
-        isClosed = true
+        if (socket.isClosed) return
         Timber.d("Closing link")
         try {
             outputChannel.close()
