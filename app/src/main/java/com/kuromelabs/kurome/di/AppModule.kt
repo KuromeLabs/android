@@ -85,7 +85,7 @@ object AppModule {
     ): DeviceUseCases {
         return DeviceUseCases(
             getSavedDevices = GetSavedDevices(repository),
-            pairDevice = PairDevice(repository),
+            pairDevice = PairDevice(deviceService),
             unpairDevice = UnpairDevice(repository),
             getSavedDevice = GetSavedDevice(repository),
             getConnectedDevices = GetConnectedDevices(deviceService)

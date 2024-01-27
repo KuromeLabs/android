@@ -181,6 +181,20 @@ class DeviceService(
         _deviceStates.update { mutableMapOf() }
     }
 
+    fun sendPairPacket(id: String) {
+        val deviceContext = _deviceContexts[id]
+        if (deviceContext != null) {
+            val builder = FlatBufferBuilder(256)
+            val pair = Kurome.Fbs.Pair.createPair(builder, true)
+            val p = Packet.createPacket(builder, Component.Pair, pair, -1)
+            builder.finishSizePrefixed(p)
+            val buffer = builder.dataBuffer()
+            deviceContext.link.send(buffer)
+        } else {
+            Timber.e("Device $id not found")
+        }
+    }
+
     private class DeviceContext(var devicePacketHandler: DevicePacketHandler, var link: Link) {
         fun stop() {
             devicePacketHandler.stopHandling()

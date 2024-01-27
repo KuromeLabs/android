@@ -7,16 +7,19 @@ import com.kuromelabs.kurome.application.devices.Device
 import com.kuromelabs.kurome.application.use_case.device.DeviceUseCases
 import com.kuromelabs.kurome.infrastructure.device.DeviceState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
 class DeviceDetailsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    deviceUseCases: DeviceUseCases
+    private val deviceUseCases: DeviceUseCases
 ) : ViewModel() {
     private var deviceId: String = savedStateHandle["deviceId"]!!
     private val connectedDevices = deviceUseCases.getConnectedDevices()
@@ -36,5 +39,11 @@ class DeviceDetailsViewModel @Inject constructor(
             DeviceState.Status.DISCONNECTED
         )
     )
+
+    fun pairDevice(device: Device) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {deviceUseCases.pairDevice(device) }
+        }
+    }
 }
 

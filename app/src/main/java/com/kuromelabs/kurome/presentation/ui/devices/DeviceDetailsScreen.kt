@@ -48,9 +48,14 @@ fun DeviceDetailsScreen(
 ) {
     val deviceState = viewModel.deviceContext.collectAsState().value
 
-    DeviceDetails(deviceState.device.name, deviceState.device.id, deviceState.status, onBackButtonClicked = {
-        navController.popBackStack()
-    })
+    DeviceDetails(
+        deviceState.device.name,
+        deviceState.device.id,
+        deviceState,
+        viewModel,
+        onBackButtonClicked = {
+            navController.popBackStack()
+        })
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,13 +63,14 @@ fun DeviceDetailsScreen(
 fun DeviceDetails(
     name: String,
     id: String,
-    state: DeviceState.Status,
+    state: DeviceState,
+    viewModel: DeviceDetailsViewModel,
     onBackButtonClicked: () -> Unit = { }
 ) {
     val scrollBehavior =
         TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
     val resources = LocalContext.current.resources
-    val stateString = when (state) {
+    val stateString = when (state.status) {
         DeviceState.Status.CONNECTED_TRUSTED -> resources.getString(R.string.status_connected)
         DeviceState.Status.DISCONNECTED -> resources.getString(R.string.status_disconnected)
         DeviceState.Status.CONNECTED_UNTRUSTED -> resources.getString(R.string.status_available)
@@ -142,7 +148,7 @@ fun DeviceDetails(
                 }
             }
             item {
-                ActionRow(state)
+                ActionRow(state, viewModel)
             }
         }
 
@@ -151,20 +157,24 @@ fun DeviceDetails(
 }
 
 @Composable
-fun ActionRow(state: DeviceState.Status) {
+fun ActionRow(state: DeviceState, viewModel: DeviceDetailsViewModel) {
     Row(
         horizontalArrangement = Arrangement.Center,
         modifier = Modifier
             .fillMaxWidth()
     ) {
-        if (state == DeviceState.Status.CONNECTED_TRUSTED) {
-            Button(onClick = { /*TODO*/ },
+        if (state.status == DeviceState.Status.CONNECTED_UNTRUSTED) {
+            Button(
+                onClick = { viewModel.pairDevice(state.device) },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = MaterialTheme.colorScheme.onSurface
                 )
             ) {
-                Column {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
                     Icon(
                         imageVector = Icons.Filled.AddLink,
                         contentDescription = null,
@@ -173,11 +183,20 @@ fun ActionRow(state: DeviceState.Status) {
                     Text(text = "Pair")
                 }
             }
-        } else if (state == DeviceState.Status.CONNECTED_UNTRUSTED) {
-            IconButton(onClick = { /*TODO*/ }) {
-                Column {
+        } else if (state.status == DeviceState.Status.CONNECTED_TRUSTED) {
+            Button(
+                onClick = { /*TODO*/ },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                )
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
                     Icon(
-                        imageVector = Icons.Filled.LinkOff,
+                        imageVector = Icons.Filled.AddLink,
                         contentDescription = null,
                         modifier = Modifier.size(24.dp)
                     )
@@ -187,16 +206,6 @@ fun ActionRow(state: DeviceState.Status) {
         }
 
     }
-}
-
-@Preview
-@Composable
-fun DevicesDetailScreenPreview() {
-    DeviceDetails(
-        name = "Device Name",
-        id = "Device ID",
-        state = DeviceState.Status.CONNECTED_TRUSTED
-    )
 }
 
 
