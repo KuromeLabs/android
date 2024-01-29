@@ -6,4 +6,5 @@ data class DeviceUseCases(
     val pairDevice: PairDevice,
     val unpairDevice: UnpairDevice,
     val getSavedDevice: GetSavedDevice,
+    val manuallyConnectDevice: ManuallyConnectDevice
 )

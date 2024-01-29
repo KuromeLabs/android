@@ -29,6 +29,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.preference.PreferenceManager
 import com.kuromelabs.kurome.presentation.service.KuromeService
+import com.kuromelabs.kurome.presentation.ui.devices.AddDeviceScreen
 import com.kuromelabs.kurome.presentation.ui.devices.DeviceDetailsScreen
 import com.kuromelabs.kurome.presentation.ui.devices.DevicesScreen
 import com.kuromelabs.kurome.presentation.ui.permissions.PermissionScreen
@@ -72,6 +73,9 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("${Screen.DeviceDetailScreen.route}/{deviceId}") {
                             DeviceDetailsScreen(navController = navController)
+                        }
+                        composable(Screen.AddDeviceScreen.route) {
+                            AddDeviceScreen(navController = navController)
                         }
                     }
                 }

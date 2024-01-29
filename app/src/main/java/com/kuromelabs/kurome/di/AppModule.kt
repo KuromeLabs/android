@@ -88,7 +88,8 @@ object AppModule {
             pairDevice = PairDevice(deviceService),
             unpairDevice = UnpairDevice(repository),
             getSavedDevice = GetSavedDevice(repository),
-            getConnectedDevices = GetConnectedDevices(deviceService)
+            getConnectedDevices = GetConnectedDevices(deviceService),
+            manuallyConnectDevice = ManuallyConnectDevice(deviceService)
         )
     }
 
