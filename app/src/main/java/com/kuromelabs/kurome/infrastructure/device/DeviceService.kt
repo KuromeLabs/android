@@ -11,7 +11,8 @@ import com.kuromelabs.kurome.application.devices.DeviceRepository
 import com.kuromelabs.kurome.application.interfaces.SecurityService
 import com.kuromelabs.kurome.infrastructure.network.Link
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -36,34 +37,26 @@ class DeviceService(
     private var securityService: SecurityService<X509Certificate, KeyPair>,
     var deviceRepository: DeviceRepository,
 ) {
-    // flow of device states
     private val _deviceStates = MutableStateFlow<MutableMap<String, DeviceState>>(mutableMapOf())
     val deviceStates: StateFlow<MutableMap<String, DeviceState>> = _deviceStates
 
-    private val _deviceContexts: MutableMap<String, DeviceContext> = mutableMapOf()
-
-    fun handleUdp(name: String, id: String, ip: String, port: Int) {
+    suspend fun handleUdp(name: String, id: String, ip: String, port: Int) {
         if (_deviceStates.value.containsKey(id)) {
-            Timber.d("Device $id is already connected or connecting, ignoring")
+//            Timber.d("Device $id is already connected or connecting, ignoring")
             return
         }
-        val device = Device(id, name)
-        _deviceStates.update { states ->
-            states.toMutableMap().also {
-                it[id] = DeviceState(device, DeviceState.Status.CONNECTING)
-            }
-        }
+        var device = deviceRepository.getSavedDevice(id)
         scope.launch {
             val socket = Socket()
             val result = try {
                 socket.reuseAddress = true
                 Timber.d("Connecting to socket $ip:$port")
-                socket.connect(InetSocketAddress(ip, port))
+                socket.connect(InetSocketAddress(ip, port), 3000)
                 Timber.d("Sending identity to device $name:$id at $ip:$port")
                 sendIdentity(socket)
 
                 Timber.d("Upgrading $ip:$port to SSL")
-                val sslSocket = upgradeToSslSocket(socket, true)
+                val sslSocket = upgradeToSslSocket(socket, true, device)
 
                 val link = Link(sslSocket, scope)
                 Result.success(link)
@@ -73,42 +66,111 @@ class DeviceService(
                 Result.failure(e)
             }
 
+            if (device == null) device = Device(id, name, null)
             if (result.isSuccess) {
                 Timber.d("Connected to $ip:$port, name: $name, id: $id")
                 val link = result.getOrNull()!!
-                _deviceContexts[id] =
-                    DeviceContext(DevicePacketHandler(link, scope, identityProvider), link)
-                _deviceContexts[id]!!.start()
+                _deviceStates.update { states ->
+                    states.toMutableMap().also {
+                        it[id] = DeviceState(
+                            device!!,
+                            DeviceState.Status.UNPAIRED,
+                            link
+                        ).apply { statusMessage = "Connected" }
+                    }
+                }
 
+                val packetHandler = DevicePacketHandler(link, scope, identityProvider)
+                _deviceStates.value[id]!!.devicePacketHandler = packetHandler
+                _deviceStates.value[id]!!.start()
+                val pairPacketJob = launch {
+                    link.receivedPackets.collect { packet ->
+                        if (packet.componentType == Component.Pair) {
+                            _deviceStates.value[id]?.let { handleIncomingPairPacket(packet, it) }
+                        }
+                    }
+                }
                 launch {
                     link.isConnected.collect { connected ->
                         Timber.d("Link connected status: $connected")
                         if (!connected) {
-                            _deviceContexts[id]?.stop()
-                            _deviceContexts.remove(id)
+                            _deviceStates.value[id]?.stop()
                             _deviceStates.update { states ->
                                 states.toMutableMap().apply { remove(id) }
                             }
-                            currentCoroutineContext().job.cancel()
-                        } else {
-                            _deviceStates.update { states ->
-                                states.toMutableMap().apply {
-                                    put(id, DeviceState(device, DeviceState.Status.CONNECTED_TRUSTED))
-                                }
-                            }
+                            pairPacketJob.cancel()
+                            coroutineContext.job.cancel()
                         }
                     }
                 }
+
             } else {
-                _deviceContexts[id]?.stop()
-                _deviceContexts.remove(id)
+                _deviceStates.value[id]?.stop()
                 _deviceStates.update { states -> states.toMutableMap().apply { remove(id) } }
                 Timber.e("Failed to connect to $ip:$port")
             }
         }
     }
 
-    private fun upgradeToSslSocket(socket: Socket, clientMode: Boolean): SSLSocket {
+
+    private suspend fun handleIncomingPairPacket(packet: Packet, state: DeviceState) {
+        val pair = packet.component(Kurome.Fbs.Pair()) as Kurome.Fbs.Pair
+        if (pair.value) {
+            when (state.status) {
+                DeviceState.Status.PAIRED -> {
+                    //TODO: handle. maybe unpair first?
+                    Timber.d("Received incoming pair request, but already paired")
+                }
+
+                DeviceState.Status.UNPAIRED -> {
+                    //Incoming pair request. TODO: Implement UI to accept or reject
+                    Timber.d("Received incoming pair request")
+                    state.status = DeviceState.Status.PAIR_REQUESTED_BY_PEER
+                    _deviceStates.update { states ->
+                        states.toMutableMap().apply { put(state.device.id, state) }
+                    }
+                }
+
+                DeviceState.Status.PAIR_REQUESTED -> {
+                    //We made outgoing pair request and it was accepted
+                    Timber.d("Outgoing pair request accepted by peer ${state.device.id}, saving")
+                    deviceRepository.insert(state.device)
+                    state.status = DeviceState.Status.PAIRED
+                    state.outgoingPairRequestTimerJob?.cancel()
+                    _deviceStates.update { states ->
+                        states.toMutableMap().apply { put(state.device.id, state) }
+                    }
+                }
+
+                else -> {
+                    Timber.d("Received pair request, but status is ${state.status}")
+                }
+            }
+        } else {
+            when (state.status) {
+                DeviceState.Status.PAIR_REQUESTED -> {
+                    //We made outgoing pair request and it was rejected
+                    state.status = DeviceState.Status.UNPAIRED
+                    state.outgoingPairRequestTimerJob?.cancel()
+                    _deviceStates.update { states ->
+                        states.toMutableMap().apply { put(state.device.id, state) }
+                    }
+                }
+                DeviceState.Status.PAIRED ->{
+                    //Incoming unpair request. TODO: implement unpair
+
+                }
+
+                else -> { Timber.d("Received unpair request, but status is ${state.status}") }
+            }
+        }
+    }
+
+    private fun upgradeToSslSocket(
+        socket: Socket,
+        clientMode: Boolean,
+        device: Device?
+    ): SSLSocket {
         val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
             override fun getAcceptedIssuers(): Array<X509Certificate?> {
                 return arrayOfNulls(0)
@@ -146,7 +208,9 @@ class DeviceService(
             sslSocket.needClientAuth = false
             sslSocket.wantClientAuth = false
         }
+        sslSocket.soTimeout = 3000
         sslSocket.startHandshake()
+        sslSocket.soTimeout = 0
         return sslSocket
     }
 
@@ -176,45 +240,70 @@ class DeviceService(
 
     fun onNetworkLost() {
         Timber.d("Network lost")
-        _deviceContexts.forEach { (_, context) -> context.stop() }
-        _deviceContexts.clear()
+        _deviceStates.value.forEach { (_, state) -> state.stop() }
         _deviceStates.update { mutableMapOf() }
     }
 
-    fun sendPairPacket(id: String) {
-        val deviceContext = _deviceContexts[id]
-        if (deviceContext != null) {
-            val builder = FlatBufferBuilder(256)
-            val pair = Kurome.Fbs.Pair.createPair(builder, true)
-            val p = Packet.createPacket(builder, Component.Pair, pair, -1)
-            builder.finishSizePrefixed(p)
-            val buffer = builder.dataBuffer()
-            deviceContext.link.send(buffer)
-        } else {
-            Timber.e("Device $id not found")
+    fun sendOutgoingPairRequest(id: String) {
+        Timber.d("Sending pair request to $id")
+        val deviceState = _deviceStates.value[id] ?: return
+        // send pair request with 30s timeout
+        if (deviceState.status == DeviceState.Status.PAIRED) {
+            Timber.d("Already paired")
+            return
+        }
+        if (deviceState.status == DeviceState.Status.PAIR_REQUESTED) {
+            Timber.d("Pair request already sent")
+            return
+        }
+        deviceState.status = DeviceState.Status.PAIR_REQUESTED
+
+
+        deviceState.outgoingPairRequestTimerJob = scope.launch {
+            delay(30000)
+            Timber.d("Pair request timed out")
+            deviceState.status = DeviceState.Status.UNPAIRED
+            _deviceStates.update { states ->
+                states.toMutableMap().apply { put(id, deviceState) }
+            }
+            coroutineContext.job.cancel()
+
+        }
+        val builder = FlatBufferBuilder(256)
+        val pair = Kurome.Fbs.Pair.createPair(builder, true)
+        val p = Packet.createPacket(builder, Component.Pair, pair, -1)
+        builder.finishSizePrefixed(p)
+        val buffer = builder.dataBuffer()
+        deviceState.link?.send(buffer)
+        _deviceStates.update { states ->
+            states.toMutableMap().apply { put(id, deviceState) }
         }
     }
 
-    private class DeviceContext(var devicePacketHandler: DevicePacketHandler, var link: Link) {
-        fun stop() {
-            devicePacketHandler.stopHandling()
-            link.close()
-        }
-
-        fun start() {
-            link.start()
-            devicePacketHandler.startHandling()
-        }
-    }
 }
 
 
-class DeviceState(var device: Device, var status: Status) {
+class DeviceState(
+    var device: Device,
+    var status: Status,
+    var link: Link?
+) {
+    var isConnected: Boolean = false
+    var statusMessage: String = ""
+    var devicePacketHandler: DevicePacketHandler? = null
+    var outgoingPairRequestTimerJob: Job? = null
+
     enum class Status {
-        DISCONNECTED, CONNECTING, CONNECTED_TRUSTED, CONNECTED_UNTRUSTED
+        PAIRED, UNPAIRED, PAIR_REQUESTED, PAIR_REQUESTED_BY_PEER
     }
 
-    fun isConnectedOrConnecting(): Boolean {
-        return status == Status.CONNECTING || status == Status.CONNECTED_TRUSTED || status == Status.CONNECTED_UNTRUSTED
+    fun stop() {
+        devicePacketHandler?.stopHandling()
+        link?.close()
+    }
+
+    fun start() {
+        link?.start()
+        devicePacketHandler?.startHandling()
     }
 }

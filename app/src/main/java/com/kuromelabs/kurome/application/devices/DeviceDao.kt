@@ -19,4 +19,7 @@ interface DeviceDao {
 
     @Query("SELECT * from device_table ORDER BY name ASC")
     fun getAllDevices(): List<Device>
+
+    @Query("DELETE FROM device_table WHERE id = :id")
+    fun delete(id: String)
 }

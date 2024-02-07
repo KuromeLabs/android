@@ -24,7 +24,9 @@ class DeviceViewModel @Inject constructor(
         deviceUseCases.getSavedDevices()
     ) { connectedDevices, savedDevices ->
         val connectedDeviceIds = connectedDevices.map { it.device.id }
-        val saved = savedDevices.filter { !connectedDeviceIds.contains(it.device.id) }
+        val saved = savedDevices
+            .filter { !connectedDeviceIds.contains(it.id) }
+            .map { DeviceState(it, DeviceState.Status.PAIRED, null) }
         connectedDevices + saved
 
 

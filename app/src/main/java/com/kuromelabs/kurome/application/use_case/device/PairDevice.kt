@@ -8,7 +8,7 @@ import com.kuromelabs.kurome.infrastructure.device.DeviceService
 class PairDevice(private val deviceService: DeviceService) {
 
     operator fun invoke(device: Device) {
-        deviceService.sendPairPacket(device.id)
+        deviceService.sendOutgoingPairRequest(device.id)
     }
 }
 

@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.transform
 class GetConnectedDevices(private val deviceService: DeviceService) {
     operator fun invoke(): Flow<List<DeviceState>> {
         return deviceService.deviceStates.transform { deviceStates ->
-            emit(deviceStates.values.filter { it.isConnectedOrConnecting() })
+            emit(deviceStates.values.toList())
         }
     }
 }

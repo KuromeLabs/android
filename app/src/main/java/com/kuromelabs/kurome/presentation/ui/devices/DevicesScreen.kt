@@ -11,15 +11,23 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.Divider
+import androidx.compose.material3.DrawerState
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -29,6 +37,7 @@ import androidx.navigation.NavController
 import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.infrastructure.device.DeviceState
 import com.kuromelabs.kurome.presentation.util.Screen
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,26 +46,60 @@ fun DevicesScreen(
     navController: NavController
 ) {
     val devices = viewModel.connectedDevices.collectAsState().value
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("Kurome") },
-                navigationIcon = {
-                    IconButton(onClick = { /* ... */ }) {
-                        Icon(Icons.Filled.Menu, contentDescription = null)
-                    }
-                })
-        },
-    ) { innerPadding ->
-        LazyColumn(modifier = Modifier.padding(innerPadding)) {
-            items(devices) { deviceContext ->
-                DeviceRow(deviceContext, Modifier.clickable {
-                    navController.navigate("${Screen.DeviceDetailScreen.route}/${deviceContext.device.id}")
-                })
+
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    NavDrawer(drawerState = drawerState, navController) {
+        Scaffold(
+            topBar = {
+                TopAppBar(title = { Text("Kurome") },
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            scope.launch {
+                                drawerState.apply {
+                                    if (isClosed) open() else close()
+                                }
+                            }
+                        }) {
+                            Icon(Icons.Filled.Menu, contentDescription = null)
+                        }
+                    })
+            },
+        ) { innerPadding ->
+            LazyColumn(modifier = Modifier.padding(innerPadding)) {
+                items(devices) { deviceContext ->
+                    DeviceRow(deviceContext, Modifier.clickable {
+                        navController.navigate("${Screen.DeviceDetailScreen.route}/${deviceContext.device.id}")
+                    })
+                }
             }
         }
     }
 
+
 }
+
+@Composable
+fun NavDrawer(drawerState: DrawerState, navController: NavController, content: @Composable () -> Unit) {
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                Text("Kurome", modifier = Modifier.padding(16.dp))
+                Divider()
+                NavigationDrawerItem(
+                    label = { Text(text = "Add Device") },
+                    selected = false,
+                    onClick = { navController.navigate(Screen.AddDeviceScreen.route) }
+                )
+                // ...other drawer items
+            }
+        }
+    ) {
+        content()
+    }
+}
+
 
 @Composable
 fun DeviceRow(context: DeviceState, modifier: Modifier) {
@@ -72,7 +115,9 @@ fun DeviceRow(context: DeviceState, modifier: Modifier) {
         Icon(
             imageVector = Icons.Filled.Computer,
             contentDescription = null,
-            modifier = Modifier.padding(horizontal = 16.dp).size(48.dp),
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .size(48.dp),
         )
         Column {
             Text(
@@ -80,13 +125,7 @@ fun DeviceRow(context: DeviceState, modifier: Modifier) {
                 style = MaterialTheme.typography.titleMedium,
             )
             Text(
-                text = when (context.status) {
-                    DeviceState.Status.CONNECTED_TRUSTED -> resources.getString(R.string.status_connected)
-                    DeviceState.Status.DISCONNECTED -> resources.getString(R.string.status_disconnected)
-                    DeviceState.Status.CONNECTED_UNTRUSTED -> resources.getString(R.string.status_available)
-                    DeviceState.Status.CONNECTING -> resources.getString(R.string.status_connecting)
-                    else -> "Unknown"
-                },
+                text = context.statusMessage,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )

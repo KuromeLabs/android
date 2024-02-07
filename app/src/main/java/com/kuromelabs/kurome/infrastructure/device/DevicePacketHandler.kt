@@ -34,23 +34,27 @@ class DevicePacketHandler(
     }
 
     private fun processPacket(packet: Packet) {
+        when (packet.componentType)
+        {
+            Component.DeviceQuery -> {
+                val builder = FlatBufferBuilder(256)
+                val deviceQuery = packet.component(DeviceQuery()) as DeviceQuery
+                val response = processDeviceQuery(builder)
 
-        if (packet.componentType == Component.DeviceQuery) {
-            val builder = FlatBufferBuilder(256)
-            val deviceQuery = packet.component(DeviceQuery()) as DeviceQuery
-            val response = processDeviceQuery(builder)
+                val p = Packet.createPacket(
+                    builder,
+                    Component.DeviceQueryResponse,
+                    response,
+                    packet.id
+                )
+                builder.finishSizePrefixed(p)
+                val buffer = builder.dataBuffer()
+                sendPacket(buffer)
+            }
+            else -> {
+                fsAccessor.processFileAction(packet)
+            }
 
-            val p = Packet.createPacket(
-                builder,
-                Component.DeviceQueryResponse,
-                response,
-                packet.id
-            )
-            builder.finishSizePrefixed(p)
-            val buffer = builder.dataBuffer()
-            sendPacket(buffer)
-        } else {
-            fsAccessor.processFileAction(packet)
         }
     }
 

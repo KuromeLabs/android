@@ -21,4 +21,8 @@ class DefaultDeviceRepository(private val deviceDao: DeviceDao) : DeviceReposito
     override suspend fun insert(device: Device) {
         deviceDao.insert(device)
     }
+
+    override suspend fun delete(id: String) {
+        deviceDao.delete(id)
+    }
 }

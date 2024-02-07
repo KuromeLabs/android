@@ -10,6 +10,8 @@ interface DeviceRepository {
 
     suspend fun insert(device: Device)
 
+    suspend fun delete(id: String)
+
 //    fun getDeviceContexts(): StateFlow<HashMap<String, DeviceContext>>
 //
 //    fun setDeviceState(device: Device, state: DeviceContext.State)

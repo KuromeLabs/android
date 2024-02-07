@@ -27,17 +27,23 @@ class DeviceDetailsViewModel @Inject constructor(
 
     var deviceContext: StateFlow<DeviceState> = combine(connectedDevices, savedDevices) { connectedDevices, savedDevices ->
         val connectedDeviceIds = connectedDevices.map { it.device.id }
-        val saved = savedDevices.filter { !connectedDeviceIds.contains(it.device.id) }
-        connectedDevices.find { it.device.id == deviceId } ?:
-        saved.find { it.device.id == deviceId } ?: DeviceState(Device("null", "Unknown Device"), DeviceState.Status.DISCONNECTED)
+        val saved = savedDevices.filter { !connectedDeviceIds.contains(it.id) }
+        when (deviceId) {
+            in connectedDeviceIds -> {
+                connectedDevices.find { it.device.id == deviceId }!!
+            }
+            in saved.map { it.id } -> {
+                DeviceState(saved.find { it.id == deviceId }!!, DeviceState.Status.PAIRED, null).apply { isConnected = false }
+            }
+            else -> {
+                DeviceState(Device("null", "Unknown Device"), DeviceState.Status.UNPAIRED, null)
+            }
+        }
     }
         .stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(),
-        initialValue = DeviceState(
-            Device(deviceId, "Unknown Device"),
-            DeviceState.Status.DISCONNECTED
-        )
+            initialValue = DeviceState(Device("null", "Unknown Device"), DeviceState.Status.UNPAIRED, null)
     )
 
     fun pairDevice(device: Device) {

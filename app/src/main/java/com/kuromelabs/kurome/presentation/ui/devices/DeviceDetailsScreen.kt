@@ -70,13 +70,7 @@ fun DeviceDetails(
     val scrollBehavior =
         TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
     val resources = LocalContext.current.resources
-    val stateString = when (state.status) {
-        DeviceState.Status.CONNECTED_TRUSTED -> resources.getString(R.string.status_connected)
-        DeviceState.Status.DISCONNECTED -> resources.getString(R.string.status_disconnected)
-        DeviceState.Status.CONNECTED_UNTRUSTED -> resources.getString(R.string.status_available)
-        DeviceState.Status.CONNECTING -> resources.getString(R.string.status_connecting)
-        else -> "Unknown"
-    }
+    val stateString = state.statusMessage
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -163,7 +157,7 @@ fun ActionRow(state: DeviceState, viewModel: DeviceDetailsViewModel) {
         modifier = Modifier
             .fillMaxWidth()
     ) {
-        if (state.status == DeviceState.Status.CONNECTED_UNTRUSTED) {
+        if (state.status == DeviceState.Status.UNPAIRED) {
             Button(
                 onClick = { viewModel.pairDevice(state.device) },
                 colors = ButtonDefaults.buttonColors(
@@ -183,7 +177,7 @@ fun ActionRow(state: DeviceState, viewModel: DeviceDetailsViewModel) {
                     Text(text = "Pair")
                 }
             }
-        } else if (state.status == DeviceState.Status.CONNECTED_TRUSTED) {
+        } else if (state.status == DeviceState.Status.PAIRED) {
             Button(
                 onClick = { /*TODO*/ },
                 colors = ButtonDefaults.buttonColors(
