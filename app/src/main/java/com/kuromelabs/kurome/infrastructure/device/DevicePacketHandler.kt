@@ -1,9 +1,10 @@
 package com.kuromelabs.kurome.infrastructure.device
 
 import Kurome.Fbs.Component
-import Kurome.Fbs.DeviceQuery
-import Kurome.Fbs.DeviceQueryResponse
+import Kurome.Fbs.DeviceIdentityQuery
+import Kurome.Fbs.DeviceIdentityResponse
 import Kurome.Fbs.Packet
+import Kurome.Fbs.Platform
 import android.os.Build
 import android.os.Environment
 import android.os.StatFs
@@ -36,14 +37,14 @@ class DevicePacketHandler(
     private fun processPacket(packet: Packet) {
         when (packet.componentType)
         {
-            Component.DeviceQuery -> {
+            Component.DeviceIdentityQuery -> {
                 val builder = FlatBufferBuilder(256)
-                val deviceQuery = packet.component(DeviceQuery()) as DeviceQuery
+                val deviceQuery = packet.component(DeviceIdentityQuery()) as DeviceIdentityQuery
                 val response = processDeviceQuery(builder)
 
                 val p = Packet.createPacket(
                     builder,
-                    Component.DeviceQueryResponse,
+                    Component.DeviceIdentityResponse,
                     response,
                     packet.id
                 )
@@ -61,13 +62,14 @@ class DevicePacketHandler(
     private fun processDeviceQuery(builder: FlatBufferBuilder): Int {
         val name = Build.MODEL
         val statFs = StatFs(Environment.getDataDirectory().path)
-        return DeviceQueryResponse.createDeviceQueryResponse(
+        return DeviceIdentityResponse.createDeviceIdentityResponse(
             builder,
             statFs.totalBytes,
             statFs.freeBytes,
             builder.createString(name),
             builder.createString(identityProvider.getEnvironmentId()),
-            builder.createString("")
+            builder.createString(""),
+            Platform.Android
         )
 
     }

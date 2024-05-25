@@ -1,8 +1,9 @@
 package com.kuromelabs.kurome.infrastructure.device
 
 import Kurome.Fbs.Component
-import Kurome.Fbs.DeviceQueryResponse
+import Kurome.Fbs.DeviceIdentityResponse
 import Kurome.Fbs.Packet
+import Kurome.Fbs.Platform
 import android.os.Environment
 import android.os.StatFs
 import com.google.flatbuffers.FlatBufferBuilder
@@ -66,15 +67,14 @@ class DeviceService(
                 Result.failure(e)
             }
 
-            if (device == null) device = Device(id, name, null)
             if (result.isSuccess) {
                 Timber.d("Connected to $ip:$port, name: $name, id: $id")
                 val link = result.getOrNull()!!
                 _deviceStates.update { states ->
                     states.toMutableMap().also {
                         it[id] = DeviceState(
-                            device!!,
-                            DeviceState.Status.UNPAIRED,
+                            device ?: Device(id, name, null),
+                            if (device != null) DeviceState.Status.PAIRED else DeviceState.Status.UNPAIRED,
                             link
                         ).apply { statusMessage = "Connected" }
                     }
@@ -156,12 +156,15 @@ class DeviceService(
                         states.toMutableMap().apply { put(state.device.id, state) }
                     }
                 }
-                DeviceState.Status.PAIRED ->{
+
+                DeviceState.Status.PAIRED -> {
                     //Incoming unpair request. TODO: implement unpair
 
                 }
 
-                else -> { Timber.d("Received unpair request, but status is ${state.status}") }
+                else -> {
+                    Timber.d("Received unpair request, but status is ${state.status}")
+                }
             }
         }
     }
@@ -221,16 +224,17 @@ class DeviceService(
         val name = identityProvider.getEnvironmentName()
         val statFs = StatFs(Environment.getDataDirectory().path)
 
-        val response = DeviceQueryResponse.createDeviceQueryResponse(
+        val response = DeviceIdentityResponse.createDeviceIdentityResponse(
             builder,
             statFs.totalBytes,
             statFs.freeBytes,
             builder.createString(name),
             builder.createString(id),
-            builder.createString("")
+            builder.createString(""),
+            Platform.Android
         )
 
-        val p = Packet.createPacket(builder, Component.DeviceQueryResponse, response, -1)
+        val p = Packet.createPacket(builder, Component.DeviceIdentityResponse, response, -1)
         builder.finishSizePrefixed(p)
         val buffer = builder.dataBuffer()
 
