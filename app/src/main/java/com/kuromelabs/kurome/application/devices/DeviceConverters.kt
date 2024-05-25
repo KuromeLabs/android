@@ -1,7 +1,8 @@
 package com.kuromelabs.kurome.application.devices
 
 import androidx.room.TypeConverter
-import javax.security.cert.X509Certificate
+import java.security.cert.CertificateFactory
+import java.security.cert.X509Certificate
 
 class DeviceConverters {
     @TypeConverter
@@ -11,6 +12,8 @@ class DeviceConverters {
 
     @TypeConverter
     fun toX509Certificate(certificate: String?): X509Certificate? {
-        return certificate?.let { X509Certificate.getInstance(it.toByteArray(Charsets.ISO_8859_1)) }
+        if (certificate == null) return null
+        return  CertificateFactory.getInstance("X.509")
+            .generateCertificate(certificate.byteInputStream(Charsets.ISO_8859_1)) as (X509Certificate)
     }
 }

@@ -3,7 +3,7 @@ package com.kuromelabs.kurome.application.devices
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import javax.security.cert.X509Certificate
+import java.security.cert.X509Certificate
 
 
 @Entity(tableName = "device_table")

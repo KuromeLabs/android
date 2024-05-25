@@ -30,6 +30,7 @@ import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.TrustManager
+import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 
 class DeviceService(
@@ -47,6 +48,7 @@ class DeviceService(
             return
         }
         var device = deviceRepository.getSavedDevice(id)
+        var sslSocket: SSLSocket? = null
         scope.launch {
             val socket = Socket()
             val result = try {
@@ -57,9 +59,8 @@ class DeviceService(
                 sendIdentity(socket)
 
                 Timber.d("Upgrading $ip:$port to SSL")
-                val sslSocket = upgradeToSslSocket(socket, true, device)
-
-                val link = Link(sslSocket, scope)
+                sslSocket = upgradeToSslSocket(socket, true, device)
+                val link = Link(sslSocket!!, scope)
                 Result.success(link)
             } catch (e: Exception) {
                 socket.close()
@@ -73,7 +74,7 @@ class DeviceService(
                 _deviceStates.update { states ->
                     states.toMutableMap().also {
                         it[id] = DeviceState(
-                            device ?: Device(id, name, null),
+                            device ?: Device(id, name, sslSocket!!.session.peerCertificates[0] as X509Certificate?),
                             if (device != null) DeviceState.Status.PAIRED else DeviceState.Status.UNPAIRED,
                             link
                         ).apply { statusMessage = "Connected" }
@@ -134,6 +135,8 @@ class DeviceService(
                 DeviceState.Status.PAIR_REQUESTED -> {
                     //We made outgoing pair request and it was accepted
                     Timber.d("Outgoing pair request accepted by peer ${state.device.id}, saving")
+                    val cert = state.device.certificate!!
+                    Timber.d(cert.toString())
                     deviceRepository.insert(state.device)
                     state.status = DeviceState.Status.PAIRED
                     state.outgoingPairRequestTimerJob?.cancel()
@@ -193,13 +196,22 @@ class DeviceService(
             arrayOf(securityService.getSecurityContext())
         )
 
+        if (device != null)
+            keyStore.setCertificateEntry("cert", device.certificate)
+
         val keyManagerFactory =
             KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm())
         keyManagerFactory.init(keyStore, "".toCharArray())
 
+        val trustManagerFactory =
+            TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+        trustManagerFactory.init(keyStore)
 
         val sslContext = SSLContext.getInstance("TLSv1.2")
-        sslContext.init(keyManagerFactory.keyManagers, trustAllCerts, java.security.SecureRandom())
+        if (device == null)
+            sslContext.init(keyManagerFactory.keyManagers, trustAllCerts, java.security.SecureRandom())
+        else
+            sslContext.init(keyManagerFactory.keyManagers, trustManagerFactory.trustManagers, java.security.SecureRandom())
         val sslSocket: SSLSocket = sslContext.socketFactory.createSocket(
             socket, socket.inetAddress.hostAddress, socket.port, true
         ) as SSLSocket
