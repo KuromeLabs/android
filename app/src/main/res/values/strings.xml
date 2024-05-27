@@ -3,7 +3,7 @@
     <string name="status_disconnected">Offline (Paired)</string>
     <string name="status_connected">Connected</string>
     <string name="status_available">Available (Tap to pair)</string>
-    <string name="status_connecting">Connecting…</string>
+    <string name="status_disconnected_not_paired">Unavailable</string>
     <string name="manage_external_storage_title">Manage External Storage</string>
     <string name="manage_external_storage_body">Required on Android 11+. Kurome needs this permission to expose the filesystem to connected computers.</string>
     <string name="write_external_storage_title">Write External Storage</string>

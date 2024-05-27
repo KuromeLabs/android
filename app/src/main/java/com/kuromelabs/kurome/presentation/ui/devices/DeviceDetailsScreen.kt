@@ -14,7 +14,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddLink
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Computer
-import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,12 +32,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.infrastructure.device.DeviceState
+import com.kuromelabs.kurome.infrastructure.device.PairStatus
+import com.kuromelabs.kurome.presentation.util.Utils
 
 
 @Composable
@@ -46,11 +45,11 @@ fun DeviceDetailsScreen(
     viewModel: DeviceDetailsViewModel = hiltViewModel(),
     navController: NavController
 ) {
-    val deviceState = viewModel.deviceContext.collectAsState().value
+    val deviceState = viewModel.deviceContext.collectAsState(DeviceState("", "", PairStatus.UNPAIRED, false)).value!!
 
     DeviceDetails(
-        deviceState.device.name,
-        deviceState.device.id,
+        deviceState.name,
+        deviceState.id,
         deviceState,
         viewModel,
         onBackButtonClicked = {
@@ -69,8 +68,7 @@ fun DeviceDetails(
 ) {
     val scrollBehavior =
         TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
-    val resources = LocalContext.current.resources
-    val stateString = state.statusMessage
+    val stateString = Utils.GetStatusMessage(state.pairStatus, state.connected, LocalContext.current)
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -157,9 +155,9 @@ fun ActionRow(state: DeviceState, viewModel: DeviceDetailsViewModel) {
         modifier = Modifier
             .fillMaxWidth()
     ) {
-        if (state.status == DeviceState.Status.UNPAIRED) {
+        if (state.pairStatus == PairStatus.UNPAIRED) {
             Button(
-                onClick = { viewModel.pairDevice(state.device) },
+                onClick = { viewModel.pairDevice(state.id) },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = MaterialTheme.colorScheme.onSurface
@@ -177,7 +175,7 @@ fun ActionRow(state: DeviceState, viewModel: DeviceDetailsViewModel) {
                     Text(text = "Pair")
                 }
             }
-        } else if (state.status == DeviceState.Status.PAIRED) {
+        } else if (state.pairStatus == PairStatus.PAIRED) {
             Button(
                 onClick = { /*TODO*/ },
                 colors = ButtonDefaults.buttonColors(

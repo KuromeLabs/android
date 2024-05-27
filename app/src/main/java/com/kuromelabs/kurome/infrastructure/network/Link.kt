@@ -3,6 +3,7 @@ package com.kuromelabs.kurome.infrastructure.network
 
 import Kurome.Fbs.Packet
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.isActive
@@ -20,9 +21,13 @@ class Link(private var socket: SSLSocket, private var scope: CoroutineScope) {
     private val outputChannel = Channels.newChannel(socket.outputStream)
     private val _receivedPackets = MutableSharedFlow<Packet>()
     val receivedPackets = _receivedPackets.asSharedFlow()
-    private val _isConnected = MutableSharedFlow<Boolean>(1)
+    private val _isConnected = MutableSharedFlow<Boolean>(1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
     val isConnected = _isConnected.asSharedFlow()
+
+    init {
+        _isConnected.tryEmit(true)
+    }
 
     private fun receive(buffer: ByteArray, size: Int): Int {
         return try {

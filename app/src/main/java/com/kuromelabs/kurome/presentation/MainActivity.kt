@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
                             startService()
                             DevicesScreen(navController = navController)
                         }
-                        composable("${Screen.DeviceDetailScreen.route}/{deviceId}") {
+                        composable("${Screen.DeviceDetailScreen.route}/{deviceId}/{deviceName}") {
                             DeviceDetailsScreen(navController = navController)
                         }
                         composable(Screen.AddDeviceScreen.route) {

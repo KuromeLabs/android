@@ -11,10 +11,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material3.Divider
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,9 +34,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.infrastructure.device.DeviceState
 import com.kuromelabs.kurome.presentation.util.Screen
+import com.kuromelabs.kurome.presentation.util.Utils
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,7 +45,7 @@ fun DevicesScreen(
     viewModel: DeviceViewModel = hiltViewModel(),
     navController: NavController
 ) {
-    val devices = viewModel.connectedDevices.collectAsState().value
+    val devices = viewModel.allDevices.collectAsState().value
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -69,7 +69,7 @@ fun DevicesScreen(
             LazyColumn(modifier = Modifier.padding(innerPadding)) {
                 items(devices) { deviceContext ->
                     DeviceRow(deviceContext, Modifier.clickable {
-                        navController.navigate("${Screen.DeviceDetailScreen.route}/${deviceContext.device.id}")
+                        navController.navigate("${Screen.DeviceDetailScreen.route}/${deviceContext.id}/${deviceContext.name}")
                     })
                 }
             }
@@ -86,7 +86,7 @@ fun NavDrawer(drawerState: DrawerState, navController: NavController, content: @
         drawerContent = {
             ModalDrawerSheet {
                 Text("Kurome", modifier = Modifier.padding(16.dp))
-                Divider()
+                HorizontalDivider()
                 NavigationDrawerItem(
                     label = { Text(text = "Add Device") },
                     selected = false,
@@ -102,8 +102,7 @@ fun NavDrawer(drawerState: DrawerState, navController: NavController, content: @
 
 
 @Composable
-fun DeviceRow(context: DeviceState, modifier: Modifier) {
-    val resources = LocalContext.current.resources
+fun DeviceRow(state: DeviceState, modifier: Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -121,11 +120,11 @@ fun DeviceRow(context: DeviceState, modifier: Modifier) {
         )
         Column {
             Text(
-                text = context.device.name,
+                text = state.name,
                 style = MaterialTheme.typography.titleMedium,
             )
             Text(
-                text = context.statusMessage,
+                text = Utils.GetStatusMessage(state.pairStatus, state.connected, LocalContext.current),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
