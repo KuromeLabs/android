@@ -139,4 +139,6 @@ dependencies {
 
     //SSL
     implementation(libs.bcpkix.jdk18on)
+
+    implementation(libs.flatbuffers.java)
 }
