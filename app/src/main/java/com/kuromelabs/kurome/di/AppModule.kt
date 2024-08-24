@@ -4,8 +4,7 @@ import android.app.Application
 import android.content.Context
 import androidx.room.Room
 import com.kuromelabs.kurome.application.devices.DeviceRepository
-import com.kuromelabs.kurome.application.interfaces.*
-import com.kuromelabs.kurome.application.use_case.device.*
+import com.kuromelabs.kurome.application.interfaces.SecurityService
 import com.kuromelabs.kurome.infrastructure.device.DefaultDeviceRepository
 import com.kuromelabs.kurome.infrastructure.device.DeviceDatabase
 import com.kuromelabs.kurome.infrastructure.device.DeviceService
@@ -75,22 +74,6 @@ object AppModule {
     @Singleton
     fun provideDeviceRepository(database: DeviceDatabase): DeviceRepository {
         return DefaultDeviceRepository(database.deviceDao)
-    }
-
-    @Provides
-    @Singleton
-    fun provideDeviceUseCases(
-        repository: DeviceRepository,
-        deviceService: DeviceService
-    ): DeviceUseCases {
-        return DeviceUseCases(
-            getSavedDevices = GetSavedDevices(repository),
-            pairDevice = PairDevice(deviceService),
-            unpairDevice = UnpairDevice(repository),
-            getSavedDevice = GetSavedDevice(repository),
-            getConnectedDevices = GetConnectedDevices(deviceService),
-            manuallyConnectDevice = ManuallyConnectDevice(deviceService)
-        )
     }
 
     @Singleton

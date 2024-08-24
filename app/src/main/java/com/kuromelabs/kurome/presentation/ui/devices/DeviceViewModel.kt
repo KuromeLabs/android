@@ -2,7 +2,8 @@ package com.kuromelabs.kurome.presentation.ui.devices
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.kuromelabs.kurome.application.use_case.device.DeviceUseCases
+import com.kuromelabs.kurome.application.devices.DeviceRepository
+import com.kuromelabs.kurome.infrastructure.device.DeviceService
 import com.kuromelabs.kurome.infrastructure.device.DeviceState
 import com.kuromelabs.kurome.infrastructure.device.PairStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -10,19 +11,23 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.transform
 import javax.inject.Inject
 
 @HiltViewModel
 class DeviceViewModel @Inject constructor(
-    deviceUseCases: DeviceUseCases
+    deviceRepository: DeviceRepository,
+    deviceService: DeviceService
 ) : ViewModel() {
 
-    private var connectedDevices: StateFlow<List<DeviceState>> = deviceUseCases.getConnectedDevices()
+    private var connectedDevices: StateFlow<List<DeviceState>> = deviceService.deviceStates.transform { deviceStates ->
+        emit(deviceStates.values.toList())
+    }
         .stateIn(viewModelScope, SharingStarted.Eagerly, initialValue = emptyList())
 
     val allDevices: StateFlow<List<DeviceState>> = combine(
         connectedDevices,
-        deviceUseCases.getSavedDevices()
+        deviceRepository.getSavedDevices()
     ) { connectedDevices, savedDevices ->
         val connectedDeviceIds = connectedDevices.map { it.id }
         val saved = savedDevices

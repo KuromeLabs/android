@@ -17,7 +17,7 @@ import Kurome.Fbs.WriteFileCommand
 import android.os.Build
 import android.os.Environment
 import com.google.flatbuffers.FlatBufferBuilder
-import com.kuromelabs.kurome.infrastructure.network.Link
+import com.kuromelabs.kurome.application.devices.Plugin
 import timber.log.Timber
 import java.io.File
 import java.io.RandomAccessFile
@@ -28,7 +28,7 @@ import java.nio.file.Paths
 import java.nio.file.attribute.BasicFileAttributeView
 import java.nio.file.attribute.FileTime
 
-class FilesystemPacketHandler(private val link: Link) {
+class FilesystemPacketHandlerPlugin(private val handle: DeviceHandle) : Plugin {
 
     class ExtraAttribute {
         companion object {
@@ -54,7 +54,7 @@ class FilesystemPacketHandler(private val link: Link) {
 
     private val root: String = Environment.getExternalStorageDirectory().path
 
-    fun processFileAction(packet: Packet) {
+    override fun processPacket (packet: Packet) {
         // we don't return anything for commands, so exceptions log and fail silently
         when (packet.componentType) {
 
@@ -194,7 +194,7 @@ class FilesystemPacketHandler(private val link: Link) {
         val packet = Packet.createPacket(builder, type, response, responseId)
         builder.finishSizePrefixed(packet)
         val buffer = builder.dataBuffer()
-        link.send(buffer)
+        handle.sendPacket(buffer)
     }
 
     private fun fileToFbs(builder: FlatBufferBuilder, path: String): Int {

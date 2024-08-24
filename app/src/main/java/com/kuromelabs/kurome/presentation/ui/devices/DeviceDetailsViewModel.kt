@@ -3,7 +3,8 @@ package com.kuromelabs.kurome.presentation.ui.devices
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.kuromelabs.kurome.application.use_case.device.DeviceUseCases
+import com.kuromelabs.kurome.application.devices.DeviceRepository
+import com.kuromelabs.kurome.infrastructure.device.DeviceService
 import com.kuromelabs.kurome.infrastructure.device.DeviceState
 import com.kuromelabs.kurome.infrastructure.device.PairStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -20,14 +22,17 @@ import javax.inject.Inject
 @HiltViewModel
 class DeviceDetailsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val deviceUseCases: DeviceUseCases
+    private val deviceService: DeviceService,
+    deviceRepository: DeviceRepository
 ) : ViewModel() {
     private var deviceId: String = savedStateHandle["deviceId"]!!
 
     // This name is only used when the device is not paired, so it does not change
     private val temporaryDeviceName: String = savedStateHandle["deviceName"]!!
-    private val connectedDevices = deviceUseCases.getConnectedDevices()
-    private val savedDevices = deviceUseCases.getSavedDevices()
+    private val connectedDevices = deviceService.deviceStates.transform { deviceStates ->
+        emit(deviceStates.values.toList())
+    }
+    private val savedDevices = deviceRepository.getSavedDevices()
 
     var deviceContext: SharedFlow<DeviceState?> =
         combine(connectedDevices, savedDevices) { connectedDevices, savedDevices ->
@@ -53,7 +58,7 @@ class DeviceDetailsViewModel @Inject constructor(
 
     fun pairDevice(id: String) {
         viewModelScope.launch {
-            withContext(Dispatchers.IO) { deviceUseCases.pairDevice(id) }
+            withContext(Dispatchers.IO) { deviceService.sendOutgoingPairRequest(id) }
         }
     }
 }

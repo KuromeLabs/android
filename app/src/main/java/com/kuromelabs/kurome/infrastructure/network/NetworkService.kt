@@ -19,7 +19,6 @@ import java.net.DatagramSocket
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.nio.ByteBuffer
-import java.nio.ByteOrder
 
 class NetworkService(
     private var scope: CoroutineScope,
@@ -84,7 +83,7 @@ class NetworkService(
                 if (!udpSocket.isClosed) {
                     val buffer = ByteArray(1024)
                     val udpPacket = DatagramPacket(buffer, buffer.size)
-                    Timber.d("Waiting for incoming UDP")
+//                    Timber.d("Waiting for incoming UDP")
                     udpSocket.receive(udpPacket)
                     val messageBytes = ByteBuffer.wrap(udpPacket.data, udpPacket.offset, udpPacket.length)
                     val packet = Packet.getRootAsPacket(messageBytes)
@@ -93,7 +92,7 @@ class NetworkService(
                     val deviceIdentityResponse = packet.component(DeviceIdentityResponse()) as DeviceIdentityResponse
                     if (deviceIdentityResponse.platform == Platform.Android)
                         continue
-                    Timber.d("Received UDP from ${deviceIdentityResponse.name} (${deviceIdentityResponse.id}):${deviceIdentityResponse.localIp}")
+//                    Timber.d("Received UDP from ${deviceIdentityResponse.name} (${deviceIdentityResponse.id}):${deviceIdentityResponse.localIp}")
                     deviceService.handleUdp(deviceIdentityResponse.name!!, deviceIdentityResponse.id!!, deviceIdentityResponse.localIp!!, 33587)
 
                 }
