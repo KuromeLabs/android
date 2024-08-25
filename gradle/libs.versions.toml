@@ -7,7 +7,7 @@ testCore = "1.6.1"
 coreKtx = "1.13.1"
 flatbuffersJava = "24.3.25"
 compose = "1.6.8"
-hiltAndroid = "2.51.1"
+hiltAndroid = "2.52"
 hiltNavigationCompose = "1.2.0"
 junit = "4.13.2"
 junitVersion = "1.2.1"
@@ -24,6 +24,10 @@ androidGradlePlugin = "8.5.2"
 kotlin = "2.0.20"
 ksp = "2.0.20-1.0.24"
 mdcMaterial = "1.12.0"
+junitJupiter = "5.11.0"
+kotlin-coroutines-test = "1.9.0-RC.2"
+mockitoKotlin = "5.4.0"
+mannodermausAndroidJunit5 = "1.11.0.0"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
@@ -58,11 +62,17 @@ flatbuffers-java = { module = "com.google.flatbuffers:flatbuffers-java", version
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hiltAndroid" }
 hilt-android-compiler = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hiltAndroid" }
 junit = { module = "junit:junit", version.ref = "junit" }
+junit-jupiter-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junitJupiter" }
+junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junitJupiter" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutinesAndroid" }
 leakcanary-android = { module = "com.squareup.leakcanary:leakcanary-android", version.ref = "leakcanaryAndroid" }
 material-mdc = { module = "com.google.android.material:material", version.ref = "mdcMaterial" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockitoCore" }
+mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockitoKotlin" }
 timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
+junit-jupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junitJupiter" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlin-coroutines-test"}
+
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }
@@ -70,3 +80,4 @@ org-jetbrains-kotlin-android = { id = "org.jetbrains.kotlin.android", version.re
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 hilt-android = { id = "com.google.dagger.hilt.android", version.ref = "hiltAndroid" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+mannodermaus-android-junit5 = { id = "de.mannodermaus.android-junit5", version.ref = "mannodermausAndroidJunit5"}
