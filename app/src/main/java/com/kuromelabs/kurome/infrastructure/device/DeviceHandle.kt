@@ -6,8 +6,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import java.nio.ByteBuffer
 import java.security.cert.X509Certificate
 import java.util.concurrent.CopyOnWriteArrayList
@@ -21,22 +20,26 @@ class DeviceHandle(
 ) {
     var outgoingPairRequestTimerJob: Job? = null
     val plugins = CopyOnWriteArrayList<Plugin>()
-    lateinit var link: Link
+    var link: Link? = null
     var localScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
 
     fun start() {
-        link.start()
-        link.receivedPackets
-            .onEach { packetResult ->
-                packetResult.onSuccess { packet ->
-                    plugins.onEach { it.processPacket(packet) }
+        if (link == null) {
+            throw NullPointerException("Link is null")
+        }
+        localScope.launch(Dispatchers.Unconfined) {
+            link!!.receivedPackets
+                .collect { packetResult ->
+                    packetResult.onSuccess { packet ->
+                        plugins.onEach { it.processPacket(packet) }
+                    }
                 }
-            }
-            .launchIn(localScope)
+        }
+        link!!.start()
     }
 
     fun stop() {
-        link.close()
+        link?.close()
         try {
             localScope.cancel()
         } catch (_: Exception) {}
@@ -44,7 +47,7 @@ class DeviceHandle(
     }
 
     fun sendPacket(packet: ByteBuffer) {
-        link.send(packet)
+        link?.send(packet)
     }
 
     fun reloadPlugins(identityProvider: IdentityProvider) {

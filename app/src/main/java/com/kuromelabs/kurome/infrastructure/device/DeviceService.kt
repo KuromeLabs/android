@@ -12,14 +12,13 @@ import com.kuromelabs.kurome.application.devices.DeviceRepository
 import com.kuromelabs.kurome.application.interfaces.SecurityService
 import com.kuromelabs.kurome.infrastructure.network.Link
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.job
@@ -107,15 +106,16 @@ class DeviceService(
             deviceHandle.certificate = sslSocket.session.peerCertificates[0] as X509Certificate
             _deviceHandles[id] = deviceHandle
             deviceHandle.reloadPlugins(identityProvider)
+            deviceHandle.localScope.launch(Dispatchers.Unconfined) {
             link.receivedPackets
                 .filter { it.isFailure || (it.isSuccess && it.getOrNull()!!.componentType == Component.Pair) }
-                .onEach { packetResult ->
+                .collect { packetResult ->
                     packetResult.onSuccess {
                         handleIncomingPairPacket(it.component(Kurome.Fbs.Pair()) as Kurome.Fbs.Pair, deviceHandle)
                     }
                     packetResult.onFailure { onDeviceDisconnected(deviceHandle.id) }
                 }
-                .launchIn(deviceHandle.localScope)
+            }
             deviceHandle.start()
             reloadDeviceStates()
         }

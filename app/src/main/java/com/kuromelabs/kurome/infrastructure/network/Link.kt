@@ -3,6 +3,7 @@ package com.kuromelabs.kurome.infrastructure.network
 
 import Kurome.Fbs.Packet
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.isActive
@@ -18,13 +19,13 @@ class LinkBrokenException: Exception()
 class Link(private var socket: SSLSocket, private var scope: CoroutineScope) {
 
     private val outputChannel = Channels.newChannel(socket.outputStream)
-    private val _receivedPackets = MutableSharedFlow<Result<Packet>>()
+    private val _receivedPackets = MutableSharedFlow<Result<Packet>>(extraBufferCapacity = 1000, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val receivedPackets = _receivedPackets.asSharedFlow()
 
     private fun receive(buffer: ByteArray, size: Int): Int {
         return try {
             var bytesRead = 0
-            while (bytesRead != size && bytesRead >= 0)
+            while (bytesRead != size)
                 bytesRead += socket.inputStream.read(buffer, bytesRead, size - bytesRead)
             bytesRead
         } catch (e: Exception) {
@@ -50,6 +51,7 @@ class Link(private var socket: SSLSocket, private var scope: CoroutineScope) {
         try {
             outputChannel.close()
             socket.close()
+            println("Socket closed")
         } catch (e: Exception) {
             Timber.e(e, "Error closing socket")
         }
@@ -62,10 +64,15 @@ class Link(private var socket: SSLSocket, private var scope: CoroutineScope) {
             val size = ByteBuffer.wrap(sizeBuffer).order(ByteOrder.LITTLE_ENDIAN).int
             val data = ByteArray(size)
             if (receive(data, size) <= 0) break
-            val packet = Packet.getRootAsPacket(ByteBuffer.wrap(data))
-            _receivedPackets.emit(Result.success(packet))
+            try {
+                val packet = Packet.getRootAsPacket(ByteBuffer.wrap(data))
+                _receivedPackets.emit(Result.success(packet))
+            } catch (e: Exception) {
+                Timber.e(e, "Received malformed packet")
+                break
+            }
         }
-        Timber.d("Emitting link broken packet")
+        Timber.d("Emitting link broken result")
         _receivedPackets.emit(Result.failure(LinkBrokenException()))
     }
 }
