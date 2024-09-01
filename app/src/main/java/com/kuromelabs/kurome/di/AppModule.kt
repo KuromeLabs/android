@@ -49,9 +49,10 @@ object AppModule {
         scope: CoroutineScope,
         identityProvider: IdentityProvider,
         securityService: SecurityService<X509Certificate, KeyPair>,
-        deviceRepository: DeviceRepository
+        deviceRepository: DeviceRepository,
+        networkService: NetworkService
     ): DeviceService {
-        return DeviceService(scope, identityProvider, securityService, deviceRepository)
+        return DeviceService(scope, identityProvider, securityService, deviceRepository, networkService)
     }
 
     @Provides
@@ -64,10 +65,9 @@ object AppModule {
     @Singleton
     fun provideNetworkService(
         scope: CoroutineScope,
-        @ApplicationContext context: Context,
-        deviceService: DeviceService
+        @ApplicationContext context: Context
     ): NetworkService {
-        return NetworkService(scope, context, deviceService)
+        return NetworkService(scope, context)
     }
 
     @Provides

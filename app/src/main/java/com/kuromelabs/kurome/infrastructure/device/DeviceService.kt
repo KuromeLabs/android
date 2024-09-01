@@ -11,6 +11,7 @@ import com.kuromelabs.kurome.application.devices.Device
 import com.kuromelabs.kurome.application.devices.DeviceRepository
 import com.kuromelabs.kurome.application.interfaces.SecurityService
 import com.kuromelabs.kurome.infrastructure.network.Link
+import com.kuromelabs.kurome.infrastructure.network.NetworkService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -18,7 +19,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.job
@@ -31,6 +34,7 @@ import java.security.KeyPair
 import java.security.KeyStore
 import java.security.cert.X509Certificate
 import java.util.concurrent.ConcurrentHashMap
+import javax.inject.Inject
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocket
@@ -43,7 +47,9 @@ class DeviceService(
     private var identityProvider: IdentityProvider,
     private var securityService: SecurityService<X509Certificate, KeyPair>,
     private var deviceRepository: DeviceRepository,
+    private var networkService: NetworkService
 ) {
+
     private val _deviceHandles = ConcurrentHashMap<String, DeviceHandle>()
 
     private val _deviceStates = MutableStateFlow<MutableMap<String, DeviceState>>(mutableMapOf())
@@ -54,7 +60,18 @@ class DeviceService(
         .stateIn(scope, SharingStarted.Eagerly, mutableMapOf())
 
 
-    suspend fun handleUdp(name: String, id: String, ip: String, port: Int) {
+    fun start() {
+        networkService.identityPackets.onEach {
+            handleUdp(it.name!!, it.id!!, it.localIp!!, 33587)
+        }.launchIn(scope)
+        networkService.isConnected().onEach {
+            if (!it) onNetworkLost()
+        }.launchIn(scope)
+        networkService.startUdpListener()
+
+    }
+
+    private fun handleUdp(name: String, id: String, ip: String, port: Int) {
         if (_deviceHandles.containsKey(id)) {
 //            Timber.d("Device $id is already connected or connecting, ignoring")
             return

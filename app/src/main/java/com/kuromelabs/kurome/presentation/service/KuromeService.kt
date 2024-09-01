@@ -39,13 +39,10 @@ class KuromeService : LifecycleService() {
     private var isServiceStarted = false
 
     @Inject
-    lateinit var linkProvider: NetworkService
-
-    @Inject
     lateinit var deviceService: DeviceService
     override fun onCreate() {
         super.onCreate()
-        linkProvider.start()
+        deviceService.start()
         createNotificationChannel()
     }
 
