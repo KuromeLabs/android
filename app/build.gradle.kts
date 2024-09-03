@@ -17,7 +17,7 @@ android {
     defaultConfig {
         applicationId = "com.kuromelabs.kurome"
         minSdk = 21
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -98,10 +98,9 @@ dependencies {
     //test
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.mockito.core)
     testImplementation(libs.androidx.test.core)
-    testImplementation(libs.mockito.kotlin)
     testImplementation(libs.junit.jupiter.api)
+    testImplementation(libs.mockk)
     testRuntimeOnly(libs.junit.jupiter.engine)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.test.core)

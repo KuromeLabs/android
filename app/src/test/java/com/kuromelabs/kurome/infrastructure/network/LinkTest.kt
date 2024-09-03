@@ -5,6 +5,9 @@ import Kurome.Fbs.DeviceIdentityResponse
 import Kurome.Fbs.Packet
 import Kurome.Fbs.Platform
 import com.google.flatbuffers.FlatBufferBuilder
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -18,9 +21,6 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertDoesNotThrow
-import org.mockito.kotlin.doReturn
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.whenever
 import java.io.IOException
 import java.io.PipedInputStream
 import java.io.PipedOutputStream
@@ -45,9 +45,10 @@ class LinkTest {
     }
 
     private fun createMockSocket(inputStream: PipedInputStream, outputStream: PipedOutputStream): SSLSocket {
-        return mock {
-            on { getInputStream() } doReturn inputStream
-            on { getOutputStream() } doReturn outputStream
+        return mockk<SSLSocket>(relaxed = true) {
+            every { getInputStream() } answers { inputStream }
+            every { getOutputStream() } answers { outputStream }
+            every { isClosed } returns false
         }
     }
 
@@ -68,7 +69,7 @@ class LinkTest {
     @Test
     fun `test link send with a simple buffer and read the buffer back`() {
         val mockSslSocketSentDataStream = PipedInputStream()
-        whenever(mockSSLSocket.outputStream).doReturn(PipedOutputStream(mockSslSocketSentDataStream))
+        every {mockSSLSocket.outputStream} answers {PipedOutputStream(mockSslSocketSentDataStream)}
         val link = Link(mockSSLSocket, scope)
         val inputBuffer = ByteBuffer.wrap(byteArrayOf(1,2,3,4,5,6,7,8,9,10))
 
@@ -86,7 +87,8 @@ class LinkTest {
     fun `test link fbs packet receive loop with a normal packet emits success`() = runTest {
         val link = Link(mockSSLSocket, dispatcherScope)
         val mockSslSocketReceivedDataStream = PipedOutputStream()
-        whenever(mockSSLSocket.inputStream).thenReturn(PipedInputStream(mockSslSocketReceivedDataStream))
+        val input = PipedInputStream(mockSslSocketReceivedDataStream)
+        every { mockSSLSocket.inputStream } answers {input}
         mockSslSocketReceivedDataStream.write(samplePacketByteArray())
         var result: Result<Packet>? = null
         val job = dispatcherScope.launch(Dispatchers.Unconfined) {
@@ -100,7 +102,8 @@ class LinkTest {
     @Test
     fun `test link fbs packet receive loop with many packets emits success`() = runTest {
         val mockSslSocketReceivedDataStream = PipedOutputStream()
-        whenever(mockSSLSocket.inputStream).thenReturn(PipedInputStream(mockSslSocketReceivedDataStream))
+        val input = PipedInputStream(mockSslSocketReceivedDataStream)
+        every{mockSSLSocket.inputStream} answers {input}
         val link = Link(mockSSLSocket, dispatcherScope)
         val list = mutableListOf<Result<Packet>>()
         dispatcherScope.launch {
@@ -124,7 +127,8 @@ class LinkTest {
     @Test
     fun `test link fbs packet receive loop with malformed buffer emits failure`() = runTest {
         val mockSslSocketReceivedDataStream = PipedOutputStream()
-        whenever(mockSSLSocket.inputStream).thenReturn(PipedInputStream(mockSslSocketReceivedDataStream))
+        val input = PipedInputStream(mockSslSocketReceivedDataStream)
+        every {mockSSLSocket.inputStream} answers {input}
         val link = Link(mockSSLSocket, dispatcherScope)
         val builder = FlatBufferBuilder(256)
         val p = Packet.createPacket(
@@ -151,18 +155,19 @@ class LinkTest {
     @Test
     fun `test link fbs packet receive loop with error in stream after reading size of buffer emits failure`() = runTest {
         val mockSslSocketReceivedDataStream = PipedOutputStream()
-        whenever(mockSSLSocket.inputStream).thenReturn(PipedInputStream(mockSslSocketReceivedDataStream))
+        val input = PipedInputStream(mockSslSocketReceivedDataStream)
+        every{mockSSLSocket.inputStream} answers {input}
         val link = Link(mockSSLSocket, dispatcherScope)
         val bytes = samplePacketByteArray()
         var result: Result<Packet>? = null
         val job = dispatcherScope.launch(Dispatchers.Unconfined) {
             result = link.receivedPackets.first()
         }
-        link.start()
-        mockSslSocketReceivedDataStream.write(bytes.copyOfRange(0, 4))
-        whenever(mockSSLSocket.inputStream).thenThrow(IOException())
-        mockSslSocketReceivedDataStream.write(bytes.copyOfRange(4, bytes.size))
 
+        mockSslSocketReceivedDataStream.write(bytes.copyOfRange(0, 4))
+        every{mockSSLSocket.inputStream} throws IOException()
+        mockSslSocketReceivedDataStream.write(bytes.copyOfRange(4, bytes.size))
+        link.start()
         job.join()
         assert(result!!.isFailure)
     }
@@ -170,7 +175,8 @@ class LinkTest {
     @Test
     fun `test link fbs packet receive loop with scope cancelled emits failure`() = runTest {
         val mockSslSocketReceivedDataStream = PipedOutputStream()
-        whenever(mockSSLSocket.inputStream).thenReturn(PipedInputStream(mockSslSocketReceivedDataStream))
+        val input = PipedInputStream(mockSslSocketReceivedDataStream)
+        every {mockSSLSocket.inputStream} answers {input}
         val linkScope = CoroutineScope(Dispatchers.IO)
         val link = Link(mockSSLSocket, linkScope)
 
@@ -189,7 +195,8 @@ class LinkTest {
     @Test
     fun `test link fbs packet receive loop with massive packet`() = runTest {
         val mockSslSocketReceivedDataStream = PipedOutputStream()
-        whenever(mockSSLSocket.inputStream).thenReturn(PipedInputStream(mockSslSocketReceivedDataStream))
+        val input = PipedInputStream(mockSslSocketReceivedDataStream)
+        every{mockSSLSocket.inputStream} answers {input}
         val link = Link(mockSSLSocket, dispatcherScope)
         val builder = FlatBufferBuilder(256)
         val p = Packet.createPacket(
@@ -254,7 +261,7 @@ class LinkTest {
 
     @Test
     fun `test close function with IOError does not throw exception`() = runTest {
-        whenever(mockSSLSocket.close()).thenThrow(IOException())
+        every {mockSSLSocket.close()} throws IOException()
         val link = Link(mockSSLSocket, dispatcherScope)
         assertDoesNotThrow {
             link.close()
@@ -262,12 +269,16 @@ class LinkTest {
     }
 
     @Test
-    fun `test close function with socket already closed does not throw exception`() = runTest {
-        whenever(mockSSLSocket.isClosed).thenReturn(true)
+    fun `test close function with socket already closed does not throw exception or try to close the socket again`() = runTest {
+        every { mockSSLSocket.isClosed } returns true
+
         val link = Link(mockSSLSocket, dispatcherScope)
         assertDoesNotThrow {
             link.close()
         }
+
+        verify(exactly = 0) { mockSSLSocket.close() }
     }
+
 
 }

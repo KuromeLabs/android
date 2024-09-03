@@ -15,19 +15,18 @@ kotlinxCoroutinesAndroid = "1.8.1"
 leakcanaryAndroid = "2.14"
 lifecycleService = "2.8.4"
 material3 = "1.2.1"
-mockitoCore = "5.12.0"
 navigationCompose = "2.7.7"
 preferenceKtx = "1.2.1"
 roomCompiler = "2.6.1"
 timber = "5.0.1"
-androidGradlePlugin = "8.5.2"
+androidGradlePlugin = "8.6.0"
 kotlin = "2.0.20"
 ksp = "2.0.20-1.0.24"
 mdcMaterial = "1.12.0"
 junitJupiter = "5.11.0"
 kotlin-coroutines-test = "1.9.0-RC.2"
-mockitoKotlin = "5.4.0"
 mannodermausAndroidJunit5 = "1.11.0.0"
+mockk = "1.13.12"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
@@ -39,7 +38,6 @@ androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx"
 androidx-foundation = { module = "androidx.compose.foundation:foundation", version.ref = "compose" }
 androidx-foundation-layout = { module = "androidx.compose.foundation:foundation-layout", version.ref = "compose" }
 androidx-hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
-androidx-junit = { module = "androidx.test.ext:junit", version.ref = "junitVersion" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycleService" }
 androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycleService" }
 androidx-lifecycle-service = { module = "androidx.lifecycle:lifecycle-service", version.ref = "lifecycleService" }
@@ -53,7 +51,6 @@ androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "roomComp
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "roomCompiler" }
 androidx-runtime = { module = "androidx.compose.runtime:runtime", version.ref = "compose" }
 androidx-ui = { module = "androidx.compose.ui:ui", version.ref = "compose" }
-androidx-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4", version.ref = "compose" }
 androidx-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest", version.ref = "compose" }
 androidx-ui-tooling = { module = "androidx.compose.ui:ui-tooling", version.ref = "compose" }
 androidx-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview", version.ref = "compose" }
@@ -61,17 +58,15 @@ bcpkix-jdk18on = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bc
 flatbuffers-java = { module = "com.google.flatbuffers:flatbuffers-java", version.ref = "flatbuffersJava" }
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hiltAndroid" }
 hilt-android-compiler = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hiltAndroid" }
-junit = { module = "junit:junit", version.ref = "junit" }
 junit-jupiter-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junitJupiter" }
 junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junitJupiter" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutinesAndroid" }
 leakcanary-android = { module = "com.squareup.leakcanary:leakcanary-android", version.ref = "leakcanaryAndroid" }
 material-mdc = { module = "com.google.android.material:material", version.ref = "mdcMaterial" }
-mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockitoCore" }
-mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockitoKotlin" }
 timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
 junit-jupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junitJupiter" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlin-coroutines-test"}
+mockk = { module= "io.mockk:mockk", version.ref="mockk" }
 
 
 [plugins]

@@ -9,6 +9,12 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkRequest
 import com.google.flatbuffers.FlatBufferBuilder
+import io.mockk.Runs
+import io.mockk.every
+import io.mockk.just
+import io.mockk.mockk
+import io.mockk.slot
+import io.mockk.spyk
 import junit.framework.Assert.assertEquals
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,14 +27,6 @@ import org.junit.jupiter.api.AfterEach
 
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.mockito.Mockito.doNothing
-import org.mockito.Mockito.spy
-import org.mockito.kotlin.any
-import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.doAnswer
-import org.mockito.kotlin.doReturn
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.whenever
 import java.io.IOException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -36,11 +34,16 @@ import java.net.DatagramSocket
 class NetworkServiceTest {
     private lateinit var dispatcherScope: CoroutineScope
     private lateinit var context: Context
+    private lateinit var mockSocket: DatagramSocket
 
     @BeforeEach
     fun setUp() {
         dispatcherScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-        context = mock()
+        context = mockk(relaxed=true)
+        mockSocket = mockk<DatagramSocket>(relaxed = true) {
+            every { isClosed } returns false
+            every { close() } answers { callOriginal() }
+        }
     }
 
     @AfterEach
@@ -90,17 +93,13 @@ class NetworkServiceTest {
         return arr
     }
 
-
-
     @Test
     fun `test startUdpListener with identity packet emits identity packet in flow`(): Unit = runTest{
         val arr = getNormalDeviceIdentityPacketByteArray()
-        val mockSocket = mock<DatagramSocket> {
-            on { receive(any()) } doAnswer  {
-                val packet = it.getArgument<DatagramPacket>(0)
-                packet.data = arr
-                packet.length = arr.size
-            }
+        every { mockSocket.receive(any()) } answers  {
+            val packet = it.invocation.args[0] as DatagramPacket
+            packet.data = arr
+            packet.length = arr.size
         }
         var identityResponse: DeviceIdentityResponse? = null
         val networkService = NetworkService(dispatcherScope, context) { mockSocket }
@@ -119,25 +118,16 @@ class NetworkServiceTest {
         val identityWindowsArr = getNormalDeviceIdentityPacketByteArray()
         val identityAndroidArr = getAndroidDeviceIdentityPacketByteArray()
         val nonIdentityArr = getNonIdentityPacketByteArray()
+
+        val responses = listOf(nonIdentityArr, identityAndroidArr, identityWindowsArr)
         var callCount = 0
-        val mockSocket = mock<DatagramSocket> {
-            on { receive(any()) } doAnswer  {
-                val packet = it.getArgument<DatagramPacket>(0)
-                if (callCount == 0) {
-                    packet.data = nonIdentityArr
-                    packet.length = nonIdentityArr.size
-                    callCount++
-                    return@doAnswer
-                } else if (callCount == 1) {
-                    packet.data = identityAndroidArr
-                    packet.length = identityAndroidArr.size
-                    callCount++
-                    return@doAnswer
-                }
-                callCount++
-                packet.data = identityWindowsArr
-                packet.length = identityWindowsArr.size
-            }
+
+        every { mockSocket.receive(any()) } answers {
+            val packet = it.invocation.args[0] as DatagramPacket
+            val data = responses.getOrNull(callCount) ?: identityWindowsArr
+            packet.data = data
+            packet.length = data.size
+            callCount++
         }
 
         val networkService = NetworkService(dispatcherScope, context) { mockSocket }
@@ -147,17 +137,13 @@ class NetworkServiceTest {
         }
         networkService.startUdpListener()
         packetJob.join()
-        // receive was called three times even though we only got one packet
         assert(callCount == 3)
     }
 
 
     @Test
     fun `test startUdpListener with closed socket job ends`(): Unit = runTest{
-        val mockSocket = mock<DatagramSocket> {
-            on { isClosed }.doReturn(true)
-        }
-
+        every { mockSocket.isClosed } returns true
         val networkService = NetworkService(dispatcherScope, context) { mockSocket }
         val job = networkService.startUdpListener()
         job.join()
@@ -165,19 +151,18 @@ class NetworkServiceTest {
 
 
     @Test
-    fun `test startUdpListener with normal identity packet and exception emits nothing`(): Unit = runTest{
+    fun `test startUdpListener with normal identity packet and exception emits nothing`() = runTest {
         val identityWindowsArr = getNormalDeviceIdentityPacketByteArray()
         var callCount = 0
-        val mockSocket = mock<DatagramSocket> {
-            on { receive(any()) } doAnswer  {
-                val packet = it.getArgument<DatagramPacket>(0)
-                if (callCount == 0) {
-                    callCount++
-                    throw IOException()
+
+        every { mockSocket.receive(any()) } answers {
+            val packet = it.invocation.args[0] as DatagramPacket
+            when (callCount++) {
+                0 -> throw IOException()
+                else -> {
+                    packet.data = identityWindowsArr
+                    packet.length = identityWindowsArr.size
                 }
-                callCount++
-                packet.data = identityWindowsArr
-                packet.length = identityWindowsArr.size
             }
         }
 
@@ -186,66 +171,70 @@ class NetworkServiceTest {
             networkService.identityPackets.first()
             dispatcherScope.cancel()
         }
+
         networkService.startUdpListener()
         packetJob.join()
-        // receive was called two times even though we only got one packet
-        assert(callCount == 2)
-    }
 
+        assertEquals(2, callCount)
+    }
 
     @Test
     fun `test datagramSocket factory function`() {
-        val mockContext = mock<Context>()
-        val networkService = spy(NetworkService(scope = dispatcherScope, context = mockContext))
+        val mockContext = mockk<Context>()
+        val networkService = spyk(NetworkService(scope = dispatcherScope, context = mockContext))
         val socket = networkService.datagramSocket(0)
         assertEquals(true, socket.reuseAddress)
         assertEquals(true, socket.broadcast)
     }
 
     @Test
-    fun `test isConnected network callback emits true when onAvailable triggers`(): Unit = runTest{
-        val mockConnectivityManager = mock<ConnectivityManager>()
-        val mockNetworkRequestBuilder: NetworkRequest.Builder = mock()
-        val networkRequest: NetworkRequest = mock()
+    fun `test isConnected network callback emits true when onAvailable triggers`() = runTest {
+        val mockConnectivityManager = mockk<ConnectivityManager>(relaxed = true)
+        val mockNetworkRequestBuilder = mockk<NetworkRequest.Builder>()
+        val networkRequest = mockk<NetworkRequest>()
 
-        whenever(mockNetworkRequestBuilder.addTransportType(any())).thenReturn(mockNetworkRequestBuilder)
-        whenever(mockNetworkRequestBuilder.build()).thenReturn(networkRequest)
+        every { mockNetworkRequestBuilder.addTransportType(any()) } returns mockNetworkRequestBuilder
+        every { mockNetworkRequestBuilder.build() } returns networkRequest
 
-        whenever(context.getSystemService(Context.CONNECTIVITY_SERVICE)).thenReturn(mockConnectivityManager)
-        val networkCallbackCaptor = argumentCaptor<ConnectivityManager.NetworkCallback>()
-        doNothing().whenever(mockConnectivityManager).registerNetworkCallback(any<NetworkRequest>(), networkCallbackCaptor.capture())
+        every { context.getSystemService(Context.CONNECTIVITY_SERVICE) } returns mockConnectivityManager
+
+        val networkCallbackSlot = slot<ConnectivityManager.NetworkCallback>()
+        every { mockConnectivityManager.registerNetworkCallback(any<NetworkRequest>(), capture(networkCallbackSlot)) } just Runs
+
         val networkService = NetworkService(dispatcherScope, context)
-
         val connFlow = networkService.isConnected(mockConnectivityManager, mockNetworkRequestBuilder)
+
         val flowJob = dispatcherScope.launch(Dispatchers.Unconfined) {
             assert(connFlow.first())
         }
 
-        networkCallbackCaptor.firstValue.onAvailable(mock())
+        networkCallbackSlot.captured.onAvailable(mockk())
         flowJob.join()
     }
 
     @Test
-    fun `test isConnected network callback emits false when onLost triggers`(): Unit = runTest{
-        val mockConnectivityManager = mock<ConnectivityManager>()
-        val mockNetworkRequestBuilder: NetworkRequest.Builder = mock()
-        val networkRequest: NetworkRequest = mock()
+    fun `test isConnected network callback emits false when onLost triggers`() = runTest {
+        val mockConnectivityManager = mockk<ConnectivityManager>(relaxed = true)
+        val mockNetworkRequestBuilder = mockk<NetworkRequest.Builder>()
+        val networkRequest = mockk<NetworkRequest>()
 
-        whenever(mockNetworkRequestBuilder.addTransportType(any())).thenReturn(mockNetworkRequestBuilder)
-        whenever(mockNetworkRequestBuilder.build()).thenReturn(networkRequest)
+        every { mockNetworkRequestBuilder.addTransportType(any()) } returns mockNetworkRequestBuilder
+        every { mockNetworkRequestBuilder.build() } returns networkRequest
 
-        whenever(context.getSystemService(Context.CONNECTIVITY_SERVICE)).thenReturn(mockConnectivityManager)
-        val networkCallbackCaptor = argumentCaptor<ConnectivityManager.NetworkCallback>()
-        doNothing().whenever(mockConnectivityManager).registerNetworkCallback(any<NetworkRequest>(), networkCallbackCaptor.capture())
+        every { context.getSystemService(Context.CONNECTIVITY_SERVICE) } returns mockConnectivityManager
+
+        val networkCallbackSlot = slot<ConnectivityManager.NetworkCallback>()
+        every { mockConnectivityManager.registerNetworkCallback(any<NetworkRequest>(), capture(networkCallbackSlot)) } just Runs
+
         val networkService = NetworkService(dispatcherScope, context)
-
         val connFlow = networkService.isConnected(mockConnectivityManager, mockNetworkRequestBuilder)
+
         val flowJob = dispatcherScope.launch(Dispatchers.Unconfined) {
             assert(!connFlow.first())
         }
-
-        networkCallbackCaptor.firstValue.onLost(mock())
+        networkCallbackSlot.captured.onLost(mockk())
         flowJob.join()
     }
+
 
 }
