@@ -87,6 +87,8 @@ android {
             pickFirsts += "**/MANIFEST.MF"
         }
     }
+
+    testOptions.unitTests.all { it.jvmArgs("-Xms512m", "-Xmx4g") }
 }
 
 dependencies {
