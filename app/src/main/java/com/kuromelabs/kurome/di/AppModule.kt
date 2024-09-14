@@ -9,6 +9,7 @@ import com.kuromelabs.kurome.infrastructure.device.DefaultDeviceRepository
 import com.kuromelabs.kurome.infrastructure.device.DeviceDatabase
 import com.kuromelabs.kurome.infrastructure.device.DeviceService
 import com.kuromelabs.kurome.infrastructure.device.IdentityProvider
+import com.kuromelabs.kurome.infrastructure.network.NetworkHelper
 import com.kuromelabs.kurome.infrastructure.network.NetworkService
 import com.kuromelabs.kurome.infrastructure.network.SslService
 import dagger.Module
@@ -36,11 +37,16 @@ object AppModule {
         ).build()
     }
 
-    @Singleton // Provide always the same instance
+    @Singleton
     @Provides
     fun providesCoroutineScope(): CoroutineScope {
-        // Run this code when providing an instance of CoroutineScope
         return CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    }
+
+    @Singleton
+    @Provides
+    fun provideNetworkHelper(securityService: SecurityService<X509Certificate, KeyPair>): NetworkHelper {
+        return NetworkHelper(securityService)
     }
 
     @Provides
@@ -48,11 +54,11 @@ object AppModule {
     fun provideDeviceService(
         scope: CoroutineScope,
         identityProvider: IdentityProvider,
-        securityService: SecurityService<X509Certificate, KeyPair>,
+        networkHelper: NetworkHelper,
         deviceRepository: DeviceRepository,
         networkService: NetworkService
     ): DeviceService {
-        return DeviceService(scope, identityProvider, securityService, deviceRepository, networkService)
+        return DeviceService(scope, identityProvider, networkHelper, deviceRepository, networkService)
     }
 
     @Provides

@@ -12,7 +12,6 @@ import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.application.devices.DeviceRepository
 import com.kuromelabs.kurome.application.interfaces.SecurityService
 import com.kuromelabs.kurome.infrastructure.device.DeviceService
-import com.kuromelabs.kurome.infrastructure.network.NetworkService
 import com.kuromelabs.kurome.presentation.MainActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope

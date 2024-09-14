@@ -90,13 +90,13 @@ class LinkTest {
         val input = PipedInputStream(mockSslSocketReceivedDataStream)
         every { mockSSLSocket.inputStream } answers {input}
         mockSslSocketReceivedDataStream.write(samplePacketByteArray())
-        var result: Result<Packet>? = null
+        var result: LinkPacket? = null
         val job = dispatcherScope.launch(Dispatchers.Unconfined) {
             result = link.receivedPackets.first()
         }
         link.start()
         job.join()
-        assert(result!!.isSuccess && result!!.getOrNull()!!.componentType == Component.DeviceIdentityResponse)
+        assert(result!!.isSuccess && result!!.value!!.componentType == Component.DeviceIdentityResponse)
     }
 
     @Test
@@ -105,7 +105,7 @@ class LinkTest {
         val input = PipedInputStream(mockSslSocketReceivedDataStream)
         every{mockSSLSocket.inputStream} answers {input}
         val link = Link(mockSSLSocket, dispatcherScope)
-        val list = mutableListOf<Result<Packet>>()
+        val list = mutableListOf<LinkPacket>()
         dispatcherScope.launch {
             for (i in 0..10000)
                 mockSslSocketReceivedDataStream.write(samplePacketByteArray())
@@ -141,7 +141,7 @@ class LinkTest {
         val bytes = builder.sizedByteArray()
         for (i in 5..<bytes.size)
             bytes[i] = 2
-        var result: Result<Packet>? = null
+        var result: LinkPacket? = null
         val job = dispatcherScope.launch(Dispatchers.Unconfined) {
             result = link.receivedPackets.first()
         }
@@ -156,16 +156,17 @@ class LinkTest {
     fun `test link fbs packet receive loop with error in stream after reading size of buffer emits failure`() = runTest {
         val mockSslSocketReceivedDataStream = PipedOutputStream()
         val input = PipedInputStream(mockSslSocketReceivedDataStream)
-        every{mockSSLSocket.inputStream} answers {input}
+        every { mockSSLSocket.inputStream } answers {
+            input
+        } andThenThrows IOException()
         val link = Link(mockSSLSocket, dispatcherScope)
         val bytes = samplePacketByteArray()
-        var result: Result<Packet>? = null
+        var result: LinkPacket? = null
         val job = dispatcherScope.launch(Dispatchers.Unconfined) {
             result = link.receivedPackets.first()
         }
 
         mockSslSocketReceivedDataStream.write(bytes.copyOfRange(0, 4))
-        every{mockSSLSocket.inputStream} throws IOException()
         mockSslSocketReceivedDataStream.write(bytes.copyOfRange(4, bytes.size))
         link.start()
         job.join()
@@ -208,7 +209,7 @@ class LinkTest {
         builder.finishSizePrefixed(p)
         val bytes = builder.sizedByteArray()
 
-        var result: Result<Packet>? = null
+        var result: LinkPacket? = null
         val job = dispatcherScope.launch(Dispatchers.Unconfined) {
             result = link.receivedPackets.first()
         }
@@ -216,14 +217,14 @@ class LinkTest {
         mockSslSocketReceivedDataStream.write(bytes)
 
         job.join()
-        assert(result!!.isSuccess && result!!.getOrNull()!!.componentType == Component.DeviceIdentityResponse)
+        assert(result!!.isSuccess && result!!.value!!.componentType == Component.DeviceIdentityResponse)
     }
 
     @Test
     fun `test close emits failure result in start loop and closes the socket`() = runTest {
         val link = Link(mockSSLSocket, dispatcherScope)
 
-        var result: Result<Packet>? = null
+        var result: LinkPacket? = null
         val job = dispatcherScope.launch(Dispatchers.Unconfined) {
             result = link.receivedPackets.first()
             return@launch
@@ -239,7 +240,7 @@ class LinkTest {
     fun `test send function while socket is closed, emit failure result in send function`() = runTest {
         val link = Link(mockSSLSocket, dispatcherScope)
 
-        var result: Result<Packet>? = null
+        var result: LinkPacket? = null
         val job = dispatcherScope.launch(Dispatchers.Unconfined) {
             result = link.receivedPackets.first()
             return@launch
