@@ -14,6 +14,7 @@ class IdentityPacketHandlerPlugin (private val identityProvider: IdentityProvide
 
     val builder = FlatBufferBuilder(256)
     override fun processPacket(packet: Packet) {
+        if (packet.componentType != Component.DeviceIdentityQuery) return
         val response = processDeviceQuery()
         val p = Packet.createPacket(
             builder,
