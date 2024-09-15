@@ -18,8 +18,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import java.security.KeyPair
-import java.security.cert.X509Certificate
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -27,16 +25,7 @@ class KuromeService : LifecycleService() {
     private val channelId = "ForegroundServiceChannel"
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
-
-
-    @Inject
-    lateinit var securityService: SecurityService<X509Certificate, KeyPair>
-
-
-    @Inject
-    lateinit var repository: DeviceRepository
     private var isServiceStarted = false
-
     @Inject
     lateinit var deviceService: DeviceService
     override fun onCreate() {
