@@ -188,18 +188,19 @@ class DeviceService @Inject constructor(
         reloadDeviceStates()
     }
 
-    suspend fun sendOutgoingPairRequest(id: String) {
+    fun sendOutgoingPairRequest(id: String, scope: CoroutineScope? = null) {
         val deviceHandle = deviceHandles[id] ?: return
         if (deviceHandle.pairStatus == PairStatus.PAIRED || deviceHandle.pairStatus == PairStatus.PAIR_REQUESTED) {
             Timber.d("Pair request already in progress")
             return
         }
-
+        val timerScope = scope ?: deviceHandle.localScope
         deviceHandle.pairStatus = PairStatus.PAIR_REQUESTED
-        deviceHandle.outgoingPairRequestTimerJob = scope.launch {
+        deviceHandle.outgoingPairRequestTimerJob = timerScope.launch {
             delay(30000)
             Timber.d("Pair request timed out")
             deviceHandle.pairStatus = PairStatus.UNPAIRED
+            reloadDeviceStates()
         }
 
         val builder = FlatBufferBuilder(256)
@@ -207,8 +208,8 @@ class DeviceService @Inject constructor(
         val packet = Packet.createPacket(builder, Component.Pair, pair, -1)
         builder.finishSizePrefixed(packet)
         deviceHandle.sendPacket(builder.dataBuffer())
+        reloadDeviceStates()
     }
-
 
 }
 
