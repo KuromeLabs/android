@@ -28,12 +28,12 @@ class PacketHelpers {
             return Packet.getRootAsPacket(builder.dataBuffer()).component(DeviceIdentityResponse()) as DeviceIdentityResponse
         }
 
-        fun getPairPacketByteBuffer(id: String): ByteBuffer {
+        fun getPairPacketByteBuffer(value: Boolean): ByteBuffer {
             val builder = FlatBufferBuilder(256)
             val packet = Packet.createPacket(
                 builder,
                 Component.Pair,
-                Pair.createPair(builder, true),
+                Pair.createPair(builder, value),
                 1
             )
             builder.finishSizePrefixed(packet)

@@ -49,22 +49,29 @@ class DeviceServiceTest {
     private lateinit var networkHelper: NetworkHelper
     private lateinit var networkService: NetworkService
     private lateinit var serverSocket: ServerSocket
+    private lateinit var writeOutputStream: PipedOutputStream
+    private lateinit var writeInputStream: PipedInputStream
+    private lateinit var readInputStream: PipedInputStream
+    private lateinit var readOutputStream: PipedOutputStream
 
     @BeforeEach
     fun setUp() {
         dispatcherScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         serverSocket = createServerSocket(33587)
         mockDependencies()
-        mockFileSystem()
+        mockEnvironment()
     }
 
     @AfterEach
     fun tearDown() {
         dispatcherScope.cancel()
         serverSocket.close()
+        writeOutputStream.close()
+        writeInputStream.close()
+        readInputStream.close()
+        readOutputStream.close()
     }
 
-    // Helper to mock dependencies
     private fun mockDependencies() {
         context = mockk(relaxed = true) {
             every { getSystemService(Context.CONNECTIVITY_SERVICE) } returns mockk<ConnectivityManager>(relaxed = true)
@@ -73,12 +80,22 @@ class DeviceServiceTest {
         repository = mockk(relaxed = true)
         identityProvider = mockk(relaxed = true)
 
-        networkHelper = mockk(relaxed = true) {
-            every { upgradeToSslSocket(any(), any(), any()) } returns mockk(relaxed = true) {
-                every { session } returns mockk(relaxed = true) {
-                    every { peerCertificates } returns arrayOf(mockk<X509Certificate>(relaxed = true))
-                }
+        writeInputStream = PipedInputStream()
+        writeOutputStream = PipedOutputStream(writeInputStream)
+        readInputStream = PipedInputStream()
+        readOutputStream = PipedOutputStream(readInputStream)
+
+        val mockSslSocket: SSLSocket = mockk(relaxed = true) {
+            every { session } returns mockk(relaxed = true) {
+                every { peerCertificates } returns arrayOf(mockk<X509Certificate>(relaxed = true))
             }
+            every { inputStream } answers { writeInputStream }
+            every { outputStream } answers { readOutputStream }
+            every { close() } just Runs
+            every { isConnected } returns true
+        }
+        networkHelper = mockk(relaxed = true) {
+            every { upgradeToSslSocket(any(), any(), any()) } returns mockSslSocket
         }
 
         networkService = mockk(relaxed = true) {
@@ -88,8 +105,7 @@ class DeviceServiceTest {
         }
     }
 
-    // Helper to mock filesystem-related operations
-    private fun mockFileSystem() {
+    private fun mockEnvironment() {
         mockkConstructor(StatFs::class)
         every { anyConstructed<StatFs>().totalBytes } returns 1000
         every { anyConstructed<StatFs>().freeBytes } returns 500
@@ -105,7 +121,6 @@ class DeviceServiceTest {
     }
 
 
-    // Helper to read prefixed data from a socket
     private fun readPrefixed(socket: Socket): ByteArray {
         val sizeArr = ByteArray(4)
         socket.inputStream.readNBytes(sizeArr, 0, 4)
@@ -115,7 +130,6 @@ class DeviceServiceTest {
         return buffer
     }
 
-    // Helper to create and bind a server socket
     private fun createServerSocket(port: Int): ServerSocket {
         return ServerSocket().apply {
             bind(InetSocketAddress("127.0.0.1", port))
@@ -183,26 +197,15 @@ class DeviceServiceTest {
 
     @Test
     fun `test receive id and connect, then connection closes, device handles are properly cleaned up`() = runTest {
-        val writeInputStream = PipedInputStream()
-        val mockSslSocket: SSLSocket = mockk(relaxed = true) {
-            every { session } returns mockk(relaxed = true) {
-                every { peerCertificates } returns arrayOf(mockk<X509Certificate>(relaxed = true))
-            }
-            every { inputStream } answers { writeInputStream }
-            every { close() } just Runs
-            every { isConnected } returns true
-        }
-        networkHelper = mockk(relaxed = true) {
-            every { upgradeToSslSocket(any(), any(), any()) } returns mockSslSocket
-        }
         val deviceIdentity = PacketHelpers.getWindowsDeviceIdentityResponse("test")
         val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
         (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
         val socket = serverSocket.accept()
         readPrefixed(socket)
-        writeInputStream.close()
         deviceService.deviceStates.filter { it.isNotEmpty() }.first()
         assertTrue(deviceService.deviceStates.value.containsKey(deviceIdentity.id))
+        writeInputStream.close()
+        writeOutputStream.close()
         deviceService.deviceStates.filter { it.isEmpty() }.first()
         assertFalse(deviceService.deviceStates.value.containsKey(deviceIdentity.id))
         assertEquals(0, deviceService.deviceStates.value.size)
@@ -218,7 +221,6 @@ class DeviceServiceTest {
         (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
         val socket = serverSocket.accept()
         readPrefixed(socket)
-
         deviceService.deviceStates.filter { it.isNotEmpty() }.first()
         assertTrue(deviceService.deviceStates.value.containsKey(deviceIdentity.id))
         connectFlow.value = false
@@ -227,33 +229,227 @@ class DeviceServiceTest {
     }
 
 
-//    @Test
-//    fun `test receive id and connect, then receive pair packet on unpaired device`() = runTest {
-//        val writeInputStream = PipedInputStream()
-//        val writeOutputStream = PipedOutputStream(writeInputStream)
-//        val readInputStream = PipedInputStream()
-//        val readOutputStream = PipedOutputStream(readInputStream)
-//        val mockSslSocket: SSLSocket = mockk(relaxed = true) {
-//            every { session } returns mockk(relaxed = true) {
-//                every { peerCertificates } returns arrayOf(mockk<X509Certificate>(relaxed = true))
-//            }
-//            every { inputStream } answers { writeInputStream }
-//            every { outputStream } answers { readOutputStream }
-//            every { close() } just Runs
-//            every { isConnected } returns true
+    @Test
+    fun `test receive id and connect, then receive 'true' pair packet on unpaired device`() = runTest {
+        val deviceIdentity = PacketHelpers.getWindowsDeviceIdentityResponse("test")
+        val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
+        (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
+        val socket = serverSocket.accept()
+        readPrefixed(socket)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
+
+        val pairPacketBuffer = PacketHelpers.getPairPacketByteBuffer(true)
+        val outputChannel = Channels.newChannel(writeOutputStream)
+        outputChannel.write(pairPacketBuffer)
+
+        deviceService.deviceStates.first {
+            it["test"]!!.pairStatus == PairStatus.PAIR_REQUESTED_BY_PEER
+        }
+    }
+
+
+    @Test
+    fun `test receive id and connect, then receive 'false' pair packet on unpaired device, pair packet is ignored`() = runTest {
+        val deviceIdentity = PacketHelpers.getWindowsDeviceIdentityResponse("test")
+        val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
+        (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
+        val socket = serverSocket.accept()
+        readPrefixed(socket)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
+
+        val pairPacketBuffer = PacketHelpers.getPairPacketByteBuffer(false)
+        val outputChannel = Channels.newChannel(writeOutputStream)
+        outputChannel.write(pairPacketBuffer)
+
+        deviceService.deviceStates.first {
+            it["test"]!!.pairStatus == PairStatus.UNPAIRED
+        }
+    }
+
+
+    @Test
+    fun `test receive id and connect, then receive 'false' pair packet on paired device, device is unpaired`() = runTest {
+        every {
+            repository.getSavedDevices()
+        } returns MutableStateFlow(listOf(Device("test", "test", mockk(relaxed = true))))
+
+        val deviceIdentity = PacketHelpers.getWindowsDeviceIdentityResponse("test")
+        val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
+        (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
+        val socket = serverSocket.accept()
+        readPrefixed(socket)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
+
+        val pairPacketBuffer = PacketHelpers.getPairPacketByteBuffer(false)
+        val outputChannel = Channels.newChannel(writeOutputStream)
+        outputChannel.write(pairPacketBuffer)
+
+
+        // TODO: Uncomment when unpair is implemented
+//        deviceService.deviceStates.first {
+//            it["test"]!!.pairStatus == PairStatus.UNPAIRED
 //        }
-//        networkHelper = mockk(relaxed = true) {
-//            every { upgradeToSslSocket(any(), any(), any()) } returns mockSslSocket
-//        }
-//        val deviceIdentity = PacketHelpers.getWindowsDeviceIdentityResponse("test")
-//        val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
-//        (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
-//        val socket = serverSocket.accept()
-//        readPrefixed(socket)
-//        val pairPacketBuffer = PacketHelpers.getPairPacketByteBuffer("test")
-//        val outputChannel = Channels.newChannel(writeOutputStream)
-//        outputChannel.write(pairPacketBuffer)
-//        assert(deviceService.deviceStates.value["test"]!!.pairStatus == PairStatus.PAIR_REQUESTED_BY_PEER)
-//    }
-    
+    }
+
+
+    @Test
+    fun `test receive id and connect, then receive 'true' pair packet on paired device, pair packet is ignored`() = runTest {
+
+        every {
+            repository.getSavedDevices()
+        } returns MutableStateFlow(listOf(Device("test", "test", mockk(relaxed = true))))
+
+        val deviceIdentity = PacketHelpers.getWindowsDeviceIdentityResponse("test")
+        val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
+        (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
+        val socket = serverSocket.accept()
+        readPrefixed(socket)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
+
+        val pairPacketBuffer = PacketHelpers.getPairPacketByteBuffer(false)
+        val outputChannel = Channels.newChannel(writeOutputStream)
+        outputChannel.write(pairPacketBuffer)
+
+        deviceService.deviceStates.first {
+            it["test"]!!.pairStatus == PairStatus.PAIRED
+        }
+    }
+
+
+    @Test
+    fun `test send outgoing pair request for unpaired device`() = runTest {
+        every {
+            repository.getSavedDevices()
+        } returns MutableStateFlow(emptyList())
+
+        val deviceIdentity = PacketHelpers.getWindowsDeviceIdentityResponse("test")
+        val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
+        (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
+        val socket = serverSocket.accept()
+        readPrefixed(socket)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
+
+        deviceService.sendOutgoingPairRequest("test")
+        assertEquals(PairStatus.PAIR_REQUESTED, deviceService.deviceStates.value["test"]!!.pairStatus)
+    }
+
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `test send outgoing pair request for unpaired device, times out`() = runTest {
+        every {
+            repository.getSavedDevices()
+        } returns MutableStateFlow(emptyList())
+
+        val deviceIdentity = PacketHelpers.getWindowsDeviceIdentityResponse("test")
+
+        val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
+
+        (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
+        val socket = serverSocket.accept()
+        readPrefixed(socket)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
+
+
+        deviceService.sendOutgoingPairRequest("test", this)
+        assertEquals(PairStatus.PAIR_REQUESTED, deviceService.deviceStates.value["test"]!!.pairStatus)
+        testScheduler.advanceTimeBy(40000)
+        assertEquals(PairStatus.UNPAIRED, deviceService.deviceStates.value["test"]!!.pairStatus)
+    }
+
+
+    @Test
+    fun `test receive id and connect, then send outgoing pair request, then receive 'true' pair packet (accept)`() = runTest {
+
+        every {
+            repository.getSavedDevices()
+        } returns MutableStateFlow(emptyList())
+
+        val deviceIdentity = PacketHelpers.getWindowsDeviceIdentityResponse("test")
+        val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
+        (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
+        val socket = serverSocket.accept()
+        readPrefixed(socket)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
+
+        deviceService.sendOutgoingPairRequest("test")
+        deviceService.deviceStates.first { it["test"]!!.pairStatus == PairStatus.PAIR_REQUESTED }
+        val pairPacketBuffer = PacketHelpers.getPairPacketByteBuffer(true)
+        val outputChannel = Channels.newChannel(writeOutputStream)
+        outputChannel.write(pairPacketBuffer)
+
+        deviceService.deviceStates.first { it["test"]!!.pairStatus == PairStatus.PAIRED }
+    }
+
+
+    @Test
+    fun `test receive id and connect, then send outgoing pair request, then receive 'false' pair packet (reject)`() = runTest {
+
+        every {
+            repository.getSavedDevices()
+        } returns MutableStateFlow(emptyList())
+
+        val deviceIdentity = PacketHelpers.getWindowsDeviceIdentityResponse("test")
+        val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
+        (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
+        val socket = serverSocket.accept()
+        readPrefixed(socket)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
+
+        deviceService.sendOutgoingPairRequest("test")
+        deviceService.deviceStates.first { it["test"]!!.pairStatus == PairStatus.PAIR_REQUESTED }
+        val pairPacketBuffer = PacketHelpers.getPairPacketByteBuffer(false)
+        val outputChannel = Channels.newChannel(writeOutputStream)
+        outputChannel.write(pairPacketBuffer)
+
+        deviceService.deviceStates.first { it["test"]!!.pairStatus == PairStatus.UNPAIRED }
+    }
+
+
+    @Test
+    fun `test receive id and connect, then send outgoing pair request twice, nothing happens the second time`() = runTest {
+
+        every {
+            repository.getSavedDevices()
+        } returns MutableStateFlow(emptyList())
+
+        val deviceIdentity = PacketHelpers.getWindowsDeviceIdentityResponse("test")
+        val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
+        (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
+        val socket = serverSocket.accept()
+        readPrefixed(socket)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
+
+        deviceService.sendOutgoingPairRequest("test")
+        val state1 = deviceService.deviceStates.value["test"]
+        deviceService.sendOutgoingPairRequest("test")
+        val state2 = deviceService.deviceStates.value["test"]
+        deviceService.deviceStates.first { it["test"]!!.pairStatus == PairStatus.PAIR_REQUESTED }
+        assertEquals(state1, state2)
+    }
+
+
+    @Test
+    fun `test receive id and connect, send outgoing request, receive 'true' pair packet from peer twice, nothing happens second time`() = runTest {
+
+        every {
+            repository.getSavedDevices()
+        } returns MutableStateFlow(emptyList())
+
+        val deviceIdentity = PacketHelpers.getWindowsDeviceIdentityResponse("test")
+        val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
+        (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
+        val socket = serverSocket.accept()
+        readPrefixed(socket)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
+        assertEquals(PairStatus.UNPAIRED, deviceService.deviceStates.value["test"]!!.pairStatus)
+
+        val outputChannel = Channels.newChannel(writeOutputStream)
+        var pairPacketBuffer = PacketHelpers.getPairPacketByteBuffer(true)
+        outputChannel.write(pairPacketBuffer)
+        deviceService.deviceStates.first { it["test"]!!.pairStatus == PairStatus.PAIR_REQUESTED_BY_PEER }
+        pairPacketBuffer = PacketHelpers.getPairPacketByteBuffer(true)
+        outputChannel.write(pairPacketBuffer)
+        runBlocking { delay(500) } // wait for second packet to be processed
+    }
 }
