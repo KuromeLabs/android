@@ -34,7 +34,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.kuromelabs.kurome.infrastructure.device.DeviceState
 import com.kuromelabs.kurome.presentation.util.Screen
 import com.kuromelabs.kurome.presentation.util.Utils
 import kotlinx.coroutines.launch

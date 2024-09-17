@@ -12,14 +12,13 @@ import java.security.cert.X509Certificate
 import java.util.concurrent.CopyOnWriteArrayList
 
 class DeviceHandle(
-    var pairStatus: PairStatus,
-    var name: String,
-    var id: String,
-    var certificate: X509Certificate?,
-
+    val pairStatus: PairStatus,
+    val name: String,
+    val id: String,
+    val certificate: X509Certificate?,
 ) {
     var outgoingPairRequestTimerJob: Job? = null
-    val plugins = CopyOnWriteArrayList<Plugin>()
+    private val plugins = CopyOnWriteArrayList<Plugin>()
     var link: Link? = null
     var localScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
 
@@ -58,6 +57,38 @@ class DeviceHandle(
         }
     }
 
+    fun copy(
+        pairStatus: PairStatus = this.pairStatus,
+        name: String = this.name,
+        id: String = this.id,
+        certificate: X509Certificate? = this.certificate
+    ): DeviceHandle {
+        val copy = DeviceHandle(pairStatus, name, id, certificate)
+        copy.outgoingPairRequestTimerJob = outgoingPairRequestTimerJob
+        copy.plugins.addAll(plugins)
+        copy.link = link
+        copy.localScope = localScope
+        return copy
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (other is DeviceHandle) {
+            return other.id == id && other.pairStatus == pairStatus && other.name == name && other.certificate == certificate
+        }
+        return false
+    }
+
+    override fun hashCode(): Int {
+        var result = pairStatus.hashCode()
+        result = 31 * result + name.hashCode()
+        result = 31 * result + id.hashCode()
+        result = 31 * result + (certificate?.hashCode() ?: 0)
+        result = 31 * result + (outgoingPairRequestTimerJob?.hashCode() ?: 0)
+        result = 31 * result + plugins.hashCode()
+        result = 31 * result + (link?.hashCode() ?: 0)
+        result = 31 * result + localScope.hashCode()
+        return result
+    }
 }
 
 enum class PairStatus {

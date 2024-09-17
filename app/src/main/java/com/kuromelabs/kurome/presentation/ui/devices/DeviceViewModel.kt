@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kuromelabs.kurome.application.devices.DeviceRepository
 import com.kuromelabs.kurome.infrastructure.device.DeviceService
-import com.kuromelabs.kurome.infrastructure.device.DeviceState
 import com.kuromelabs.kurome.infrastructure.device.PairStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -20,10 +19,12 @@ class DeviceViewModel @Inject constructor(
     deviceService: DeviceService
 ) : ViewModel() {
 
-    private var connectedDevices: StateFlow<List<DeviceState>> = deviceService.deviceStates.transform { deviceStates ->
-        emit(deviceStates.values.toList())
+    private var connectedDevices: StateFlow<List<DeviceState>> = deviceService.deviceHandles.transform { deviceHandles ->
+        emit(deviceHandles.mapValues { (_, handle) ->
+            DeviceState(handle.name, handle.id, handle.pairStatus, true)
+        }.values.toList())
     }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, initialValue = emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), initialValue = emptyList())
 
     val allDevices: StateFlow<List<DeviceState>> = combine(
         connectedDevices,

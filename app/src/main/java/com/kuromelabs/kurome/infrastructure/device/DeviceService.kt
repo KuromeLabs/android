@@ -16,7 +16,6 @@ import java.net.InetSocketAddress
 import java.net.Socket
 import java.nio.channels.Channels
 import java.security.cert.X509Certificate
-import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.net.ssl.*
 
@@ -28,9 +27,8 @@ class DeviceService @Inject constructor(
     private val networkService: NetworkService
 ) {
 
-    private val deviceHandles = ConcurrentHashMap<String, DeviceHandle>()
-    private val deviceStatesFlow = MutableStateFlow<Map<String, DeviceState>>(emptyMap())
-    val deviceStates = deviceStatesFlow.asStateFlow()
+    private val _deviceHandles = MutableStateFlow<Map<String, DeviceHandle>>(emptyMap())
+    val deviceHandles = _deviceHandles.asStateFlow()
 
     private val savedDevicesFlow = deviceRepository.getSavedDevices()
         .map { devices -> devices.associateBy { it.id } }
@@ -57,17 +55,16 @@ class DeviceService @Inject constructor(
         val ip = packet.localIp
         val port = 33587
 
-        if (deviceHandles.containsKey(id)) return
+        if (_deviceHandles.value.containsKey(id)) return
 
         val device = savedDevicesFlow.value[id]
         val pairStatus = if (device?.certificate != null) PairStatus.PAIRED else PairStatus.UNPAIRED
 
         val deviceHandle = DeviceHandle(pairStatus, name, id, null)
-        deviceHandles[id] = deviceHandle
-
+        addHandle(deviceHandle)
         scope.launch {
             val result = connectToDevice(ip!!, port, device)
-            handleConnection(result, deviceHandle, id, ip, port, name)
+            handleConnection(result, id, ip, port, name)
         }
     }
 
@@ -90,7 +87,6 @@ class DeviceService @Inject constructor(
 
     private fun handleConnection(
         result: Result<SSLSocket>,
-        deviceHandle: DeviceHandle,
         id: String,
         ip: String,
         port: Int,
@@ -98,64 +94,76 @@ class DeviceService @Inject constructor(
     ) {
         result.onSuccess { sslSocket ->
             Timber.d("Connected to $ip:$port, name: $name, id: $id")
-            setupDeviceHandle(deviceHandle, sslSocket)
-            deviceHandle.start()
-            reloadDeviceStates()
+            updateHandle(id) {
+                it.copy(name = name, certificate = sslSocket.session.peerCertificates[0] as X509Certificate).apply {
+                    this.link = Link(sslSocket, this.localScope)
+                }
+            }
+            _deviceHandles.value[id]!!.let {
+                it.reloadPlugins(identityProvider)
+                it.localScope.launch(Dispatchers.Unconfined) {
+                    observeDevicePackets(it.link!!, id)
+                }
+                it.start()
+            }
         }.onFailure {
             onDeviceDisconnected(id)
             Timber.e("Failed to connect to $ip:$port")
         }
     }
 
-    private fun setupDeviceHandle(deviceHandle: DeviceHandle, sslSocket: SSLSocket) {
-        val link = Link(sslSocket, deviceHandle.localScope)
-        deviceHandle.link = link
-        deviceHandle.certificate = sslSocket.session.peerCertificates[0] as X509Certificate
-        deviceHandle.reloadPlugins(identityProvider)
-        deviceHandle.localScope.launch(Dispatchers.Unconfined) {
-            observeDevicePackets(link, deviceHandle)
-        }
-    }
-
-    private suspend fun observeDevicePackets(link: Link, deviceHandle: DeviceHandle) {
+    private suspend fun observeDevicePackets(link: Link, handleId: String) {
         link.receivedPackets
             .filter { it.isFailure || (it.isSuccess && it.value!!.componentType == Component.Pair) }
             .collect { packetResult ->
-                packetResult.onSuccess { handlePairPacket(it.component(Kurome.Fbs.Pair()) as Pair, deviceHandle) }
-                    .onFailure { onDeviceDisconnected(deviceHandle.id) }
+                packetResult.onSuccess { handlePairPacket(it.component(Pair()) as Pair, handleId) }
+                    .onFailure { onDeviceDisconnected(handleId) }
             }
     }
 
-    private suspend fun handlePairPacket(pair: Pair, handle: DeviceHandle) {
+    private suspend fun handlePairPacket(pair: Pair, handleId: String) {
+        val handle = _deviceHandles.value[handleId] ?: return
         when {
             pair.value && handle.pairStatus == PairStatus.UNPAIRED -> {
                 Timber.d("Received pair request")
-                handle.pairStatus = PairStatus.PAIR_REQUESTED_BY_PEER
+                updateHandle(handleId) { it.copy(pairStatus = PairStatus.PAIR_REQUESTED_BY_PEER) }
             }
             pair.value && handle.pairStatus == PairStatus.PAIR_REQUESTED -> {
                 Timber.d("Pair request accepted by peer ${handle.id}, saving")
-                handle.pairStatus = PairStatus.PAIRED
+                updateHandle(handleId) { it.copy(pairStatus = PairStatus.PAIRED) }
                 deviceRepository.insert(Device(handle.id, handle.name, handle.certificate))
                 handle.reloadPlugins(identityProvider)
             }
             !pair.value && handle.pairStatus == PairStatus.PAIR_REQUESTED -> {
                 Timber.d("Pair request rejected")
-                handle.pairStatus = PairStatus.UNPAIRED
+                updateHandle(handleId) { it.copy(pairStatus = PairStatus.UNPAIRED) }
                 handle.outgoingPairRequestTimerJob?.cancel()
             }
             else -> Timber.d("Pair request in unexpected state: ${handle.pairStatus}")
         }
-        reloadDeviceStates()
     }
 
     private fun onDeviceDisconnected(id: String) {
-        deviceHandles.remove(id)?.stop()
-        reloadDeviceStates()
+        _deviceHandles.update {
+            it[id]?.stop()
+            it.filter { (key, _) -> key != id }
+        }
     }
 
-    private fun reloadDeviceStates() {
-        deviceStatesFlow.value = deviceHandles.mapValues { (_, handle) ->
-            DeviceState(handle.name, handle.id, handle.pairStatus, true)
+    private fun updateHandle(id: String, action: (handle: DeviceHandle) -> DeviceHandle) {
+        _deviceHandles.update {
+            it.toMutableMap().apply {
+                this[id] = this[id]!!.let(action)
+            }
+        }
+    }
+
+    private fun addHandle(handle: DeviceHandle) {
+        if (_deviceHandles.value.containsKey(handle.id)) return
+        _deviceHandles.update {
+            it.toMutableMap().apply {
+                this[handle.id] = handle
+            }
         }
     }
 
@@ -183,39 +191,37 @@ class DeviceService @Inject constructor(
 
     private fun onNetworkLost() {
         Timber.d("Network lost")
-        deviceHandles.values.forEach { it.stop() }
-        deviceHandles.clear()
-        reloadDeviceStates()
+        _deviceHandles.update { map ->
+            map.values.forEach { it.stop() }
+            emptyMap()
+        }
     }
 
     fun sendOutgoingPairRequest(id: String, scope: CoroutineScope? = null) {
-        val deviceHandle = deviceHandles[id] ?: return
-        if (deviceHandle.pairStatus == PairStatus.PAIRED || deviceHandle.pairStatus == PairStatus.PAIR_REQUESTED) {
+        if (!_deviceHandles.value.containsKey(id)) return
+        if (_deviceHandles.value[id]!!.pairStatus == PairStatus.PAIRED ||
+            _deviceHandles.value[id]!!.pairStatus == PairStatus.PAIR_REQUESTED) {
             Timber.d("Pair request already in progress")
             return
         }
-        val timerScope = scope ?: deviceHandle.localScope
-        deviceHandle.pairStatus = PairStatus.PAIR_REQUESTED
-        deviceHandle.outgoingPairRequestTimerJob = timerScope.launch {
-            delay(30000)
-            Timber.d("Pair request timed out")
-            deviceHandle.pairStatus = PairStatus.UNPAIRED
-            reloadDeviceStates()
+
+        updateHandle(id) { handle ->
+            handle.copy(pairStatus = PairStatus.PAIR_REQUESTED).apply {
+                this.outgoingPairRequestTimerJob = (scope ?: this.localScope).launch {
+                    delay(30000)
+                    Timber.d("Pair request timed out")
+                    updateHandle(id) {
+                        it.copy(pairStatus = PairStatus.UNPAIRED)
+                    }
+                }
+            }
         }
 
         val builder = FlatBufferBuilder(256)
         val pair = Pair.createPair(builder, true)
         val packet = Packet.createPacket(builder, Component.Pair, pair, -1)
         builder.finishSizePrefixed(packet)
-        deviceHandle.sendPacket(builder.dataBuffer())
-        reloadDeviceStates()
+        _deviceHandles.value[id]!!.sendPacket(builder.dataBuffer())
     }
 
 }
-
-data class DeviceState(
-    val name: String,
-    val id: String,
-    val pairStatus: PairStatus,
-    val connected: Boolean
-)
