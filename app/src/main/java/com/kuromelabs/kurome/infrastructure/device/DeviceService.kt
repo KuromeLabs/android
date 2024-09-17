@@ -53,7 +53,7 @@ class DeviceService @Inject constructor(
         val name = packet.name!!
         val id = packet.id!!
         val ip = packet.localIp
-        val port = 33587
+        val port = packet.tcpListeningPort
 
         if (_deviceHandles.value.containsKey(id)) return
 
@@ -63,8 +63,8 @@ class DeviceService @Inject constructor(
         val deviceHandle = DeviceHandle(pairStatus, name, id, null)
         addHandle(deviceHandle)
         scope.launch {
-            val result = connectToDevice(ip!!, port, device)
-            handleConnection(result, id, ip, port, name)
+            val result = connectToDevice(ip!!, port.toInt(), device)
+            handleConnection(result, id, ip, port.toInt(), name)
         }
     }
 
@@ -180,7 +180,8 @@ class DeviceService @Inject constructor(
             builder.createString(name),
             builder.createString(id),
             builder.createString(""),
-            Platform.Android
+            Platform.Android,
+            0u
         )
 
         val packet = Packet.createPacket(builder, Component.DeviceIdentityResponse, response, -1)

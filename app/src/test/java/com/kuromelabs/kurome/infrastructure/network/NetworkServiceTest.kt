@@ -56,7 +56,7 @@ class NetworkServiceTest {
         val p = Packet.createPacket(
             builder,
             Component.DeviceIdentityResponse,
-            DeviceIdentityResponse.createDeviceIdentityResponse(builder, 0, 0, builder.createString("test"), builder.createString("test"), builder.createString(""), Platform.Windows),
+            DeviceIdentityResponse.createDeviceIdentityResponse(builder, 0, 0, builder.createString("test"), builder.createString("test"), builder.createString(""), Platform.Windows, 33587u),
             1
         )
         builder.finishSizePrefixed(p)
@@ -70,7 +70,7 @@ class NetworkServiceTest {
         val p = Packet.createPacket(
             builder,
             Component.DeviceIdentityResponse,
-            DeviceIdentityResponse.createDeviceIdentityResponse(builder, 0, 0, builder.createString("test"), builder.createString("test"), builder.createString(""), Platform.Android),
+            DeviceIdentityResponse.createDeviceIdentityResponse(builder, 0, 0, builder.createString("test"), builder.createString("test"), builder.createString(""), Platform.Android, 33587u),
             1
         )
         builder.finishSizePrefixed(p)

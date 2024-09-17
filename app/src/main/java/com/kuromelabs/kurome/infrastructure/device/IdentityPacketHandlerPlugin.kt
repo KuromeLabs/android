@@ -37,7 +37,8 @@ class IdentityPacketHandlerPlugin (private val identityProvider: IdentityProvide
             builder.createString(name),
             builder.createString(identityProvider.getEnvironmentId()),
             builder.createString(""),
-            Platform.Android
+            Platform.Android,
+            0u
         )
 
     }

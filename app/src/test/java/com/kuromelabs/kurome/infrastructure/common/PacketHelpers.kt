@@ -20,13 +20,15 @@ class PacketHelpers {
                     builder.createString(id),
                     builder.createString("test"),
                     builder.createString("127.0.0.1"),
-                    Platform.Windows
+                    Platform.Windows,
+                    33587u
                 ),
                 1
             )
             builder.finish(packet)
             return Packet.getRootAsPacket(builder.dataBuffer()).component(DeviceIdentityResponse()) as DeviceIdentityResponse
         }
+
 
         fun getPairPacketByteBuffer(value: Boolean): ByteBuffer {
             val builder = FlatBufferBuilder(256)

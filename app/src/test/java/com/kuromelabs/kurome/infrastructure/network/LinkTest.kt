@@ -37,7 +37,7 @@ class LinkTest {
         val p = Packet.createPacket(
             builder,
             Component.DeviceIdentityResponse,
-            DeviceIdentityResponse.createDeviceIdentityResponse(builder, 0, 0, builder.createString(""), builder.createString(""), builder.createString(""), Platform.Android),
+            DeviceIdentityResponse.createDeviceIdentityResponse(builder, 0, 0, builder.createString(""), builder.createString(""), builder.createString(""), Platform.Android, 33587u),
             1
         )
         builder.finishSizePrefixed(p)
@@ -134,7 +134,7 @@ class LinkTest {
         val p = Packet.createPacket(
             builder,
             Component.DeviceIdentityResponse,
-            DeviceIdentityResponse.createDeviceIdentityResponse(builder, 0, 0, builder.createString(""), builder.createString(""), builder.createString(""), Platform.Android),
+            DeviceIdentityResponse.createDeviceIdentityResponse(builder, 0, 0, builder.createString(""), builder.createString(""), builder.createString(""), Platform.Android, 0u),
             1
         )
         builder.finishSizePrefixed(p)
@@ -203,7 +203,7 @@ class LinkTest {
         val p = Packet.createPacket(
             builder,
             Component.DeviceIdentityResponse,
-            DeviceIdentityResponse.createDeviceIdentityResponse(builder, 0, 0, builder.createString("A".repeat(100000)), builder.createString(""), builder.createString(""), Platform.Android),
+            DeviceIdentityResponse.createDeviceIdentityResponse(builder, 0, 0, builder.createString("A".repeat(100000)), builder.createString(""), builder.createString(""), Platform.Android, 0u),
             1
         )
         builder.finishSizePrefixed(p)
