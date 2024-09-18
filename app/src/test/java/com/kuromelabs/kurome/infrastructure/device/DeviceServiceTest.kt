@@ -451,4 +451,27 @@ class DeviceServiceTest {
         outputChannel.write(pairPacketBuffer)
         runBlocking { delay(1000) } // wait for second packet to be processed
     }
+
+    @Test
+    fun `test send outgoing pair request for already paired device, nothing happens`() = runTest {
+        every {
+            repository.getSavedDevices()
+        } returns MutableStateFlow(listOf(Device("test", "test", mockk(relaxed = true))))
+
+        val deviceIdentity = PacketHelpers.getWindowsDeviceIdentityResponse("test")
+        val deviceService = DeviceService(
+            dispatcherScope,
+            identityProvider,
+            networkHelper,
+            repository,
+            networkService
+        ).apply { start() }
+        (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
+        val socket = serverSocket.accept()
+        readPrefixed(socket)
+        deviceService.deviceHandles.filter { it.isNotEmpty() }.first()
+
+        deviceService.sendOutgoingPairRequest("test")
+        deviceService.deviceHandles.first { it["test"]!!.pairStatus == PairStatus.PAIRED }
+    }
 }
