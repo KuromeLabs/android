@@ -159,7 +159,6 @@ class DeviceService @Inject constructor(
     }
 
     private fun addHandle(handle: DeviceHandle) {
-        if (_deviceHandles.value.containsKey(handle.id)) return
         _deviceHandles.update {
             it.toMutableMap().apply {
                 this[handle.id] = handle
@@ -212,7 +211,7 @@ class DeviceService @Inject constructor(
                     delay(30000)
                     Timber.d("Pair request timed out")
                     updateHandle(id) {
-                        it.copy(pairStatus = PairStatus.UNPAIRED)
+                        it.copy(pairStatus = PairStatus.UNPAIRED).apply { it.outgoingPairRequestTimerJob = null }
                     }
                 }
             }
