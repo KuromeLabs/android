@@ -305,9 +305,9 @@ class FilesystemPacketHandlerPlugin(private val handle: DeviceHandle) : Plugin {
                     BasicFileAttributeView::class.java
                 )
                 attrs.setTimes(
-                    FileTime.fromMillis(creationTime),
+                    FileTime.fromMillis(lastWriteTime),
                     FileTime.fromMillis(lastAccessTime),
-                    FileTime.fromMillis(lastWriteTime)
+                    FileTime.fromMillis(creationTime)
                 )
             } else File(path).setLastModified(lastWriteTime)
         }
