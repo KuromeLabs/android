@@ -286,6 +286,7 @@ class FilesystemPacketHandlerPlugin(private val handle: DeviceHandle) : Plugin {
         return ReadFileResponse.createReadFileResponse(builder, pathString, vector, offset, length)
     }
 
+    @SuppressLint("NewApi")
     private fun setAttributes(
         path: String,
         creationTime: Long,
@@ -299,7 +300,7 @@ class FilesystemPacketHandlerPlugin(private val handle: DeviceHandle) : Plugin {
             raf.close()
         }
         if (lastWriteTime != 0L) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (KuromeApplication.getBuildVersion() >= Build.VERSION_CODES.O) {
                 val attrs = Files.getFileAttributeView(
                     Paths.get(path),
                     BasicFileAttributeView::class.java
