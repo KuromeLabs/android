@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kuromelabs.kurome.application.devices.DeviceRepository
 import com.kuromelabs.kurome.infrastructure.device.DeviceService
+import com.kuromelabs.kurome.infrastructure.device.DeviceState
 import com.kuromelabs.kurome.infrastructure.device.PairStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -28,12 +29,7 @@ class DeviceDetailsViewModel @Inject constructor(
 
     // This name is only used when the device is not paired, so it does not change
     private val temporaryDeviceName: String = savedStateHandle["deviceName"]!!
-    private val connectedDevices = deviceService.deviceHandles.transform { deviceHandles ->
-        val deviceStates = deviceHandles.mapValues { (_, handle) ->
-            DeviceState(handle.name, handle.id, handle.pairStatus, true)
-        }
-        emit(deviceStates.values.toList())
-    }
+    private val connectedDevices = deviceService.deviceStates.transform { emit(it.values) }
     private val savedDevices = deviceRepository.getSavedDevices()
 
     var deviceContext: SharedFlow<DeviceState?> =

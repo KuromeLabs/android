@@ -1,6 +1,4 @@
-package com.kuromelabs.kurome.presentation.ui.devices
-
-import com.kuromelabs.kurome.infrastructure.device.PairStatus
+package com.kuromelabs.kurome.infrastructure.device
 
 data class DeviceState(
     val name: String,
