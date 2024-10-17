@@ -52,7 +52,7 @@ class DeviceService @Inject constructor(
             .launchIn(scope)
     }
 
-    private fun handleUdpPacket(packet: DeviceIdentityResponse) {
+    fun handleUdpPacket(packet: DeviceIdentityResponse) {
         val name = packet.name!!
         val id = packet.id!!
         val ip = packet.localIp
@@ -63,11 +63,11 @@ class DeviceService @Inject constructor(
         val device = savedDevicesFlow.value[id]
         val pairStatus = if (device?.certificate != null) PairStatus.PAIRED else PairStatus.UNPAIRED
 
-        val deviceHandle = DeviceHandle(pairStatus, name, id, null)
+        val deviceHandle = DeviceHandle(pairStatus, "Unknown", id, null)
         addHandle(deviceHandle)
         scope.launch {
             val result = connectToDevice(ip!!, port.toInt(), device)
-            handleConnection(result, id, ip, port.toInt(), name)
+            handleConnection(result, id, ip, port.toInt())
         }
     }
 
@@ -88,21 +88,45 @@ class DeviceService @Inject constructor(
         }
     }
 
-    private fun handleConnection(
+    private suspend fun sendIdentityQuery(id: String) {
+        val builder = FlatBufferBuilder(256)
+        DeviceIdentityQuery.startDeviceIdentityQuery(builder)
+        val query = DeviceIdentityQuery.endDeviceIdentityQuery(builder)
+        val packet = Packet.createPacket(builder, Component.DeviceIdentityQuery, query, 0)
+        builder.finishSizePrefixed(packet)
+        _deviceHandles[id]!!.sendPacket(builder.dataBuffer())
+    }
+
+    private suspend fun handleConnection(
         result: Result<SSLSocket>,
         id: String,
         ip: String,
-        port: Int,
-        name: String
+        port: Int
     ) {
         result.onSuccess { sslSocket ->
-            Timber.d("Connected to $ip:$port, name: $name, id: $id")
-            _deviceHandles[id]!!.start()
             updateHandle(id) {
-                it.copy(name = name, certificate = sslSocket.session.peerCertificates[0] as X509Certificate).apply {
-                    this.link = Link(sslSocket, this.localScope)
-                }
+                it.name = "Unknown"
+                it.certificate = sslSocket.session.peerCertificates[0] as X509Certificate
+                it.link = Link(sslSocket, it.localScope)
+                it
             }
+            Timber.d("Connected to $ip:$port, id: $id. Getting extended identity...")
+            var identityPacket: Packet? = null
+            val identityJob = _deviceHandles[id]!!.localScope.launch {
+                identityPacket = _deviceHandles[id]!!.getIncomingPacketWithId(0, 3000)
+            }
+            _deviceHandles[id]!!.start()
+            sendIdentityQuery(id)
+            identityJob.join()
+            if (identityPacket == null) {
+                Timber.e("Failed to get extended identity")
+                onDeviceDisconnected(id)
+                return@onSuccess
+            }
+            val identity = identityPacket!!.component(DeviceIdentityResponse()) as DeviceIdentityResponse
+
+            updateHandle(id) {
+                it.name = identity.name!!
                 it.reloadPlugins(identityProvider)
                 it.localScope.launch(Dispatchers.Unconfined) {
                     observeDevicePackets(it.link!!, id)
@@ -117,9 +141,11 @@ class DeviceService @Inject constructor(
 
     private suspend fun observeDevicePackets(link: Link, handleId: String) {
         link.receivedPackets
-            .filter { it.isFailure || (it.isSuccess && it.value!!.componentType == Component.Pair) }
+            .filter {
+                it.isFailure || (it.isSuccess && it.value!!.componentType == Component.Pair) }
             .collect { packetResult ->
-                packetResult.onSuccess { handlePairPacket(it.component(Pair()) as Pair, handleId) }
+                packetResult.onSuccess {
+                    handlePairPacket(it.component(Pair()) as Pair, handleId) }
                     .onFailure { onDeviceDisconnected(handleId) }
             }
     }
@@ -219,15 +245,6 @@ class DeviceService @Inject constructor(
         }
 
         updateHandle(id) { handle ->
-            handle.copy(pairStatus = PairStatus.PAIR_REQUESTED).apply {
-                this.outgoingPairRequestTimerJob = (scope ?: this.localScope).launch {
-                    delay(30000)
-                    Timber.d("Pair request timed out")
-                    updateHandle(id) {
-                        it.copy(pairStatus = PairStatus.UNPAIRED).apply { it.outgoingPairRequestTimerJob = null }
-                    }
-                }
-            }
             handle.pairStatus = PairStatus.PAIR_REQUESTED
             handle.outgoingPairRequestTimerJob = (scope ?: handle.localScope).launch {
                 delay(30000)
