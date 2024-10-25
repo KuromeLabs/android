@@ -115,8 +115,9 @@ class DeviceService @Inject constructor(
             val identityJob = _deviceHandles[id]!!.localScope.launch {
                 identityPacket = _deviceHandles[id]!!.getIncomingPacketWithId(0, 3000)
             }
-            _deviceHandles[id]!!.start()
+            _deviceHandles[id]!!.reloadPlugins(identityProvider)
             sendIdentityQuery(id)
+            _deviceHandles[id]!!.link!!.start()
             identityJob.join()
             if (identityPacket == null) {
                 Timber.e("Failed to get extended identity")
@@ -127,7 +128,6 @@ class DeviceService @Inject constructor(
 
             updateHandle(id) {
                 it.name = identity.name!!
-                it.reloadPlugins(identityProvider)
                 it.localScope.launch(Dispatchers.Unconfined) {
                     observeDevicePackets(it.link!!, id)
                 }
@@ -161,6 +161,7 @@ class DeviceService @Inject constructor(
                 }
             }
             pair.value && handle.pairStatus == PairStatus.PAIR_REQUESTED -> {
+                handle.outgoingPairRequestTimerJob?.cancel()
                 Timber.d("Pair request accepted by peer ${handle.id}, saving")
                 updateHandle(handleId) {
                     it.pairStatus = PairStatus.PAIRED

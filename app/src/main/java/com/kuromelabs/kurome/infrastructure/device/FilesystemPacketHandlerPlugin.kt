@@ -14,12 +14,18 @@ import Kurome.Fbs.ReadFileResponse
 import Kurome.Fbs.RenameFileCommand
 import Kurome.Fbs.SetFileInfoCommand
 import Kurome.Fbs.WriteFileCommand
+import android.annotation.SuppressLint
 import android.os.Build
 import android.os.Environment
 import com.google.flatbuffers.FlatBufferBuilder
+import com.kuromelabs.kurome.KuromeApplication
 import com.kuromelabs.kurome.application.devices.Plugin
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import timber.log.Timber
 import java.io.File
+import java.io.IOException
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
@@ -29,6 +35,7 @@ import java.nio.file.attribute.BasicFileAttributeView
 import java.nio.file.attribute.FileTime
 
 class FilesystemPacketHandlerPlugin(private val handle: DeviceHandle) : Plugin {
+    private var collectJob: Job? = null
 
     class ExtraAttribute {
         companion object {
@@ -54,7 +61,7 @@ class FilesystemPacketHandlerPlugin(private val handle: DeviceHandle) : Plugin {
 
     private val root: String = Environment.getExternalStorageDirectory().path
 
-    override fun processPacket (packet: Packet) {
+    private fun processPacket (packet: Packet) {
         // we don't return anything for commands, so exceptions log and fail silently
         when (packet.componentType) {
 
@@ -63,42 +70,31 @@ class FilesystemPacketHandlerPlugin(private val handle: DeviceHandle) : Plugin {
                 try {
                     Timber.d("Creating file at ${root + command.path!!}")
                     File(root + command.path!!).createNewFile()
-                } catch (e: Exception) {
+                } catch (e: IOException) {
                     Timber.e(e, "Error creating file at ${root + command.path!!}")
                 }
             }
 
             Component.CreateDirectoryCommand -> {
                 val command = packet.component(CreateDirectoryCommand()) as CreateDirectoryCommand
-                try {
-                    Timber.d("Creating directory at ${root + command.path!!}")
-                    File(root + command.path!!).mkdir()
-                } catch (e: Exception) {
-                    Timber.e(e, "Error creating directory at ${root + command.path!!}")
-                }
+                Timber.d("Creating directory at ${root + command.path!!}")
+                File(root + command.path!!).mkdir()
             }
 
             Component.DeleteFileCommand -> {
                 val command = packet.component(DeleteFileCommand()) as DeleteFileCommand
-                try {
-                    Timber.d("Deleting file at ${root + command.path!!}")
-                    File(root + command.path!!).delete()
-                } catch (e: Exception) {
-                    Timber.e(e, "Error deleting file at ${root + command.path!!}")
-                }
+                Timber.d("Deleting file at ${root + command.path!!}")
+                File(root + command.path!!).delete()
             }
 
             Component.RenameFileCommand -> {
                 val command = packet.component(RenameFileCommand()) as RenameFileCommand
-                try {
-                    Timber.d("Renaming file at ${root + command.oldPath!!} to ${root + command.newPath!!}")
-                    File(root + command.oldPath!!).renameTo(File(root + command.newPath!!))
-                } catch (e: Exception) {
-                    Timber.e(
-                        e,
-                        "Error renaming file at ${root + command.oldPath!!} to ${root + command.newPath!!}"
-                    )
+                if (command.newPath == null) {
+                    Timber.d("New path is null, not renaming ${root + command.oldPath!!}")
+                    return
                 }
+                Timber.d("Renaming file at ${root + command.oldPath!!} to ${root + command.newPath!!}")
+                File(root + command.oldPath!!).renameTo(File(root + command.newPath!!))
             }
 
             Component.WriteFileCommand -> {
@@ -263,8 +259,6 @@ class FilesystemPacketHandlerPlugin(private val handle: DeviceHandle) : Plugin {
             extraAttributes = extraAttributes or ExtraAttribute.Hidden
         if (file.isDirectory)
             extraAttributes = extraAttributes or ExtraAttribute.Directory
-        if (file.name.startsWith("."))
-            extraAttributes = extraAttributes or ExtraAttribute.Hidden
 
         return arrayOf(crTime, laTime, lwTime, extraAttributes)
     }
@@ -320,5 +314,17 @@ class FilesystemPacketHandlerPlugin(private val handle: DeviceHandle) : Plugin {
         raf.seek(actualOffset) //offset = -1 means append
         raf.write(raw.array(), raw.position(), length)
         raf.close()
+    }
+
+    override fun start() {
+        collectJob = handle.link!!.receivedPackets.onEach { packetResult ->
+            packetResult.onSuccess { packet ->
+                processPacket(packet)
+            }
+        }.launchIn(handle.localScope)
+    }
+
+    override fun stop() {
+        collectJob?.cancel()
     }
 }

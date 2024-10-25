@@ -25,21 +25,6 @@ class DeviceHandle(
     var link: Link? = null
     var localScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
 
-    fun start() {
-        if (link == null) {
-            throw NullPointerException("Link is null")
-        }
-        localScope.launch(Dispatchers.Unconfined) {
-            link!!.receivedPackets
-                .collect { packetResult ->
-                    packetResult.onSuccess { packet ->
-                        plugins.onEach { it.processPacket(packet) }
-                    }
-                }
-        }
-        link!!.start()
-    }
-
     fun stop() {
         link?.close()
         try {
@@ -53,11 +38,13 @@ class DeviceHandle(
     }
 
     fun reloadPlugins(identityProvider: IdentityProvider) {
+        plugins.forEach { it.stop() }
         plugins.clear()
         if (pairStatus == PairStatus.PAIRED){
             plugins.add(FilesystemPacketHandlerPlugin(this))
             plugins.add(IdentityPacketHandlerPlugin(identityProvider, this))
         }
+        plugins.forEach { it.start() }
     }
 
     suspend fun getIncomingPacketWithId(id: Long, timeout: Long): Packet? = withTimeoutOrNull(timeout) {
