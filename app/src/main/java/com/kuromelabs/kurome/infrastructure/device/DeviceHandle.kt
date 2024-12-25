@@ -15,13 +15,13 @@ import java.security.cert.X509Certificate
 import java.util.concurrent.CopyOnWriteArrayList
 
 class DeviceHandle(
-    var pairStatus: PairStatus,
+    private val isTrusted: Boolean,
     var name: String,
     val id: String,
     var certificate: X509Certificate?,
 ) {
-    var outgoingPairRequestTimerJob: Job? = null
     private val plugins = CopyOnWriteArrayList<Plugin>()
+    var pairHandler: PairHandler = PairHandler(this, if (isTrusted) PairStatus.PAIRED else PairStatus.UNPAIRED)
     var link: Link? = null
     var localScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
 
@@ -38,11 +38,12 @@ class DeviceHandle(
     }
 
     fun reloadPlugins(identityProvider: IdentityProvider) {
+        if (!pairHandler.isStarted) pairHandler.start()
         plugins.forEach { it.stop() }
         plugins.clear()
-        if (pairStatus == PairStatus.PAIRED){
+        plugins.add(IdentityPacketHandlerPlugin(identityProvider, this))
+        if (pairHandler.pairStatus.value == PairStatus.PAIRED){
             plugins.add(FilesystemPacketHandlerPlugin(this))
-            plugins.add(IdentityPacketHandlerPlugin(identityProvider, this))
         }
         plugins.forEach { it.start() }
     }

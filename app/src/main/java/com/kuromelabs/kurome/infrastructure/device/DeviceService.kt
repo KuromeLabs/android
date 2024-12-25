@@ -61,9 +61,9 @@ class DeviceService @Inject constructor(
         if (deviceStates.value.containsKey(id)) return
 
         val device = savedDevicesFlow.value[id]
-        val pairStatus = if (device?.certificate != null) PairStatus.PAIRED else PairStatus.UNPAIRED
+        val trusted = device?.certificate != null
 
-        val deviceHandle = DeviceHandle(pairStatus, "Unknown", id, null)
+        val deviceHandle = DeviceHandle(trusted, "Unknown", id, null)
         addHandle(deviceHandle)
         scope.launch {
             val result = connectToDevice(ip!!, port.toInt(), device)
@@ -113,7 +113,7 @@ class DeviceService @Inject constructor(
             Timber.d("Connected to $ip:$port, id: $id. Getting extended identity...")
             var identityPacket: Packet? = null
             val identityJob = _deviceHandles[id]!!.localScope.launch {
-                identityPacket = _deviceHandles[id]!!.getIncomingPacketWithId(0, 3000)
+                identityPacket = _deviceHandles[id]!!.getIncomingPacketWithId(0, 35000)
             }
             _deviceHandles[id]!!.reloadPlugins(identityProvider)
             sendIdentityQuery(id)
@@ -131,6 +131,12 @@ class DeviceService @Inject constructor(
                 it.localScope.launch(Dispatchers.Unconfined) {
                     observeDevicePackets(it.link!!, id)
                 }
+                it.localScope.launch(Dispatchers.Unconfined) {
+                    it.pairHandler.pairStatus.collect {status ->
+                        Timber.d("Pair status changed to $it")
+                        onPairStatusChanged(status, id)
+                    }
+                }
                 it
             }
         }.onFailure {
@@ -141,44 +147,29 @@ class DeviceService @Inject constructor(
 
     private suspend fun observeDevicePackets(link: Link, handleId: String) {
         link.receivedPackets
-            .filter {
-                it.isFailure || (it.isSuccess && it.value!!.componentType == Component.Pair) }
+            .filter {it.isFailure }
             .collect { packetResult ->
-                packetResult.onSuccess {
-                    handlePairPacket(it.component(Pair()) as Pair, handleId) }
-                    .onFailure { onDeviceDisconnected(handleId) }
+                    packetResult.onFailure { onDeviceDisconnected(handleId) }
             }
     }
 
-    private suspend fun handlePairPacket(pair: Pair, handleId: String) {
+    private suspend fun onPairStatusChanged(pairStatus: PairStatus, handleId: String) {
         val handle = _deviceHandles[handleId] ?: return
-        when {
-            pair.value && handle.pairStatus == PairStatus.UNPAIRED -> {
-                Timber.d("Received pair request")
-                updateHandle(handleId) {
-                    it.pairStatus = PairStatus.PAIR_REQUESTED_BY_PEER
-                    it
-                }
-            }
-            pair.value && handle.pairStatus == PairStatus.PAIR_REQUESTED -> {
-                handle.outgoingPairRequestTimerJob?.cancel()
-                Timber.d("Pair request accepted by peer ${handle.id}, saving")
-                updateHandle(handleId) {
-                    it.pairStatus = PairStatus.PAIRED
-                    it
-                }
+        updateHandle(handleId) {
+            handle
+        }
+        when (pairStatus) {
+            PairStatus.PAIRED -> {
+                Timber.d("Device $handleId paired")
                 deviceRepository.insert(Device(handle.id, handle.name, handle.certificate))
-                handle.reloadPlugins(identityProvider)
             }
-            !pair.value && handle.pairStatus == PairStatus.PAIR_REQUESTED -> {
-                Timber.d("Pair request rejected")
-                updateHandle(handleId) {
-                    it.pairStatus = PairStatus.UNPAIRED
-                    it
-                }
-                handle.outgoingPairRequestTimerJob?.cancel()
+            PairStatus.UNPAIRED -> {
+                Timber.d("Device $handleId unpaired")
+                deviceRepository.delete(handle.id)
             }
-            else -> Timber.d("Pair request in unexpected state: ${handle.pairStatus}")
+
+            PairStatus.PAIR_REQUESTED -> {}
+            PairStatus.PAIR_REQUESTED_BY_PEER -> {}
         }
     }
 
@@ -192,7 +183,7 @@ class DeviceService @Inject constructor(
         _deviceHandles.put(id, action(_deviceHandles[id]!!))
         _deviceStates.update {
             it.toMutableMap().apply {
-                this[id] = DeviceState(_deviceHandles[id]!!.name, id, _deviceHandles[id]!!.pairStatus, true)
+                this[id] = DeviceState(_deviceHandles[id]!!.name, id, _deviceHandles[id]!!.pairHandler.pairStatus.value, true)
             }
         }
     }
@@ -201,7 +192,7 @@ class DeviceService @Inject constructor(
         _deviceHandles[handle.id] = handle
         _deviceStates.update {
             it.toMutableMap().apply {
-                this[handle.id] = DeviceState(handle.name, handle.id, handle.pairStatus, true)
+                this[handle.id] = DeviceState(handle.name, handle.id, handle.pairHandler.pairStatus.value, true)
             }
         }
     }
@@ -239,31 +230,8 @@ class DeviceService @Inject constructor(
 
     fun sendOutgoingPairRequest(id: String, scope: CoroutineScope? = null) {
         if (!deviceStates.value.containsKey(id)) return
-        if (deviceStates.value[id]!!.pairStatus == PairStatus.PAIRED ||
-            deviceStates.value[id]!!.pairStatus == PairStatus.PAIR_REQUESTED) {
-            Timber.d("Pair request already in progress")
-            return
-        }
-
-        updateHandle(id) { handle ->
-            handle.pairStatus = PairStatus.PAIR_REQUESTED
-            handle.outgoingPairRequestTimerJob = (scope ?: handle.localScope).launch {
-                delay(30000)
-                Timber.d("Pair request timed out")
-                updateHandle(id) {
-                    it.pairStatus = PairStatus.UNPAIRED
-                    it.outgoingPairRequestTimerJob = null
-                    it
-                }
-            }
-            handle
-        }
-
-        val builder = FlatBufferBuilder(256)
-        val pair = Pair.createPair(builder, true)
-        val packet = Packet.createPacket(builder, Component.Pair, pair, -126)
-        builder.finishSizePrefixed(packet)
-        _deviceHandles[id]!!.sendPacket(builder.dataBuffer())
+        val handle = _deviceHandles[id]!!
+        handle.pairHandler.sendOutgoingPairRequest()
     }
 
 }
