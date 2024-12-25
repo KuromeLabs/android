@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.io.IOException
+import java.io.InputStream
 import java.io.PipedInputStream
 import java.io.PipedOutputStream
 import java.net.InetSocketAddress
@@ -121,12 +122,12 @@ class DeviceServiceTest {
     }
 
 
-    private fun readPrefixed(socket: Socket): ByteArray {
+    private fun readPrefixed(inputStream: InputStream): ByteArray {
         val sizeArr = ByteArray(4)
-        socket.inputStream.readNBytes(sizeArr, 0, 4)
+        inputStream.readNBytes(sizeArr, 0, 4)
         val size = ByteBuffer.wrap(sizeArr).order(ByteOrder.LITTLE_ENDIAN).int
         val buffer = ByteArray(size)
-        socket.inputStream.readNBytes(buffer, 0, size)
+        inputStream.readNBytes(buffer, 0, size)
         return buffer
     }
 
@@ -144,10 +145,10 @@ class DeviceServiceTest {
 
         (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
         val socket = serverSocket.accept()
-        readPrefixed(socket)
+        readPrefixed(socket.inputStream)
 
-        deviceService.deviceHandles.filter { it.isNotEmpty() }.first()
-        assertTrue(deviceService.deviceHandles.value.containsKey(deviceIdentity.id))
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
+        assertTrue(deviceService.deviceStates.value.containsKey(deviceIdentity.id))
     }
 
     @Test
@@ -159,10 +160,10 @@ class DeviceServiceTest {
 
         (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
         val socket = serverSocket.accept()
-        readPrefixed(socket)
+        readPrefixed(socket.inputStream)
 
-        deviceService.deviceHandles.filter { it.isNotEmpty() }.first()
-        assertTrue(deviceService.deviceHandles.value.containsKey(deviceIdentity.id))
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
+        assertTrue(deviceService.deviceStates.value.containsKey(deviceIdentity.id))
     }
 
     @Test
@@ -174,11 +175,11 @@ class DeviceServiceTest {
         }
 
         val socket = serverSocket.accept()
-        readPrefixed(socket)
+        readPrefixed(socket.inputStream)
 
-        deviceService.deviceHandles.filter { it.isNotEmpty() }.first()
-        assertTrue(deviceService.deviceHandles.value.containsKey(deviceIdentity.id))
-        assertEquals(1, deviceService.deviceHandles.value.size)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
+        assertTrue(deviceService.deviceStates.value.containsKey(deviceIdentity.id))
+        assertEquals(1, deviceService.deviceStates.value.size)
     }
 
     @Test
@@ -188,27 +189,28 @@ class DeviceServiceTest {
         val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
         (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
         val socket = serverSocket.accept()
-        val flowJob = dispatcherScope.launch { deviceService.deviceHandles.filter { it.isEmpty() }.first() }
-        readPrefixed(socket)
+        val flowJob = dispatcherScope.launch { deviceService.deviceStates.filter { it.isEmpty() }.first() }
+        readPrefixed(socket.inputStream)
         flowJob.join()
-        assertFalse(deviceService.deviceHandles.value.containsKey(deviceIdentity.id))
-        assertEquals(0, deviceService.deviceHandles.value.size)
+        assertFalse(deviceService.deviceStates.value.containsKey(deviceIdentity.id))
+        assertEquals(0, deviceService.deviceStates.value.size)
     }
 
     @Test
     fun `test receive id and connect, then connection closes, device handles are properly cleaned up`() = runTest {
         val deviceIdentity = PacketHelpers.getWindowsDeviceIdentityResponse("test")
+
         val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
         (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
         val socket = serverSocket.accept()
-        readPrefixed(socket)
-        deviceService.deviceHandles.filter { it.isNotEmpty() }.first()
-        assertTrue(deviceService.deviceHandles.value.containsKey(deviceIdentity.id))
+        readPrefixed(socket.inputStream)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
+        assertTrue(deviceService.deviceStates.value.containsKey(deviceIdentity.id))
         writeInputStream.close()
         writeOutputStream.close()
-        deviceService.deviceHandles.filter { it.isEmpty() }.first()
-        assertFalse(deviceService.deviceHandles.value.containsKey(deviceIdentity.id))
-        assertEquals(0, deviceService.deviceHandles.value.size)
+        deviceService.deviceStates.filter { it.isEmpty() }.first()
+        assertFalse(deviceService.deviceStates.value.containsKey(deviceIdentity.id))
+        assertEquals(0, deviceService.deviceStates.value.size)
     }
 
     @Test
@@ -220,12 +222,12 @@ class DeviceServiceTest {
 
         (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
         val socket = serverSocket.accept()
-        readPrefixed(socket)
-        deviceService.deviceHandles.filter { it.isNotEmpty() }.first()
-        assertTrue(deviceService.deviceHandles.value.containsKey(deviceIdentity.id))
+        readPrefixed(socket.inputStream)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
+        assertTrue(deviceService.deviceStates.value.containsKey(deviceIdentity.id))
         connectFlow.value = false
-        deviceService.deviceHandles.filter { it.isEmpty() }.first()
-        assertEquals(0, deviceService.deviceHandles.value.size)
+        deviceService.deviceStates.filter { it.isEmpty() }.first()
+        assertEquals(0, deviceService.deviceStates.value.size)
     }
 
 
@@ -235,14 +237,14 @@ class DeviceServiceTest {
         val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
         (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
         val socket = serverSocket.accept()
-        readPrefixed(socket)
-        deviceService.deviceHandles.filter { it.isNotEmpty() }.first()
+        readPrefixed(socket.inputStream)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
 
         val pairPacketBuffer = PacketHelpers.getPairPacketByteBuffer(true)
         val outputChannel = Channels.newChannel(writeOutputStream)
         outputChannel.write(pairPacketBuffer)
 
-        deviceService.deviceHandles.first {
+        deviceService.deviceStates.first {
             it["test"]!!.pairStatus == PairStatus.PAIR_REQUESTED_BY_PEER
         }
     }
@@ -254,14 +256,14 @@ class DeviceServiceTest {
         val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
         (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
         val socket = serverSocket.accept()
-        readPrefixed(socket)
-        deviceService.deviceHandles.filter { it.isNotEmpty() }.first()
+        readPrefixed(socket.inputStream)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
 
         val pairPacketBuffer = PacketHelpers.getPairPacketByteBuffer(false)
         val outputChannel = Channels.newChannel(writeOutputStream)
         outputChannel.write(pairPacketBuffer)
 
-        deviceService.deviceHandles.first {
+        deviceService.deviceStates.first {
             it["test"]!!.pairStatus == PairStatus.UNPAIRED
         }
     }
@@ -277,8 +279,8 @@ class DeviceServiceTest {
         val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
         (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
         val socket = serverSocket.accept()
-        readPrefixed(socket)
-        deviceService.deviceHandles.filter { it.isNotEmpty() }.first()
+        readPrefixed(socket.inputStream)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
 
         val pairPacketBuffer = PacketHelpers.getPairPacketByteBuffer(false)
         val outputChannel = Channels.newChannel(writeOutputStream)
@@ -303,14 +305,14 @@ class DeviceServiceTest {
         val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
         (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
         val socket = serverSocket.accept()
-        readPrefixed(socket)
-        deviceService.deviceHandles.filter { it.isNotEmpty() }.first()
+        readPrefixed(socket.inputStream)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
 
         val pairPacketBuffer = PacketHelpers.getPairPacketByteBuffer(false)
         val outputChannel = Channels.newChannel(writeOutputStream)
         outputChannel.write(pairPacketBuffer)
 
-        deviceService.deviceHandles.first {
+        deviceService.deviceStates.first {
             it["test"]!!.pairStatus == PairStatus.PAIRED
         }
     }
@@ -326,11 +328,11 @@ class DeviceServiceTest {
         val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
         (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
         val socket = serverSocket.accept()
-        readPrefixed(socket)
-        deviceService.deviceHandles.filter { it.isNotEmpty() }.first()
+        readPrefixed(socket.inputStream)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
 
         deviceService.sendOutgoingPairRequest("test")
-        assertEquals(PairStatus.PAIR_REQUESTED, deviceService.deviceHandles.value["test"]!!.pairStatus)
+        assertEquals(PairStatus.PAIR_REQUESTED, deviceService.deviceStates.value["test"]!!.pairStatus)
     }
 
 
@@ -347,13 +349,13 @@ class DeviceServiceTest {
 
         (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
         val socket = serverSocket.accept()
-        readPrefixed(socket)
-        deviceService.deviceHandles.filter { it.isNotEmpty() }.first()
+        readPrefixed(socket.inputStream)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
 
         deviceService.sendOutgoingPairRequest("test", this)
-        assertEquals(PairStatus.PAIR_REQUESTED, deviceService.deviceHandles.value["test"]!!.pairStatus)
+        assertEquals(PairStatus.PAIR_REQUESTED, deviceService.deviceStates.value["test"]!!.pairStatus)
         testScheduler.advanceTimeBy(40000)
-        assertEquals(PairStatus.UNPAIRED, deviceService.deviceHandles.value["test"]!!.pairStatus)
+        assertEquals(PairStatus.UNPAIRED, deviceService.deviceStates.value["test"]!!.pairStatus)
     }
 
 
@@ -366,18 +368,21 @@ class DeviceServiceTest {
 
         val deviceIdentity = PacketHelpers.getWindowsDeviceIdentityResponse("test")
         val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
-        (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
+        (networkService.identityPackets as MutableSharedFlow).emit(deviceIdentity)
         val socket = serverSocket.accept()
-        readPrefixed(socket)
-        deviceService.deviceHandles.filter { it.isNotEmpty() }.first()
+        readPrefixed(socket.inputStream) // read the identity packet
+        deviceService.deviceStates.filter { it.isNotEmpty() && it.values.any { it.name == "Unknown" } }.first()
+        readPrefixed(readInputStream) // read extended identity request
+        val outputChannel = Channels.newChannel(writeOutputStream)
+        outputChannel.write(PacketHelpers.getDeviceIdentityResponsePacketByteBuffer("test"))
+        deviceService.deviceStates.filter { it.isNotEmpty() && it.values.any { it.name == "test" } }.first()
 
         deviceService.sendOutgoingPairRequest("test")
-        deviceService.deviceHandles.first { it["test"]!!.pairStatus == PairStatus.PAIR_REQUESTED }
+        deviceService.deviceStates.first { it["test"]!!.pairStatus == PairStatus.PAIR_REQUESTED }
         val pairPacketBuffer = PacketHelpers.getPairPacketByteBuffer(true)
-        val outputChannel = Channels.newChannel(writeOutputStream)
         outputChannel.write(pairPacketBuffer)
 
-        deviceService.deviceHandles.first { it.containsKey("test") && it["test"]!!.pairStatus == PairStatus.PAIRED }
+        deviceService.deviceStates.first { it.containsKey("test") && it["test"]!!.pairStatus == PairStatus.PAIRED }
     }
 
 
@@ -392,16 +397,19 @@ class DeviceServiceTest {
         val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
         (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
         val socket = serverSocket.accept()
-        readPrefixed(socket)
-        deviceService.deviceHandles.filter { it.isNotEmpty() }.first()
+        readPrefixed(socket.inputStream) // read the identity packet
+        deviceService.deviceStates.filter { it.isNotEmpty() && it.values.any { it.name == "Unknown" } }.first()
+        readPrefixed(readInputStream) // read extended identity request
+        val outputChannel = Channels.newChannel(writeOutputStream)
+        outputChannel.write(PacketHelpers.getDeviceIdentityResponsePacketByteBuffer("test"))
+        deviceService.deviceStates.filter { it.isNotEmpty() && it.values.any { it.name == "test" } }.first()
 
         deviceService.sendOutgoingPairRequest("test")
-        deviceService.deviceHandles.first { it["test"]!!.pairStatus == PairStatus.PAIR_REQUESTED }
+        deviceService.deviceStates.first { it["test"]!!.pairStatus == PairStatus.PAIR_REQUESTED }
         val pairPacketBuffer = PacketHelpers.getPairPacketByteBuffer(false)
-        val outputChannel = Channels.newChannel(writeOutputStream)
         outputChannel.write(pairPacketBuffer)
 
-        deviceService.deviceHandles.first { it["test"]!!.pairStatus == PairStatus.UNPAIRED }
+        deviceService.deviceStates.first { it["test"]!!.pairStatus == PairStatus.UNPAIRED }
     }
 
 
@@ -416,14 +424,14 @@ class DeviceServiceTest {
         val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
         (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
         val socket = serverSocket.accept()
-        readPrefixed(socket)
-        deviceService.deviceHandles.filter { it.isNotEmpty() }.first()
+        readPrefixed(socket.inputStream)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
 
         deviceService.sendOutgoingPairRequest("test")
-        val state1 = deviceService.deviceHandles.value["test"]
+        val state1 = deviceService.deviceStates.value["test"]
         deviceService.sendOutgoingPairRequest("test")
-        val state2 = deviceService.deviceHandles.value["test"]
-        deviceService.deviceHandles.first { it["test"]!!.pairStatus == PairStatus.PAIR_REQUESTED }
+        val state2 = deviceService.deviceStates.value["test"]
+        deviceService.deviceStates.first { it["test"]!!.pairStatus == PairStatus.PAIR_REQUESTED }
         assertEquals(state1, state2)
     }
 
@@ -439,14 +447,14 @@ class DeviceServiceTest {
         val deviceService = DeviceService(dispatcherScope, identityProvider, networkHelper, repository, networkService).apply { start() }
         (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
         val socket = serverSocket.accept()
-        readPrefixed(socket)
-        deviceService.deviceHandles.filter { it.isNotEmpty() }.first()
-        assertEquals(PairStatus.UNPAIRED, deviceService.deviceHandles.value["test"]!!.pairStatus)
+        readPrefixed(socket.inputStream)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
+        assertEquals(PairStatus.UNPAIRED, deviceService.deviceStates.value["test"]!!.pairStatus)
 
         val outputChannel = Channels.newChannel(writeOutputStream)
         var pairPacketBuffer = PacketHelpers.getPairPacketByteBuffer(true)
         outputChannel.write(pairPacketBuffer)
-        deviceService.deviceHandles.first { it["test"]!!.pairStatus == PairStatus.PAIR_REQUESTED_BY_PEER }
+        deviceService.deviceStates.first { it["test"]!!.pairStatus == PairStatus.PAIR_REQUESTED_BY_PEER }
         pairPacketBuffer = PacketHelpers.getPairPacketByteBuffer(true)
         outputChannel.write(pairPacketBuffer)
         runBlocking { delay(1000) } // wait for second packet to be processed
@@ -468,10 +476,10 @@ class DeviceServiceTest {
         ).apply { start() }
         (networkService.identityPackets as MutableSharedFlow).tryEmit(deviceIdentity)
         val socket = serverSocket.accept()
-        readPrefixed(socket)
-        deviceService.deviceHandles.filter { it.isNotEmpty() }.first()
+        readPrefixed(socket.inputStream)
+        deviceService.deviceStates.filter { it.isNotEmpty() }.first()
 
         deviceService.sendOutgoingPairRequest("test")
-        deviceService.deviceHandles.first { it["test"]!!.pairStatus == PairStatus.PAIRED }
+        deviceService.deviceStates.first { it["test"]!!.pairStatus == PairStatus.PAIRED }
     }
 }
