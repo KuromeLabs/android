@@ -1,7 +1,7 @@
 package com.kuromelabs.kurome.infrastructure.network
 
 
-import Kurome.Fbs.Packet
+import com.kuromelabs.core.models_fbs.Packet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow

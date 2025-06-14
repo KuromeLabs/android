@@ -1,14 +1,14 @@
 package com.kuromelabs.kurome.infrastructure.network
 
-import Kurome.Fbs.Component
-import Kurome.Fbs.DeviceIdentityResponse
-import Kurome.Fbs.Packet
-import Kurome.Fbs.Platform
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import com.kuromelabs.core.models_fbs.Component
+import com.kuromelabs.core.models_fbs.DeviceIdentityResponse
+import com.kuromelabs.core.models_fbs.Packet
+import com.kuromelabs.core.models_fbs.Platform
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.awaitClose

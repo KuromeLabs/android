@@ -8,8 +8,6 @@ plugins {
 }
 
 android {
-    project.tasks.preBuild.get().dependsOn("generateFbsKotlin")
-    project.tasks.preBuild.get().mustRunAfter("generateFbsKotlin")
     compileSdk = 34
 //    buildToolsVersion = "32.1.0-rc1"
     useLibrary("android.test.base")
@@ -51,36 +49,7 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
-    sourceSets.getByName("main") {
-        java.srcDir("build/generated/source/flatbuffers")
-    }
     namespace = "com.kuromelabs.kurome"
-
-    tasks.register<Exec>("generateFbsKotlin") {
-        doFirst {
-            delete("$projectDir/build/generated/source/flatbuffers/")
-            mkdir("$projectDir/build/generated/source/flatbuffers/")
-        }
-        doLast {
-
-        }
-        group = "Generate FBS Kotlin"
-        description = "Generate FBS Kotlin"
-        val files = arrayListOf<File>()
-        file("$projectDir/src/main/java/com/kuromelabs/kurome/application/flatbuffers").walkTopDown()
-            .filter { it.isFile && it.name.endsWith(".fbs") }
-            .forEach { files.add(it) }
-        val args = arrayListOf(
-            "flatc",
-            "-o",
-            "$projectDir\\build\\generated\\source\\flatbuffers\\",
-            "--kotlin"
-        )
-        files.forEach {
-            args.add(it.path)
-        }
-        commandLine(args)
-    }
 
     packaging {
         resources {
@@ -96,6 +65,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.service)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
+
+    implementation(project(":core:models_fbs"))
 
     //test
     testImplementation(libs.junit.jupiter)

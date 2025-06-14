@@ -1,6 +1,6 @@
 package com.kuromelabs.kurome.infrastructure.device
 
-import Kurome.Fbs.Packet
+import com.kuromelabs.core.models_fbs.Packet
 import com.kuromelabs.kurome.application.devices.Plugin
 import com.kuromelabs.kurome.infrastructure.network.Link
 import kotlinx.coroutines.CoroutineScope

@@ -1,8 +1,8 @@
 package com.kuromelabs.kurome.infrastructure.device
 
-import Kurome.Fbs.Component
-import Kurome.Fbs.Packet
-import Kurome.Fbs.Pair
+import com.kuromelabs.core.models_fbs.Component
+import com.kuromelabs.core.models_fbs.Packet
+import com.kuromelabs.core.models_fbs.Pair
 import com.google.flatbuffers.FlatBufferBuilder
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay

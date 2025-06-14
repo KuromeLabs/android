@@ -1,9 +1,9 @@
 package com.kuromelabs.kurome.infrastructure.device
 
-import Kurome.Fbs.Component
-import Kurome.Fbs.DeviceIdentityResponse
-import Kurome.Fbs.Packet
-import Kurome.Fbs.Platform
+import com.kuromelabs.core.models_fbs.Component
+import com.kuromelabs.core.models_fbs.DeviceIdentityResponse
+import com.kuromelabs.core.models_fbs.Packet
+import com.kuromelabs.core.models_fbs.Platform
 import android.os.Build
 import android.os.Environment
 import android.os.StatFs

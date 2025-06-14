@@ -5,5 +5,6 @@ plugins {
     alias(libs.plugins.hilt.android) apply false
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.mannodermaus.android.junit5) apply false
+    alias(libs.plugins.android.library) apply false
 }
 

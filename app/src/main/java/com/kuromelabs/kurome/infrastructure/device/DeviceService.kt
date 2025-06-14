@@ -1,6 +1,6 @@
 package com.kuromelabs.kurome.infrastructure.device
 
-import Kurome.Fbs.*
+import com.kuromelabs.core.models_fbs.*
 import android.os.Environment
 import android.os.StatFs
 import com.google.flatbuffers.FlatBufferBuilder

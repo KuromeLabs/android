@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 include(":app")
 rootProject.name = "Kurome"
+include(":core:models_fbs")
