@@ -8,14 +8,15 @@ plugins {
 }
 
 android {
-    compileSdk = 34
+
+    compileSdk = 36
 //    buildToolsVersion = "32.1.0-rc1"
     useLibrary("android.test.base")
     useLibrary("android.test.mock")
     defaultConfig {
         applicationId = "com.kuromelabs.kurome"
         minSdk = 21
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
@@ -44,9 +45,8 @@ android {
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.5"
     }
-
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+        jvmTarget = "17"
     }
 
     namespace = "com.kuromelabs.kurome"
@@ -105,7 +105,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.androidx.material3)
-    implementation(libs.androidx.material.icons.extended)
+//    implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.ui.tooling)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.ui.tooling.preview)
@@ -117,5 +117,4 @@ dependencies {
     //SSL
     implementation(libs.bcpkix.jdk18on)
 
-    implementation(libs.flatbuffers.java)
 }
