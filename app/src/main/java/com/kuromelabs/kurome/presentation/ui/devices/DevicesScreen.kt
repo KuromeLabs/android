@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
@@ -30,7 +29,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -38,6 +39,7 @@ import com.kuromelabs.kurome.infrastructure.device.DeviceState
 import com.kuromelabs.kurome.presentation.util.Screen
 import com.kuromelabs.kurome.presentation.util.Utils
 import kotlinx.coroutines.launch
+import com.kuromelabs.kurome.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -112,7 +114,7 @@ fun DeviceRow(state: DeviceState, modifier: Modifier) {
         ) {
 
         Icon(
-            imageVector = Icons.Filled.Computer,
+            imageVector = ImageVector.vectorResource(R.drawable.computer_48dp),
             contentDescription = null,
             modifier = Modifier
                 .padding(horizontal = 16.dp)

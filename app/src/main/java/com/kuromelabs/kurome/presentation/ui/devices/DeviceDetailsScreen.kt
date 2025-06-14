@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AddLink
-import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,12 +27,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.kuromelabs.kurome.R
 import com.kuromelabs.kurome.infrastructure.device.DeviceState
 import com.kuromelabs.kurome.infrastructure.device.PairStatus
 import com.kuromelabs.kurome.presentation.util.Utils
@@ -119,7 +120,7 @@ fun DeviceDetails(
                         modifier = Modifier.align(Alignment.Center)
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.Computer,
+                            imageVector = ImageVector.vectorResource(R.drawable.computer_48dp),
                             contentDescription = null,
                             modifier = Modifier
                                 .size(48.dp)
@@ -168,7 +169,7 @@ fun ActionRow(state: DeviceState, viewModel: DeviceDetailsViewModel) {
                     verticalArrangement = Arrangement.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.AddLink,
+                        imageVector = ImageVector.vectorResource(R.drawable.add_link_24dp),
                         contentDescription = null,
                         modifier = Modifier.size(24.dp)
                     )
@@ -188,7 +189,7 @@ fun ActionRow(state: DeviceState, viewModel: DeviceDetailsViewModel) {
                     verticalArrangement = Arrangement.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.AddLink,
+                        imageVector = ImageVector.vectorResource(R.drawable.add_link_24dp),
                         contentDescription = null,
                         modifier = Modifier.size(24.dp)
                     )
