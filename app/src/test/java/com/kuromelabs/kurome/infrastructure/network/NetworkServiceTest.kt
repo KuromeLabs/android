@@ -1,10 +1,10 @@
 package com.kuromelabs.kurome.infrastructure.network
 
-import Kurome.Fbs.Component
-import Kurome.Fbs.CreateDirectoryCommand
-import Kurome.Fbs.DeviceIdentityResponse
-import Kurome.Fbs.Packet
-import Kurome.Fbs.Platform
+import com.kuromelabs.core.models_fbs.Component
+import com.kuromelabs.core.models_fbs.CreateDirectoryCommand
+import com.kuromelabs.core.models_fbs.DeviceIdentityResponse
+import com.kuromelabs.core.models_fbs.Packet
+import com.kuromelabs.core.models_fbs.Platform
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkRequest
@@ -15,7 +15,7 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.spyk
-import junit.framework.Assert.assertEquals
+import org.junit.jupiter.api.Assertions.assertEquals
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

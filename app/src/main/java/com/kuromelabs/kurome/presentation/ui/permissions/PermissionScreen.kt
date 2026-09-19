@@ -32,7 +32,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat.startActivity
 import androidx.preference.PreferenceManager
 import com.kuromelabs.kurome.R
 
@@ -71,10 +70,8 @@ fun PermissionScreen(
                     resources.getString(R.string.manage_external_storage_body),
                     onClick = {
                         val uri = Uri.parse("package:${context.packageName}")
-                        startActivity(
-                            context,
-                            Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, uri),
-                            null
+                        context.startActivity(
+                            Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, uri)
                         )
                     }, permissionsMap[Manifest.permission.MANAGE_EXTERNAL_STORAGE]!!
                 )

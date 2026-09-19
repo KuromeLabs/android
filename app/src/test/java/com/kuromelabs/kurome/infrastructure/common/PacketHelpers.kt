@@ -1,14 +1,14 @@
 package com.kuromelabs.kurome.infrastructure.common
 
-import Kurome.Fbs.Component
-import Kurome.Fbs.CreateDirectoryCommand
-import Kurome.Fbs.CreateFileCommand
-import Kurome.Fbs.DeleteFileCommand
-import Kurome.Fbs.DeviceIdentityResponse
-import Kurome.Fbs.Packet
-import Kurome.Fbs.Pair
-import Kurome.Fbs.Platform
-import Kurome.Fbs.RenameFileCommand
+import com.kuromelabs.core.models_fbs.Component
+import com.kuromelabs.core.models_fbs.CreateDirectoryCommand
+import com.kuromelabs.core.models_fbs.CreateFileCommand
+import com.kuromelabs.core.models_fbs.DeleteFileCommand
+import com.kuromelabs.core.models_fbs.DeviceIdentityResponse
+import com.kuromelabs.core.models_fbs.Packet
+import com.kuromelabs.core.models_fbs.Pair
+import com.kuromelabs.core.models_fbs.Platform
+import com.kuromelabs.core.models_fbs.RenameFileCommand
 import com.google.flatbuffers.FlatBufferBuilder
 import java.nio.ByteBuffer
 
@@ -119,7 +119,7 @@ class PacketHelpers {
             val packet = Packet.createPacket(
                 builder,
                 Component.WriteFileCommand,
-                Kurome.Fbs.WriteFileCommand.createWriteFileCommand(
+                com.kuromelabs.core.models_fbs.WriteFileCommand.createWriteFileCommand(
                     builder,
                     builder.createString(path),
                     builder.createByteVector(data),
@@ -137,7 +137,7 @@ class PacketHelpers {
             val packet = Packet.createPacket(
                 builder,
                 Component.SetFileInfoCommand,
-                Kurome.Fbs.SetFileInfoCommand.createSetFileInfoCommand(
+                com.kuromelabs.core.models_fbs.SetFileInfoCommand.createSetFileInfoCommand(
                     builder,
                     builder.createString(path),
                     length, cTime, laTime, lwTime, extraAttributes

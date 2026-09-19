@@ -1,7 +1,6 @@
 plugins {
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.android.application)
-    alias(libs.plugins.org.jetbrains.kotlin.android)
     alias(libs.plugins.ksp)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.mannodermaus.android.junit5)
@@ -9,14 +8,13 @@ plugins {
 
 android {
 
-    compileSdk = 36
-//    buildToolsVersion = "32.1.0-rc1"
+    compileSdk = 37
     useLibrary("android.test.base")
     useLibrary("android.test.mock")
     defaultConfig {
         applicationId = "com.kuromelabs.kurome"
-        minSdk = 21
-        targetSdk = 36
+        minSdk = 24
+        targetSdk = 37
         versionCode = 1
         versionName = "1.0"
 
@@ -36,17 +34,12 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // SslService uses java.time, which is API 26+ without desugaring.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     buildFeatures {
         compose = true
-    }
-
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.5"
-    }
-    kotlinOptions {
-        jvmTarget = "17"
     }
 
     namespace = "com.kuromelabs.kurome"
@@ -105,7 +98,6 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.androidx.material3)
-//    implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.ui.tooling)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.ui.tooling.preview)
@@ -116,5 +108,7 @@ dependencies {
 
     //SSL
     implementation(libs.bcpkix.jdk18on)
+
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
 
 }

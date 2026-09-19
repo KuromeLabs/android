@@ -53,10 +53,15 @@ class DeviceService @Inject constructor(
     }
 
     fun handleUdpPacket(packet: DeviceIdentityResponse) {
-        val name = packet.name!!
-        val id = packet.id!!
-        val ip = packet.localIp
-        val port = packet.tcpListeningPort
+        handleUdp(
+            name = packet.name!!,
+            id = packet.id!!,
+            ip = packet.localIp!!,
+            port = packet.tcpListeningPort.toInt()
+        )
+    }
+
+    fun handleUdp(name: String, id: String, ip: String, port: Int) {
         Timber.d("Received UDP packet from $ip:$port, id: $id, name: $name")
         if (deviceStates.value.containsKey(id)) return
 
@@ -66,8 +71,8 @@ class DeviceService @Inject constructor(
         val deviceHandle = DeviceHandle(trusted, "Unknown", id, null)
         addHandle(deviceHandle)
         scope.launch {
-            val result = connectToDevice(ip!!, port.toInt(), device)
-            handleConnection(result, id, ip, port.toInt())
+            val result = connectToDevice(ip, port, device)
+            handleConnection(result, id, ip, port)
         }
     }
 

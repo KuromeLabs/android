@@ -103,7 +103,7 @@ class FilesystemPacketHandlerPlugin(private val handle: DeviceHandle) : Plugin {
                     Timber.d("Writing ${command.dataLength} bytes to ${root + command.path!!} at offset ${command.offset}")
                     writeFile(
                         root + command.path!!,
-                        command.dataAsByteBuffer,
+                        command.dataAsByteBuffer!!,
                         command.offset,
                         command.dataLength
                     )
