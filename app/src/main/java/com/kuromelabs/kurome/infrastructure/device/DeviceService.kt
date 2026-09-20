@@ -6,12 +6,14 @@ import android.os.StatFs
 import com.google.flatbuffers.FlatBufferBuilder
 import com.kuromelabs.kurome.application.devices.Device
 import com.kuromelabs.kurome.application.devices.DeviceRepository
+import com.kuromelabs.kurome.infrastructure.network.DiscoveredDevice
 import com.kuromelabs.kurome.infrastructure.network.Link
 import com.kuromelabs.kurome.infrastructure.network.NetworkHelper
 import com.kuromelabs.kurome.infrastructure.network.NetworkService
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import timber.log.Timber
+import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.nio.channels.Channels
@@ -19,6 +21,7 @@ import java.security.cert.X509Certificate
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.net.ssl.*
+import kotlin.time.Duration.Companion.milliseconds
 
 class DeviceService @Inject constructor(
     private val scope: CoroutineScope,
@@ -39,57 +42,96 @@ class DeviceService @Inject constructor(
 
     fun start() {
         observeNetworkState()
-        networkService.startUdpListener()
+        networkService.startDiscovery()
+    }
+
+    fun stop() {
+        networkService.stopDiscovery()
+        _deviceHandles.forEach { (_, handle) -> handle.stop() }
+        _deviceHandles.clear()
+        _deviceStates.value = emptyMap()
     }
 
     private fun observeNetworkState() {
-        networkService.identityPackets
-            .onEach { packet -> handleUdpPacket(packet) }
+        networkService.discoveredDevices
+            .onEach { devices -> devices.values.forEach { connect(it) } }
             .launchIn(scope)
 
         networkService.isConnected()
-            .onEach { isConnected -> if (!isConnected) onNetworkLost() }
+            // Not distinctUntilChanged: a second `true` means another interface came up, and
+            // NsdManager browses the interfaces it had when discovery started. Debounced instead,
+            // because several networks coming up at once would otherwise leave overlapping
+            // discoveries live — stopServiceDiscovery is async.
+            .debounce(NETWORK_SETTLE_MS.milliseconds)
+            .onEach { isConnected ->
+                if (isConnected) networkService.restartDiscovery() else onNetworkLost()
+            }
             .launchIn(scope)
-    }
 
-    fun handleUdpPacket(packet: DeviceIdentityResponse) {
-        handleUdp(
-            name = packet.name!!,
-            id = packet.id!!,
-            ip = packet.localIp!!,
-            port = packet.tcpListeningPort.toInt()
-        )
-    }
-
-    fun handleUdp(name: String, id: String, ip: String, port: Int) {
-        Timber.d("Received UDP packet from $ip:$port, id: $id, name: $name")
-        if (deviceStates.value.containsKey(id)) return
-
-        val device = savedDevicesFlow.value[id]
-        val trusted = device?.certificate != null
-
-        val deviceHandle = DeviceHandle(trusted, "Unknown", id, null)
-        addHandle(deviceHandle)
+        // mDNS announces once and then stays quiet, unlike the UDP broadcast it replaced, so a peer
+        // whose link dropped while it is still advertising has to be retried on a timer. The same
+        // tick revives discovery if NsdManager dropped it without a connectivity event to match.
         scope.launch {
-            val result = connectToDevice(ip, port, device)
-            handleConnection(result, id, ip, port)
+            while (isActive) {
+                delay(RETRY_INTERVAL_MS.milliseconds)
+                networkService.startDiscovery()
+                networkService.discoveredDevices.value.values.forEach { connect(it) }
+            }
         }
     }
 
-    private suspend fun connectToDevice(ip: String, port: Int, device: Device?): Result<SSLSocket> {
+    /** Connects to a peer entered by hand, for networks where mDNS does not make it across. */
+    fun connectManually(ip: String, port: Int) {
+        connect(
+            DiscoveredDevice(
+                id = MANUAL_DEVICE_ID,
+                name = "ManuallyConnectDevice",
+                addresses = listOf(ip),
+                port = port,
+            )
+        )
+    }
+
+    fun connect(discovered: DiscoveredDevice) {
+        val id = discovered.id
+        val device = savedDevicesFlow.value[id]
+        val trusted = device?.certificate != null
+
+        // putIfAbsent, not a containsKey check: discovery and the retry ticker both land here.
+        if (!addHandle(DeviceHandle(trusted, "Unknown", id, null))) return
+
+        Timber.d("Connecting to $id (${discovered.name}) at ${discovered.addresses}:${discovered.port}")
+        scope.launch {
+            val result = connectToDevice(discovered, device)
+            handleConnection(result, id, discovered)
+        }
+    }
+
+    private suspend fun connectToDevice(
+        discovered: DiscoveredDevice,
+        device: Device?
+    ): Result<SSLSocket> {
         return withContext(Dispatchers.IO) {
-            val socket = Socket().apply { reuseAddress = true }
-            try {
-                Timber.d("Connecting to $ip:$port")
-                socket.connect(InetSocketAddress(ip, port), 3000)
-                sendIdentity(socket)
-                Timber.d("Upgrading to SSL for $ip:$port")
-                Result.success(networkHelper.upgradeToSslSocket(socket, true, device?.certificate))
-            } catch (e: Exception) {
-                socket.close()
-                Timber.e("Connection error: $e")
-                Result.failure(e)
+            var lastFailure: Throwable = IOException("No reachable address for ${discovered.id}")
+            // A Windows peer advertises every NIC it has, and the Hyper-V/VPN ones do not route
+            // back to the phone, so walk the list until one answers.
+            for (ip in discovered.addresses) {
+                val socket = Socket().apply { reuseAddress = true }
+                try {
+                    Timber.d("Connecting to $ip:${discovered.port}")
+                    socket.connect(InetSocketAddress(ip, discovered.port), CONNECT_TIMEOUT_MS)
+                    sendIdentity(socket)
+                    Timber.d("Upgrading to SSL for $ip:${discovered.port}")
+                    return@withContext Result.success(
+                        networkHelper.upgradeToSslSocket(socket, true, device?.certificate)
+                    )
+                } catch (e: Exception) {
+                    socket.close()
+                    Timber.e("Connection error for $ip:${discovered.port}: $e")
+                    lastFailure = e
+                }
             }
+            Result.failure(lastFailure)
         }
     }
 
@@ -105,8 +147,7 @@ class DeviceService @Inject constructor(
     private suspend fun handleConnection(
         result: Result<SSLSocket>,
         id: String,
-        ip: String,
-        port: Int
+        discovered: DiscoveredDevice
     ) {
         result.onSuccess { sslSocket ->
             updateHandle(id) {
@@ -115,9 +156,12 @@ class DeviceService @Inject constructor(
                 it.link = Link(sslSocket, it.localScope)
                 it
             }
-            Timber.d("Connected to $ip:$port, id: $id. Getting extended identity...")
+            Timber.d("Connected to ${sslSocket.inetAddress?.hostAddress}:${discovered.port}, id: $id. Getting extended identity...")
             var identityPacket: Packet? = null
-            val identityJob = _deviceHandles[id]!!.localScope.launch {
+            // UNDISPATCHED so the body runs inline up to its first real suspension, which is the
+            // receivedPackets subscription. A plain launch might not have subscribed before
+            // link.start() below begins reading, and the reply would be lost to the 35s timeout.
+            val identityJob = _deviceHandles[id]!!.localScope.launch(start = CoroutineStart.UNDISPATCHED) {
                 identityPacket = _deviceHandles[id]!!.getIncomingPacketWithId(0, 35000)
             }
             _deviceHandles[id]!!.reloadPlugins(identityProvider)
@@ -133,20 +177,23 @@ class DeviceService @Inject constructor(
 
             updateHandle(id) {
                 it.name = identity.name!!
-                it.localScope.launch(Dispatchers.Unconfined) {
+                it.localScope.launch(start = CoroutineStart.UNDISPATCHED) {
                     observeDevicePackets(it.link!!, id)
                 }
-                it.localScope.launch(Dispatchers.Unconfined) {
-                    it.pairHandler.pairStatus.collect {status ->
-                        Timber.d("Pair status changed to $it")
-                        onPairStatusChanged(status, id)
+                it.localScope.launch(start = CoroutineStart.UNDISPATCHED) {
+                    var previous: PairStatus? = null
+                    it.pairHandler.pairStatus.collect { status ->
+                        Timber.d("Pair status changed to $status")
+                        val isTransition = previous != null && previous != status
+                        previous = status
+                        onPairStatusChanged(status, id, isTransition)
                     }
                 }
                 it
             }
         }.onFailure {
             onDeviceDisconnected(id)
-            Timber.e("Failed to connect to $ip:$port")
+            Timber.e("Failed to connect to ${discovered.addresses}:${discovered.port}")
         }
     }
 
@@ -158,7 +205,11 @@ class DeviceService @Inject constructor(
             }
     }
 
-    private suspend fun onPairStatusChanged(pairStatus: PairStatus, handleId: String) {
+    private suspend fun onPairStatusChanged(
+        pairStatus: PairStatus,
+        handleId: String,
+        isTransition: Boolean
+    ) {
         val handle = _deviceHandles[handleId] ?: return
         updateHandle(handleId) {
             handle
@@ -175,6 +226,14 @@ class DeviceService @Inject constructor(
 
             PairStatus.PAIR_REQUESTED -> {}
             PairStatus.PAIR_REQUESTED_BY_PEER -> {}
+        }
+
+        if (isTransition) {
+            try {
+                handle.reloadPlugins(identityProvider)
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to reload plugins for $handleId after pair status change")
+            }
         }
     }
 
@@ -193,13 +252,9 @@ class DeviceService @Inject constructor(
         }
     }
 
-    private fun addHandle(handle: DeviceHandle) {
-        _deviceHandles[handle.id] = handle
-        _deviceStates.update {
-            it.toMutableMap().apply {
-                this[handle.id] = DeviceState(handle.name, handle.id, handle.pairHandler.pairStatus.value, true)
-            }
-        }
+    /** Returns false if a handle for this device already exists, meaning the caller should back off. */
+    private fun addHandle(handle: DeviceHandle): Boolean {
+        return _deviceHandles.putIfAbsent(handle.id, handle) == null
     }
 
     private fun sendIdentity(socket: Socket) {
@@ -227,16 +282,29 @@ class DeviceService @Inject constructor(
 
     private fun onNetworkLost() {
         Timber.d("Network lost")
-        _deviceHandles.forEach { (id, handle) ->
-            handle.stop()
-        }
+        _deviceHandles.forEach { (_, handle) -> handle.stop() }
         _deviceHandles.clear()
+        _deviceStates.value = emptyMap()
     }
 
-    fun sendOutgoingPairRequest(id: String, scope: CoroutineScope? = null) {
-        if (!deviceStates.value.containsKey(id)) return
-        val handle = _deviceHandles[id]!!
-        handle.pairHandler.sendOutgoingPairRequest()
+    fun sendOutgoingPairRequest(id: String) {
+        val handle = _deviceHandles[id] ?: return
+        scope.launch { handle.pairHandler.sendOutgoingPairRequest() }
     }
 
+    fun unpairDevice(id: String) {
+        scope.launch {
+            _deviceHandles[id]?.pairHandler?.sendUnpairRequest()
+            deviceRepository.delete(id)
+        }
+    }
+
+    private companion object {
+        const val CONNECT_TIMEOUT_MS = 3000
+        const val NETWORK_SETTLE_MS = 750L
+        const val RETRY_INTERVAL_MS = 10_000L
+
+        /** Manual connections have no id until the peer's identity arrives; see connectManually. */
+        const val MANUAL_DEVICE_ID = "ManuallyConnectedDeviceId"
+    }
 }

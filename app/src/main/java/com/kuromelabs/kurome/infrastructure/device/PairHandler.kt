@@ -44,8 +44,28 @@ class PairHandler(val handle: DeviceHandle, val initialPairStatus: PairStatus) {
                 Timber.d("Pair request rejected")
                 outgoingPairRequestTimerJob?.cancel()
             }
+            !pair.value && pairStatus.value == PairStatus.PAIRED -> {
+                _pairStatus.value = PairStatus.UNPAIRED
+                Timber.d("Unpaired by peer ${handle.id}")
+            }
             else -> Timber.d("Pair request in unexpected state: ${pairStatus.value}")
         }
+    }
+
+    fun sendUnpairRequest() {
+        if (pairStatus.value != PairStatus.PAIRED) {
+            Timber.d("Not paired with ${handle.id}, nothing to unpair")
+            return
+        }
+
+        val builder = FlatBufferBuilder(256)
+        val pair = Pair.createPair(builder, false)
+        val packet = Packet.createPacket(builder, Component.Pair, pair, -126)
+        builder.finishSizePrefixed(packet)
+        handle.sendPacket(builder.dataBuffer())
+
+        Timber.d("Unpaired from ${handle.id}")
+        _pairStatus.value = PairStatus.UNPAIRED
     }
 
     fun sendOutgoingPairRequest() {
