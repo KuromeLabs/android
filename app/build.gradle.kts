@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.android.application)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.mannodermaus.android.junit5)
 }
@@ -24,6 +25,7 @@ android {
     buildTypes {
         getByName("release") {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -96,6 +98,7 @@ dependencies {
     implementation(libs.androidx.foundation)
     implementation(libs.androidx.foundation.layout)
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.ui.tooling)
