@@ -56,6 +56,8 @@ class KuromeService : LifecycleService() {
 
 
     override fun onDestroy() {
+        // NsdManager keeps the discovery listener registered until it is explicitly stopped.
+        deviceService.stop()
         scope.cancel()
         super.onDestroy()
     }
