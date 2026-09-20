@@ -59,4 +59,8 @@
     <string name="notification_permission_title">Notifications</string>
     <string name="notification_permission_body">Kurome needs to show a notification to run a foreground service, which is used for discovering and connecting to other devices</string>
     <string name="notification_permission_denied_permanently">You have permanently denied this permission, enable it in Settings</string>
+
+    <string name="local_network_permission_title">Local network</string>
+    <string name="local_network_permission_body">Kurome finds computers on your Wi‑Fi network and connects to them directly. Android requires your permission before an app can reach other devices on your network.</string>
+    <string name="local_network_permission_denied_permanently">You have permanently denied this permission, enable it in Settings</string>
 </resources>

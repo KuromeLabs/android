@@ -82,6 +82,10 @@ fun PermissionScreen(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 NotificationPermissionItem(permissionsMap)
             }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN) {
+                LocalNetworkPermissionItem(permissionsMap)
+            }
         }
     }
 }
@@ -106,6 +110,36 @@ fun handlePermissionResult(
         }
         prefs.edit().putBoolean(permission, false).apply()
     }
+}
+
+@RequiresApi(Build.VERSION_CODES.CINNAMON_BUN)
+@Composable
+fun LocalNetworkPermissionItem(permissionsMap: SnapshotStateMap<String, PermissionStatus>) {
+    val context = LocalContext.current
+    val resources = context.resources
+
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        handlePermissionResult(
+            context,
+            Manifest.permission.ACCESS_LOCAL_NETWORK,
+            isGranted,
+            permissionsMap
+        )
+    }
+
+    PermissionRow(
+        permissionTitle = resources.getString(R.string.local_network_permission_title),
+        permissionBody = if (permissionsMap[Manifest.permission.ACCESS_LOCAL_NETWORK]!! == PermissionStatus.DeniedForever)
+            resources.getString(R.string.local_network_permission_denied_permanently)
+        else
+            resources.getString(R.string.local_network_permission_body),
+        onClick = {
+            launcher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+        },
+        permissionStatus = permissionsMap[Manifest.permission.ACCESS_LOCAL_NETWORK]!!,
+    )
 }
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)

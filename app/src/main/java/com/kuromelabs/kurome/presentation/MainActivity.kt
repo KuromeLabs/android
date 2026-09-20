@@ -129,6 +129,10 @@ class MainActivity : ComponentActivity() {
         } else {
             permissionMap[Manifest.permission.POST_NOTIFICATIONS] = PermissionStatus.Granted
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN) {
+            permissionMap[Manifest.permission.ACCESS_LOCAL_NETWORK] =
+                checkPermission(Manifest.permission.ACCESS_LOCAL_NETWORK)
+        }
     }
 
     private fun checkPermission(permission: String): PermissionStatus {

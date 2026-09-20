@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.net.nsd.DiscoveryRequest
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
@@ -114,7 +115,15 @@ class NetworkService(
             }
         }
         discoveryListener = listener
-        nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN) {
+            val request = DiscoveryRequest.Builder(SERVICE_TYPE)
+                .setFlags(DiscoveryRequest.FLAG_NO_PICKER)
+                .setDisplayNameAttribute("name")
+                .build()
+            nsdManager.discoverServices(request, { it.run() }, listener)
+        } else {
+            nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener)
+        }
     }
 
     @Synchronized
