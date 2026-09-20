@@ -20,7 +20,7 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import java.security.KeyPair
+import javax.net.ssl.KeyManager
 import java.security.cert.X509Certificate
 import javax.inject.Singleton
 
@@ -45,7 +45,7 @@ object AppModule {
 
     @Singleton
     @Provides
-    fun provideNetworkHelper(securityService: SecurityService<X509Certificate, KeyPair>): NetworkHelper {
+    fun provideNetworkHelper(securityService: SecurityService<X509Certificate, KeyManager>): NetworkHelper {
         return NetworkHelper(securityService)
     }
 
@@ -86,7 +86,7 @@ object AppModule {
     @Provides
     fun provideSecurityService(
         identityProvider: IdentityProvider
-    ): SecurityService<X509Certificate, KeyPair> {
+    ): SecurityService<X509Certificate, KeyManager> {
         return SslService(identityProvider)
     }
 }

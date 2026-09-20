@@ -3,17 +3,17 @@ package com.kuromelabs.kurome.infrastructure.network
 import android.annotation.SuppressLint
 import com.kuromelabs.kurome.application.interfaces.SecurityService
 import java.net.Socket
-import java.security.KeyPair
 import java.security.KeyStore
+import java.security.SecureRandom
 import java.security.cert.X509Certificate
-import javax.net.ssl.KeyManagerFactory
+import javax.net.ssl.KeyManager
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.TrustManager
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 
-class NetworkHelper(private val securityService: SecurityService<X509Certificate, KeyPair>) {
+class NetworkHelper(private val securityService: SecurityService<X509Certificate, KeyManager>) {
     fun upgradeToSslSocket(socket: Socket, clientMode: Boolean, certificate: X509Certificate?): SSLSocket {
         val sslContext = createSslContext(certificate)
         val sslSocket = sslContext.socketFactory.createSocket(
@@ -26,26 +26,20 @@ class NetworkHelper(private val securityService: SecurityService<X509Certificate
     }
 
     private fun createSslContext(certificate: X509Certificate?): SSLContext {
-        val keyStore = KeyStore.getInstance(KeyStore.getDefaultType()).apply {
-            load(null, null)
-            setKeyEntry("key", securityService.getKeys()!!.private, "".toCharArray(), arrayOf(securityService.getSecurityContext()))
-            certificate?.let { setCertificateEntry("cert", it) }
-        }
-
-        val keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()).apply {
-            init(keyStore, "".toCharArray())
-        }
-
-        val trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).apply {
-            init(keyStore)
+        val trustManagers: Array<TrustManager> = if (certificate == null) {
+            arrayOf(TrustAllManager())
+        } else {
+            val trustStore = KeyStore.getInstance(KeyStore.getDefaultType()).apply {
+                load(null, null)
+                setCertificateEntry("peer", certificate)
+            }
+            TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).apply {
+                init(trustStore)
+            }.trustManagers
         }
 
         return SSLContext.getInstance("TLSv1.2").apply {
-            init(
-                keyManagerFactory.keyManagers,
-                if (certificate == null) arrayOf<TrustManager>(TrustAllManager()) else trustManagerFactory.trustManagers,
-                java.security.SecureRandom()
-            )
+            init(arrayOf(securityService.getKeys()), trustManagers, SecureRandom())
         }
     }
 
