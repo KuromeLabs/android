@@ -8,15 +8,12 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Column
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Modifier
@@ -24,6 +21,9 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.navigation.NavController
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -35,72 +35,83 @@ import com.kuromelabs.kurome.presentation.ui.devices.DevicesScreen
 import com.kuromelabs.kurome.presentation.ui.permissions.PermissionScreen
 import com.kuromelabs.kurome.presentation.ui.permissions.PermissionStatus
 import com.kuromelabs.kurome.presentation.ui.theme.KuromeTheme
-import com.kuromelabs.kurome.presentation.util.Screen
+import com.kuromelabs.kurome.presentation.util.Route
 import dagger.hilt.android.AndroidEntryPoint
-import timber.log.Timber
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     private var serviceStarted: Boolean = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+
         val permissionsMap = mutableStateMapOf<String, PermissionStatus>()
         updatePermissions(permissionsMap)
+
         setContent {
             KuromeTheme {
-                Timber.d("Entering MainActivity Composition")
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    val navController = rememberNavController()
+                    val startDestination: Route =
+                        if (permissionsMap.any { it.value != PermissionStatus.Granted }) Route.Permissions
+                        else Route.Devices
 
-                val navController = rememberNavController()
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.inverseOnSurface)
-                ) {
-                    NavHost(
-                        navController = navController,
-                        startDestination = if (permissionsMap.any { it.value != PermissionStatus.Granted })
-                            Screen.PermissionsScreen.route
-                        else Screen.DevicesScreen.route,
-                    ) {
-                        composable(route = Screen.PermissionsScreen.route) {
+                    NavHost(navController = navController, startDestination = startDestination) {
+                        composable<Route.Permissions> {
                             PermissionScreen(permissionsMap)
                         }
-                        composable(Screen.DevicesScreen.route) {
-                            BackHandler(true) { finish() }
-                            startService()
-                            DevicesScreen(navController = navController)
+                        composable<Route.Devices> {
+                            // The foreground service owns discovery, so it starts as soon as
+                            // the user reaches the device list with permissions in hand.
+                            LaunchedEffect(Unit) { startService() }
+                            DevicesScreen(
+                                onDeviceClick = { device ->
+                                    navController.navigate(
+                                        Route.DeviceDetail(device.id, device.name)
+                                    )
+                                },
+                                onAddDeviceClick = { navController.navigate(Route.AddDevice) },
+                            )
                         }
-                        composable("${Screen.DeviceDetailScreen.route}/{deviceId}/{deviceName}") {
-                            DeviceDetailsScreen(navController = navController)
+                        composable<Route.DeviceDetail> {
+                            DeviceDetailsScreen(onBackClick = { navController.popBackStack() })
                         }
-                        composable(Screen.AddDeviceScreen.route) {
-                            AddDeviceScreen(navController = navController)
+                        composable<Route.AddDevice> {
+                            AddDeviceScreen(onBackClick = { navController.popBackStack() })
                         }
                     }
-                }
-                val lifecycleOwner = LocalLifecycleOwner.current
-                val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsState()
 
-                LaunchedEffect(lifecycleState) {
-                    when (lifecycleState) {
-                        Lifecycle.State.RESUMED -> {
-                            Timber.d("MainActivity Composition Resumed")
-                            updatePermissions(permissionsMap)
-                            if (navController.currentBackStackEntry?.destination?.route != Screen.PermissionsScreen.route && permissionsMap.any { it.value != PermissionStatus.Granted }) {
-                                navController.navigate(Screen.PermissionsScreen.route)
-                            }
-                        }
-
-                        else -> {}
-                    }
+                    RecheckPermissionsOnResume(navController, permissionsMap)
                 }
             }
-
-
         }
+    }
 
-
+    /**
+     * The storage permission is granted in Settings rather than in a dialog, so its state can
+     * change while the app is backgrounded. Re-read it on every resume and bounce back to the
+     * permission screen if something was revoked.
+     */
+    @Composable
+    private fun RecheckPermissionsOnResume(
+        navController: NavController,
+        permissionsMap: SnapshotStateMap<String, PermissionStatus>,
+    ) {
+        val lifecycleOwner = LocalLifecycleOwner.current
+        LaunchedEffect(lifecycleOwner) {
+            lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                updatePermissions(permissionsMap)
+                val missing = permissionsMap.any { it.value != PermissionStatus.Granted }
+                val alreadyThere = navController.currentBackStackEntry
+                    ?.destination
+                    ?.hasRoute(Route.Permissions::class) == true
+                if (missing && !alreadyThere) {
+                    navController.navigate(Route.Permissions)
+                }
+            }
+        }
     }
 
     @SuppressLint("InlinedApi")
@@ -118,8 +129,6 @@ class MainActivity : ComponentActivity() {
         } else {
             permissionMap[Manifest.permission.POST_NOTIFICATIONS] = PermissionStatus.Granted
         }
-        Timber.d("Checking Permissions")
-        permissionMap.forEach { Timber.d("Permission: ${it.key} is ${it.value}") }
     }
 
     private fun checkPermission(permission: String): PermissionStatus {
@@ -140,13 +149,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startService() {
-        if (!serviceStarted) {
-            serviceStarted = true
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                baseContext?.startForegroundService(Intent(baseContext, KuromeService::class.java))
-            } else {
-                baseContext?.startService(Intent(baseContext, KuromeService::class.java))
-            }
+        if (serviceStarted) return
+        serviceStarted = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(Intent(this, KuromeService::class.java))
+        } else {
+            startService(Intent(this, KuromeService::class.java))
         }
     }
 }

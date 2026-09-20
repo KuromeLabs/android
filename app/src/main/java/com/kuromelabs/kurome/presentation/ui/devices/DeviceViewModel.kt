@@ -11,8 +11,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.transform
 import javax.inject.Inject
+
+data class DevicesUiState(
+    val paired: List<DeviceState> = emptyList(),
+    val available: List<DeviceState> = emptyList(),
+) {
+    val isEmpty: Boolean get() = paired.isEmpty() && available.isEmpty()
+}
 
 @HiltViewModel
 class DeviceViewModel @Inject constructor(
@@ -20,20 +26,25 @@ class DeviceViewModel @Inject constructor(
     deviceService: DeviceService
 ) : ViewModel() {
 
-    private var connectedDevices = deviceService.deviceStates.transform { emit(it.values) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), initialValue = emptyList())
-
-    val allDevices: StateFlow<List<DeviceState>> = combine(
-        connectedDevices,
+    val uiState: StateFlow<DevicesUiState> = combine(
+        deviceService.deviceStates,
         deviceRepository.getSavedDevices()
-    ) { connectedDevices, savedDevices ->
-        val connectedDeviceIds = connectedDevices.map { it.id }
-        val saved = savedDevices
-            .filter { !connectedDeviceIds.contains(it.id) }
-            .map { DeviceState(it.name, it.id, PairStatus.PAIRED, false) }
-        connectedDevices + saved
+    ) { connectedById, savedDevices ->
+        val connected = connectedById.values
+        val connectedIds = connectedById.keys
 
+        // A saved device with no live handle is paired but offline.
+        val offlinePaired = savedDevices
+            .filter { it.id !in connectedIds }
+            .map { DeviceState(it.name, it.id, PairStatus.PAIRED, connected = false) }
 
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(), initialValue = emptyList())
+        val all = connected + offlinePaired
+        DevicesUiState(
+            paired = all.filter { it.pairStatus == PairStatus.PAIRED }.sortedForDisplay(),
+            available = all.filter { it.pairStatus != PairStatus.PAIRED }.sortedForDisplay(),
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DevicesUiState())
 
+    private fun Iterable<DeviceState>.sortedForDisplay() =
+        sortedWith(compareByDescending<DeviceState> { it.connected }.thenBy { it.name.lowercase() })
 }

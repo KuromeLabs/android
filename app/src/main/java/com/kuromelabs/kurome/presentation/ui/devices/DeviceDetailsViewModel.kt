@@ -3,61 +3,50 @@ package com.kuromelabs.kurome.presentation.ui.devices
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.navigation.toRoute
 import com.kuromelabs.kurome.application.devices.DeviceRepository
 import com.kuromelabs.kurome.infrastructure.device.DeviceService
 import com.kuromelabs.kurome.infrastructure.device.DeviceState
 import com.kuromelabs.kurome.infrastructure.device.PairStatus
+import com.kuromelabs.kurome.presentation.util.Route
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.shareIn
-import kotlinx.coroutines.flow.transform
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 @HiltViewModel
 class DeviceDetailsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val deviceService: DeviceService,
-    deviceRepository: DeviceRepository
+    private val deviceRepository: DeviceRepository
 ) : ViewModel() {
-    private var deviceId: String = savedStateHandle["deviceId"]!!
 
-    // This name is only used when the device is not paired, so it does not change
-    private val temporaryDeviceName: String = savedStateHandle["deviceName"]!!
-    private val connectedDevices = deviceService.deviceStates.transform { emit(it.values) }
-    private val savedDevices = deviceRepository.getSavedDevices()
+    private val route = savedStateHandle.toRoute<Route.DeviceDetail>()
+    val deviceId: String = route.deviceId
 
-    var deviceContext: SharedFlow<DeviceState?> =
-        combine(connectedDevices, savedDevices) { connectedDevices, savedDevices ->
-            val connectedDeviceIds = connectedDevices.map { it.id }
-            val saved = savedDevices.filter { !connectedDeviceIds.contains(it.id) }
-            when (deviceId) {
-                in connectedDeviceIds -> {
-                    connectedDevices.find { it.id == deviceId }
-                }
-                in saved.map {it.id} -> {
-                    val device = saved.find { it.id == deviceId }
-                    DeviceState(device!!.name, device.id, PairStatus.PAIRED, false)
-                }
-                else -> DeviceState(temporaryDeviceName, deviceId, PairStatus.UNPAIRED, false)
-            }
+    private val fallbackName: String = route.deviceName
 
-        }.filterNotNull()
-            .shareIn(
-                viewModelScope,
-                SharingStarted.WhileSubscribed(),
-                1
-            )
+    val uiState: StateFlow<DeviceState> = combine(
+        deviceService.deviceStates,
+        deviceRepository.getSavedDevices()
+    ) { connectedById, savedDevices ->
+        connectedById[deviceId]
+            ?: savedDevices.firstOrNull { it.id == deviceId }
+                ?.let { DeviceState(it.name, it.id, PairStatus.PAIRED, connected = false) }
+            ?: DeviceState(fallbackName, deviceId, PairStatus.UNPAIRED, connected = false)
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        DeviceState(fallbackName, deviceId, PairStatus.UNPAIRED, connected = false)
+    )
 
-    fun pairDevice(id: String) {
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) { deviceService.sendOutgoingPairRequest(id) }
-        }
+    fun pairDevice() {
+        deviceService.sendOutgoingPairRequest(deviceId)
+    }
+
+    fun forgetDevice() {
+        deviceService.unpairDevice(deviceId)
     }
 }
-

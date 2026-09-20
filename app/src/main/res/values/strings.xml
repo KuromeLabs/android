@@ -1,9 +1,51 @@
 <resources>
     <string name="app_name" translatable="false">Kurome</string>
-    <string name="status_disconnected">Offline (Paired)</string>
+
+    <!-- Device status -->
     <string name="status_connected">Connected</string>
-    <string name="status_available">Available (Tap to pair)</string>
-    <string name="status_disconnected_not_paired">Unavailable</string>
+    <string name="status_disconnected">Offline</string>
+    <string name="status_available">Available to pair</string>
+    <string name="status_unavailable">Unavailable</string>
+    <string name="status_pair_requested">Waiting for the other device…</string>
+    <string name="status_pair_requested_by_peer">Wants to pair with you</string>
+
+    <!-- Device list -->
+    <string name="devices_title">Devices</string>
+    <string name="devices_section_paired">Paired</string>
+    <string name="devices_section_available">On this network</string>
+    <string name="devices_empty_title">Looking for devices</string>
+    <string name="devices_empty_body">Make sure the other computer is running Kurome and is on the same Wi‑Fi network. Devices show up here automatically.</string>
+    <string name="devices_add">Add device</string>
+
+    <!-- Device details -->
+    <string name="device_details_back">Back</string>
+    <string name="device_details_pair">Pair</string>
+    <string name="device_details_pairing">Pairing…</string>
+    <string name="device_details_forget">Unpair this device</string>
+    <string name="device_details_id">Device ID</string>
+    <string name="device_details_connection">Connection</string>
+    <string name="device_details_trust">Trust</string>
+    <string name="device_details_trusted">Paired — this device may browse your files</string>
+    <string name="device_details_untrusted">Not paired — no access to your files</string>
+    <string name="device_details_copy_id">Copy device ID</string>
+    <string name="device_details_id_copied">Device ID copied</string>
+    <string name="device_details_offline_hint">Pairing needs both devices online at the same time.</string>
+
+    <!-- Forget confirmation -->
+    <string name="forget_dialog_title">Unpair this device?</string>
+    <string name="forget_dialog_body">Kurome will stop sharing your files with %1$s. That device is told to forget this phone too, so pairing again means confirming on both.</string>
+    <string name="forget_dialog_confirm">Unpair</string>
+    <string name="cancel">Cancel</string>
+
+    <!-- Add device -->
+    <string name="add_device_title">Add a device</string>
+    <string name="add_device_body">Devices on the same network are found automatically. Use this only when discovery is blocked, for example across subnets or on a network that drops mDNS.</string>
+    <string name="add_device_address_label">IP address</string>
+    <string name="add_device_address_hint">For example 192.168.1.42</string>
+    <string name="add_device_connect">Connect</string>
+    <string name="add_device_connecting">Connecting to %1$s…</string>
+
+    <!-- Permissions -->
     <string name="manage_external_storage_title">Manage External Storage</string>
     <string name="manage_external_storage_body">Required on Android 11+. Kurome needs this permission to expose the filesystem to connected computers.</string>
     <string name="write_external_storage_title">Write External Storage</string>
@@ -17,5 +59,4 @@
     <string name="notification_permission_title">Notifications</string>
     <string name="notification_permission_body">Kurome needs to show a notification to run a foreground service, which is used for discovering and connecting to other devices</string>
     <string name="notification_permission_denied_permanently">You have permanently denied this permission, enable it in Settings</string>
-
 </resources>
