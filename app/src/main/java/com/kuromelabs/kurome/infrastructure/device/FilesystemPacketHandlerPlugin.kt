@@ -288,7 +288,7 @@ class FilesystemPacketHandlerPlugin(private val handle: DeviceHandle) : Plugin {
         lastWriteTime: Long,
         length: Long
     ) {
-        if (length != 0L) {
+        if (length >= 0L) {
             val raf = RandomAccessFile(path, "rw")
             raf.setLength(length)
             raf.close()

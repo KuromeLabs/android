@@ -86,7 +86,7 @@ table WriteFileCommand (fs_serializer:"lazy") {
 
 table SetFileInfoCommand (fs_serializer:"lazy") {
     path:string;
-    length:long;
+    length:long = -1;
     creation_time:long;
     last_access_time:long;
     last_write_time:long;
