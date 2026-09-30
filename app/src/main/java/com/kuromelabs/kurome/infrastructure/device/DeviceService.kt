@@ -3,6 +3,7 @@ package com.kuromelabs.kurome.infrastructure.device
 import com.kuromelabs.core.models_fbs.*
 import android.os.Environment
 import android.os.StatFs
+import android.os.SystemClock
 import com.google.flatbuffers.FlatBufferBuilder
 import com.kuromelabs.kurome.application.devices.Device
 import com.kuromelabs.kurome.application.devices.DeviceRepository
@@ -19,6 +20,7 @@ import java.net.Socket
 import java.nio.channels.Channels
 import java.security.cert.X509Certificate
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.net.ssl.*
 import kotlin.time.Duration.Companion.milliseconds
@@ -38,11 +40,14 @@ class DeviceService @Inject constructor(
 
     private val savedDevicesFlow = deviceRepository.getSavedDevices()
         .map { devices -> devices.associateBy { it.id } }
-        .stateIn(scope, SharingStarted.Eagerly, emptyMap())
+        .stateIn(scope, SharingStarted.Eagerly, null)
 
     fun start() {
-        observeNetworkState()
-        networkService.startDiscovery()
+        scope.launch {
+            savedDevicesFlow.filterNotNull().first()
+            observeNetworkState()
+            networkService.startDiscovery()
+        }
     }
 
     fun stop() {
@@ -53,15 +58,16 @@ class DeviceService @Inject constructor(
     }
 
     private fun observeNetworkState() {
+        var advertised = emptySet<String>()
         networkService.discoveredDevices
-            .onEach { devices -> devices.values.forEach { connect(it) } }
+            .onEach { devices ->
+                (advertised - devices.keys).forEach { requestLivenessProbe(it) }
+                advertised = devices.keys
+                devices.values.forEach { connect(it) }
+            }
             .launchIn(scope)
 
         networkService.isConnected()
-            // Not distinctUntilChanged: a second `true` means another interface came up, and
-            // NsdManager browses the interfaces it had when discovery started. Debounced instead,
-            // because several networks coming up at once would otherwise leave overlapping
-            // discoveries live — stopServiceDiscovery is async.
             .debounce(NETWORK_SETTLE_MS.milliseconds)
             .onEach { isConnected ->
                 if (isConnected) networkService.restartDiscovery() else onNetworkLost()
@@ -94,7 +100,7 @@ class DeviceService @Inject constructor(
 
     fun connect(discovered: DiscoveredDevice) {
         val id = discovered.id
-        val device = savedDevicesFlow.value[id]
+        val device = savedDevicesFlow.value?.get(id)
         val trusted = device?.certificate != null
 
         // putIfAbsent, not a containsKey check: discovery and the retry ticker both land here.
@@ -135,13 +141,13 @@ class DeviceService @Inject constructor(
         }
     }
 
-    private suspend fun sendIdentityQuery(id: String) {
+    private fun sendIdentityQuery(handle: DeviceHandle, packetId: Long = 0) {
         val builder = FlatBufferBuilder(256)
         DeviceIdentityQuery.startDeviceIdentityQuery(builder)
         val query = DeviceIdentityQuery.endDeviceIdentityQuery(builder)
-        val packet = Packet.createPacket(builder, Component.DeviceIdentityQuery, query, 0)
+        val packet = Packet.createPacket(builder, Component.DeviceIdentityQuery, query, packetId)
         builder.finishSizePrefixed(packet)
-        _deviceHandles[id]!!.sendPacket(builder.dataBuffer())
+        handle.sendPacket(builder.dataBuffer())
     }
 
     private suspend fun handleConnection(
@@ -150,6 +156,7 @@ class DeviceService @Inject constructor(
         discovered: DiscoveredDevice
     ) {
         result.onSuccess { sslSocket ->
+            val handle = _deviceHandles[id] ?: return@onSuccess
             updateHandle(id) {
                 it.name = "Unknown"
                 it.certificate = sslSocket.session.peerCertificates[0] as X509Certificate
@@ -161,12 +168,12 @@ class DeviceService @Inject constructor(
             // UNDISPATCHED so the body runs inline up to its first real suspension, which is the
             // receivedPackets subscription. A plain launch might not have subscribed before
             // link.start() below begins reading, and the reply would be lost to the 35s timeout.
-            val identityJob = _deviceHandles[id]!!.localScope.launch(start = CoroutineStart.UNDISPATCHED) {
-                identityPacket = _deviceHandles[id]!!.getIncomingPacketWithId(0, 35000)
+            val identityJob = handle.localScope.launch(start = CoroutineStart.UNDISPATCHED) {
+                identityPacket = handle.getIncomingPacketWithId(0, 35000)
             }
-            _deviceHandles[id]!!.reloadPlugins(identityProvider)
-            sendIdentityQuery(id)
-            _deviceHandles[id]!!.link!!.start()
+            handle.reloadPlugins(identityProvider)
+            sendIdentityQuery(handle)
+            handle.link!!.start()
             identityJob.join()
             if (identityPacket == null) {
                 Timber.e("Failed to get extended identity")
@@ -180,6 +187,7 @@ class DeviceService @Inject constructor(
                 it.localScope.launch(start = CoroutineStart.UNDISPATCHED) {
                     observeDevicePackets(it.link!!, id)
                 }
+                it.localScope.launch { observeLinkLiveness(id) }
                 it.localScope.launch(start = CoroutineStart.UNDISPATCHED) {
                     var previous: PairStatus? = null
                     it.pairHandler.pairStatus.collect { status ->
@@ -199,10 +207,55 @@ class DeviceService @Inject constructor(
 
     private suspend fun observeDevicePackets(link: Link, handleId: String) {
         link.receivedPackets
-            .filter {it.isFailure }
             .collect { packetResult ->
+                if (packetResult.isFailure) {
                     packetResult.onFailure { onDeviceDisconnected(handleId) }
+                } else {
+                    _deviceHandles[handleId]?.lastPacketReceivedAt = SystemClock.elapsedRealtime()
+                }
             }
+    }
+
+    private fun requestLivenessProbe(handleId: String) {
+        val handle = _deviceHandles[handleId] ?: return
+        Timber.d("$handleId stopped advertising, probing the link")
+        handle.livenessProbeRequests.trySend(Unit)
+    }
+
+    private suspend fun observeLinkLiveness(handleId: String) {
+        var probeNow = false
+        while (currentCoroutineContext().isActive) {
+            val handle = _deviceHandles[handleId] ?: return
+            if (!probeNow) {
+                val idleFor = SystemClock.elapsedRealtime() - handle.lastPacketReceivedAt
+                if (idleFor < HEARTBEAT_IDLE_MS) {
+                    probeNow = withTimeoutOrNull((HEARTBEAT_IDLE_MS - idleFor).milliseconds) {
+                        handle.livenessProbeRequests.receive()
+                        true
+                    } == true
+                    continue
+                }
+            }
+            probeNow = false
+
+            val packetId = heartbeatPacketId.decrementAndGet()
+            val reply = coroutineScope {
+                val awaitReply = async(start = CoroutineStart.UNDISPATCHED) {
+                    handle.getIncomingPacketWithId(packetId, HEARTBEAT_TIMEOUT_MS)
+                }
+                Timber.d("Heartbeat request")
+                sendIdentityQuery(handle, packetId)
+                awaitReply.await()
+            }
+            Timber.d("Heartbeat response")
+
+            if (reply == null) {
+                Timber.w("Heartbeat timed out for $handleId, dropping the link")
+                onDeviceDisconnected(handleId)
+                return
+            }
+            handle.lastPacketReceivedAt = SystemClock.elapsedRealtime()
+        }
     }
 
     private suspend fun onPairStatusChanged(
@@ -219,7 +272,7 @@ class DeviceService @Inject constructor(
                 Timber.d("Device $handleId paired")
                 deviceRepository.insert(Device(handle.id, handle.name, handle.certificate))
             }
-            PairStatus.UNPAIRED -> {
+            PairStatus.UNPAIRED -> if (isTransition) {
                 Timber.d("Device $handleId unpaired")
                 deviceRepository.delete(handle.id)
             }
@@ -244,10 +297,12 @@ class DeviceService @Inject constructor(
     }
 
     private fun updateHandle(id: String, action: (handle: DeviceHandle) -> DeviceHandle) {
-        _deviceHandles.put(id, action(_deviceHandles[id]!!))
+        val current = _deviceHandles[id] ?: return
+        val updated = action(current)
+        if (_deviceHandles.replace(id, updated) == null) return
         _deviceStates.update {
             it.toMutableMap().apply {
-                this[id] = DeviceState(_deviceHandles[id]!!.name, id, _deviceHandles[id]!!.pairHandler.pairStatus.value, true)
+                this[id] = DeviceState(updated.name, id, updated.pairHandler.pairStatus.value, true)
             }
         }
     }
@@ -299,8 +354,13 @@ class DeviceService @Inject constructor(
         }
     }
 
+    private val heartbeatPacketId = AtomicLong(HEARTBEAT_ID_BASE)
+
     private companion object {
         const val CONNECT_TIMEOUT_MS = 3000
+        const val HEARTBEAT_IDLE_MS = 60_000L
+        const val HEARTBEAT_TIMEOUT_MS = 10_000L
+        const val HEARTBEAT_ID_BASE = -1000L
         const val NETWORK_SETTLE_MS = 750L
         const val RETRY_INTERVAL_MS = 10_000L
 
